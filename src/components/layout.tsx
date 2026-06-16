@@ -9,9 +9,11 @@ import NotificationPage from "pages/notification";
 import ProfilePage from "pages/profile";
 import SearchPage from "pages/search";
 import CheckoutResultPage from "pages/result";
+import DistributorPage from "pages/distributor"; // (hoặc đường dẫn tương ứng tới file distributor.tsx)
 import { getSystemInfo } from "zmp-sdk";
 import { ScrollRestoration } from "./scroll-restoration";
 import { useHandlePayment } from "hooks";
+
 
 if (import.meta.env.DEV) {
   document.body.style.setProperty("--zaui-safe-area-inset-top", "24px");
@@ -40,6 +42,7 @@ export const Layout: FC = () => {
           <Route path="/cart" element={<CartPage />}></Route>
           <Route path="/profile" element={<ProfilePage />}></Route>
           <Route path="/result" element={<CheckoutResultPage />}></Route>
+          <Route path="/distributor" element={<DistributorPage />} />
         </Routes>
       </Box>
       <Navigation />
