@@ -1,13 +1,22 @@
 import React, { FC, useState } from "react";
-import { Page, Header, Box, Text, Input, Button, Switch, Avatar, useNavigate } from "zmp-ui";
+// Đã GỘP useNavigate vào thư viện chuẩn zmp-ui để sửa lỗi trắng màn hình[cite: 7]
+import { Box, Text, Input, Button, Switch, Avatar, Icon, useNavigate } from "zmp-ui"; 
 import { useRecoilValue } from "recoil";
 import { userState } from "state";
+import { auth, db } from "../firebase"; 
+// BỔ SUNG: Nhập thêm hàm deleteUser để dọn dẹp tài khoản lỗi
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, deleteUser } from "firebase/auth";
+import { doc, setDoc, getDoc } from "firebase/firestore"; // Bổ sung getDoc 
 
-const AuthPage: FC = () => {
-  const navigate = useNavigate();
+interface AuthOverlayProps {
+  visible: boolean;
+  onClose: () => void;
+}
+
+export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
+  const navigate = useNavigate(); 
   const userInfo = useRecoilValue(userState);
 
-  // Quản lý trạng thái Form
   const [formType, setFormType] = useState<"login" | "register">("login");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
@@ -16,51 +25,124 @@ const AuthPage: FC = () => {
   const [referralCode, setReferralCode] = useState("");
   const [isShopConfig, setIsShopConfig] = useState(false);
 
-  // Xử lý Gửi Form Đăng nhập
-  const handleLoginSubmit = () => {
+  if (!visible) return null;
+
+  const handleLoginSubmit = async () => {
+    // Luồng cho Admin cứng
     if (phone === "0000869131" && password === "123456") {
-      navigate("/admin"); // Đăng nhập Admin
+      onClose(); 
+      navigate("/admin");
       return;
     }
-    console.log("Khách hàng Đăng nhập:", { phone, password });
-    alert("Đăng nhập thành công!");
-    navigate(-1); // Quay lại trang Profile sau khi thành công
+
+    try {
+      const email = `${phone}@campus.com`;
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // 1. ƯU TIÊN TÌM TRONG NGĂN TỦ "shops" TRƯỚC
+      const shopRef = doc(db, "shops", user.uid);
+      const shopSnap = await getDoc(shopRef);
+
+      if (shopSnap.exists()) {
+        alert("Chào mừng Nhà phân phối quay trở lại!");
+        onClose(); 
+        navigate("/distributor"); 
+        return; // Kết thúc sớm nếu đã tìm thấy Shop
+      }
+
+      // 2. NẾU KHÔNG THẤY Ở "shops", TÌM TIẾP TRONG "users"
+      const userRef = doc(db, "users", user.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (userSnap.exists()) {
+        alert("Đăng nhập thành công!");
+        onClose(); 
+      } else {
+        alert("Đăng nhập thành công!");
+        onClose();
+      }
+
+    } catch (error: any) {
+      alert("Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin!");
+      console.error("Lỗi đăng nhập:", error.message);
+    }
   };
 
-  // Xử lý Gửi Form Đăng ký
-  const handleRegisterSubmit = () => {
+  const handleRegisterSubmit = async () => {
     if (password !== confirmPassword) {
       alert("Mật khẩu nhập lại không khớp!");
       return;
     }
-    console.log("Khách hàng Đăng ký:", { phone, fullName, referralCode, isShopConfig });
-    alert("Đăng ký thành công!");
-    navigate(-1); // Quay lại trang Profile sau khi thành công
+    
+    if (phone.length < 9) {
+      alert("Số điện thoại không hợp lệ!");
+      return;
+    }
+
+    try {
+      const email = `${phone}@campus.com`;
+      
+      // 1. Tạo tài khoản đăng nhập bên Xác thực (Auth)
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // 2. TẠO BIẾN QUYẾT ĐỊNH NƠI LƯU TRỮ DỮ LIỆU
+      // Nếu isShopConfig là true -> chọn "shops", ngược lại chọn "users"
+      const collectionName = isShopConfig ? "shops" : "users";
+
+      // 3. Lưu thông tin vào đúng ngăn tủ đã chọn trên Firestore
+      await setDoc(doc(db, collectionName, user.uid), {
+        phone: phone,
+        fullName: fullName,
+        referralCode: referralCode,
+        isShopConfig: isShopConfig, // Vẫn lưu lại cờ này để dễ kiểm tra sau này
+        zaloName: userInfo?.name || "",
+        createdAt: new Date().toISOString()
+      });
+
+      // 4. Hiển thị thông báo phù hợp với lựa chọn của khách
+      if (isShopConfig) {
+        alert("Đăng ký mở Gian hàng (Nhà phân phối) thành công!");
+      } else {
+        alert("Đăng ký thành viên thành công!");
+      }
+      
+      onClose(); // Đóng popup
+    } catch (error: any) {
+      console.error("LỖI CHI TIẾT CỦA FIREBASE:", error);
+      if (error.code === 'auth/email-already-in-use') {
+        alert("Số điện thoại này đã được đăng ký. Vui lòng đăng nhập!");
+      } else {
+        alert("Đăng ký thất bại. Lỗi: " + error.message);
+      }
+    }
   };
 
   return (
-    <Page className="bg-white">
-      {/* Thanh Header có nút quay lại (Back) */}
-      <Header title={formType === "login" ? "Đăng nhập" : "Đăng ký"} />
+    <Box className="fixed inset-0 bg-white z-50 flex flex-col w-full h-full">
+      <Box className="flex justify-end p-4">
+        <div onClick={onClose} className="cursor-pointer p-2 bg-gray-100 rounded-full">
+          <Icon icon="zi-close" className="text-gray-600 text-2xl" />
+        </div>
+      </Box>
 
-      <Box className="flex flex-col items-center px-6 pb-8 pt-4 overflow-y-auto">
-        {/* Khu vực Avatar và Lời chào */}
-        <Box className="flex flex-col items-center mb-8">
+      <Box className="flex-1 overflow-y-auto px-6 pb-8">
+        <Box className="flex flex-col items-center mb-6">
           <Avatar src={userInfo?.avatar} size={80} className="mb-4 shadow-sm" />
           {formType === "login" ? (
             <>
-              <Text.Title className="text-2xl font-bold mb-1 text-center">Xin chào {userInfo?.name || "bạn"}!</Text.Title>
+              <Text.Title className="text-2xl font-bold mb-1">Xin chào {userInfo?.name || "bạn"}!</Text.Title>
               <Text className="text-gray-500">Đăng nhập để quản lý hồ sơ</Text>
             </>
           ) : (
             <>
-              <Text.Title className="text-2xl font-bold mb-1 text-center">Đăng ký thành viên</Text.Title>
+              <Text.Title className="text-2xl font-bold mb-1">Đăng ký thành viên</Text.Title>
               <Text className="text-gray-500">Tạo tài khoản để nhận ưu đãi</Text>
             </>
           )}
         </Box>
 
-        {/* Khu vực Điền Form */}
         <Box className="w-full space-y-4">
           <Input type="text" placeholder="Số điện thoại" value={phone} onChange={(e) => setPhone(e.target.value)}
             className="bg-gray-100 border-none rounded-xl py-3 px-4" />
@@ -118,8 +200,6 @@ const AuthPage: FC = () => {
           </Box>
         </Box>
       </Box>
-    </Page>
+    </Box>
   );
 };
-
-export default AuthPage;
