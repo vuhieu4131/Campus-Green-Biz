@@ -1,7 +1,6 @@
 import React, { FC, useState, useEffect } from "react";
-import { Box, Header, Icon, Page, Text, Avatar, Button } from "zmp-ui";
+import { Box, Header, Icon, Page, Text, Avatar, Button, List } from "zmp-ui";
 import subscriptionDecor from "static/subscription-decor.svg";
-import { ListRenderer } from "components/list-renderer";
 import { AuthOverlay } from "./auth";
 
 // IMPORT CÔNG CỤ FIREBASE
@@ -29,30 +28,57 @@ const Subscription: FC<{ onOpenAuth: () => void }> = ({ onOpenAuth }) => {
   );
 };
 
-// --- COMPONENT MENU DANH SÁCH ---
-const Personal: FC = () => (
-  <Box className="m-4">
-    <ListRenderer
-      title="Cá nhân"
-      items={[
-        { left: <Icon icon="zi-user" />, right: <Box flex><Text.Header className="flex-1 font-normal">Thông tin tài khoản</Text.Header><Icon icon="zi-chevron-right" /></Box> },
-        { left: <Icon icon="zi-clock-2" />, right: <Box flex><Text.Header className="flex-1 font-normal">Lịch sử đơn hàng</Text.Header><Icon icon="zi-chevron-right" /></Box> },
-      ]}
-      renderLeft={(item) => item.left} renderRight={(item) => item.right}
-    />
+// --- CÁC KHỐI GIAO DIỆN KHI ĐÃ ĐĂNG NHẬP ---
+const UserInfo: FC<{ name: string; phone: string }> = ({ name, phone }) => (
+  <Box className="bg-white p-4 flex items-center border-b border-gray-100">
+    <Avatar size={60} src="https://i.pravatar.cc/150?img=11" className="mr-4" />
+    <Box>
+      <Text.Title className="text-xl font-bold">{name}</Text.Title>
+      <Text className="text-gray-600 mt-1">{phone}</Text>
+    </Box>
   </Box>
 );
 
-const Other: FC = () => (
-  <Box className="m-4">
-    <ListRenderer
-      title="Khác"
-      items={[
-        { left: <Icon icon="zi-star" />, right: <Box flex><Text.Header className="flex-1 font-normal">Đánh giá đơn hàng</Text.Header><Icon icon="zi-chevron-right" /></Box> },
-        { left: <Icon icon="zi-call" />, right: <Box flex><Text.Header className="flex-1 font-normal">Liên hệ và góp ý</Text.Header><Icon icon="zi-chevron-right" /></Box> },
-      ]}
-      renderLeft={(item) => item.left} renderRight={(item) => item.right}
-    />
+const UserMembership: FC = () => (
+  <Box className="px-4 py-3">
+    <Box className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center justify-between">
+      <Box className="flex items-center">
+        <Box className="bg-orange-50 w-12 h-12 rounded-full flex items-center justify-center mr-3">
+          <Icon icon="zi-check" className="text-orange-500" />
+        </Box>
+        <Box>
+          <Text className="font-bold text-gray-800 text-base">Ví điểm & Thành viên</Text>
+          <Text className="text-gray-500 text-sm mt-1">79 điểm - Hạng Bạc</Text>
+        </Box>
+      </Box>
+      <Text className="text-blue-600 font-semibold">Chi tiết</Text>
+    </Box>
+  </Box>
+);
+
+const UserPersonalMenu: FC = () => (
+  <Box className="mx-4 mb-4 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+    <Box className="p-4 pb-0"><Text.Title className="font-bold text-lg">Cá nhân</Text.Title></Box>
+    <List>
+      <List.Item title="Thông tin tài khoản" prefix={<Icon icon="zi-user" className="text-gray-600" />} />
+      <List.Item title="Thông báo" prefix={<Icon icon="zi-notif" className="text-blue-500" />} />
+      <List.Item title="Lịch sử đặt hẹn" prefix={<Icon icon="zi-clock-1" className="text-gray-700" />} suffix={<span className="bg-red-400 text-white text-xs px-2 py-1 rounded-full">5 cuộc hẹn</span>} />
+      <List.Item title="Người được giới thiệu" prefix={<Icon icon="zi-group" className="text-gray-700" />} />
+      <List.Item title="Chia sẻ ứng dụng" prefix={<Icon icon="zi-share" className="text-gray-700" />} />
+      <List.Item title="Đổi mật khẩu" prefix={<Icon icon="zi-lock" className="text-gray-700" />} />
+      <List.Item title="Gửi phản hồi / Hỗ trợ" prefix={<Icon icon="zi-chat" className="text-gray-700" />} />
+    </List>
+  </Box>
+);
+
+const UserUtilities: FC<{ onLogout: () => void }> = ({ onLogout }) => (
+  <Box className="mx-4 mb-8 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+    <Box className="p-4 pb-0"><Text.Title className="font-bold text-lg">Tiện ích khác</Text.Title></Box>
+    <List>
+      <List.Item title="Liên hệ hỗ trợ" prefix={<Icon icon="zi-call" className="text-blue-500" />} />
+      <List.Item title="Điều khoản sử dụng" prefix={<Icon icon="zi-note" className="text-gray-800" />} />
+      <List.Item title="Đăng xuất" prefix={<Icon icon="zi-leave" className="text-red-500" />} onClick={onLogout} className="text-red-500 font-medium" />
+    </List>
   </Box>
 );
 
@@ -96,38 +122,30 @@ const ProfilePage: FC = () => {
   };
 
   return (
-    <Page className="relative bg-gray-50 pb-4">
-      <Header showBackIcon={false} title="Cá nhân" />
+    <Page className="relative bg-gray-50 pb-4 overflow-y-auto">
+      <Header showBackIcon={false} title="Hồ sơ cá nhân" />
       
-      {/* HIỂN THỊ THEO TRẠNG THÁI ĐĂNG NHẬP */}
+      {/* HIỂN THỊ DỰA TRÊN TRẠNG THÁI ĐĂNG NHẬP */}
       {currentUser ? (
-        // UI KHI ĐÃ ĐĂNG NHẬP
-        <Box className="m-4 p-5 bg-white rounded-xl shadow-sm flex flex-col items-center">
-          <Avatar size={72} className="mb-3 shadow-sm border-2 border-green-500" />
-          <Text.Title className="font-bold text-xl mb-1 text-gray-800">
-            {userData?.fullName || "Thành viên Campus"}
-          </Text.Title>
-          <Text className="text-gray-500 mb-5 font-medium">
-            {userData?.phone || currentUser.email?.replace("@campus.com", "")}
-          </Text>
-          <Button 
-            fullWidth
-            variant="secondary" 
-            onClick={handleLogout}
-            className="text-red-500 font-bold bg-red-50 hover:bg-red-100 border-none"
-          >
-            Đăng xuất tài khoản
-          </Button>
-        </Box>
+        <>
+          {/* KỊCH BẢN 1: ĐÃ ĐĂNG NHẬP -> Hiển thị thông tin Khách hàng */}
+          <UserInfo 
+            name={userData?.fullName || "Thành viên Campus"} 
+            phone={userData?.phone || currentUser.email?.replace("@campus.com", "")} 
+          />
+          <UserMembership />
+          <UserPersonalMenu />
+          {/* Truyền hàm đăng xuất vào nút tiện ích */}
+          <UserUtilities onLogout={handleLogout} /> 
+        </>
       ) : (
-        // UI KHI CHƯA ĐĂNG NHẬP
-        <Subscription onOpenAuth={() => setAuthVisible(true)} />
+        <>
+          {/* KỊCH BẢN 2: CHƯA ĐĂNG NHẬP (hoặc vừa đăng xuất) -> Hiển thị khối màu xanh */}
+          <Subscription onOpenAuth={() => setAuthVisible(true)} />
+        </>
       )}
-      
-      <Personal />
-      <Other />
 
-      {/* Lớp phủ AuthOverlay (Sẽ tự đóng khi đăng nhập thành công nhờ logic bên auth.tsx) */}
+      {/* Lớp phủ đăng nhập/đăng ký */}
       <AuthOverlay 
         visible={authVisible} 
         onClose={() => setAuthVisible(false)} 
