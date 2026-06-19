@@ -1,141 +1,114 @@
-import React, { FC } from "react";
-import { Page, Header, Box, Text, Icon, List, Avatar } from "zmp-ui";
+import React, { FC, useEffect, useState } from "react";
+import { Page, Header, Box, Spinner, Text, Button } from "zmp-ui";
 import { useNavigate } from "react-router-dom";
-import { auth } from "../firebase";
+import { collection, query, where, getDocs, onSnapshot } from "firebase/firestore";
+import { auth, db } from "../firebase"; 
 import { signOut } from "firebase/auth";
 
-// 1. KHỐI HỒ SƠ CỬA HÀNG
-const ShopProfileHeader: FC = () => (
-  <Box className="m-4 p-4 bg-white rounded-2xl shadow-sm border border-gray-100 flex items-center relative">
-    <Box className="absolute top-4 right-4 flex space-x-3 text-gray-600">
-      <Icon icon="zi-notif" />
-      <Icon icon="zi-edit" />
-    </Box>
-    <Avatar size={70} className="mr-4 border border-blue-100" />
-    <Box>
-      <Text.Title className="text-xl font-bold flex items-center">
-        THỜI TRAN... <Icon icon="zi-check-circle-solid" className="text-gray-800 ml-1 text-sm" />
-      </Text.Title>
-      <Text size="small" className="text-gray-600 flex items-center mt-1">
-        <Icon icon="zi-star" className="text-gray-400 mr-1 text-xs" /> THẠCH ANH SHOP
-      </Text>
-      <Text size="xSmall" className="text-gray-500 mt-1">Yên Nghĩa, Hà Đông, Hà Nội</Text>
-      <Box className="bg-blue-50 text-blue-600 inline-block px-2 py-1 rounded mt-2 text-sm font-semibold">
-        0834869131
-      </Box>
-    </Box>
-  </Box>
-);
+import { ProviderView } from "../components/profile-modules/provider-view";
+import { BranchView } from "../components/profile-modules/branch-view";
+import { AdminView } from "../components/profile-modules/admin-view";
 
-// 2. KHỐI THỐNG KÊ TỔNG QUAN
-const ShopStatistics: FC = () => (
-  <Box className="m-4 p-4 bg-white rounded-2xl shadow-sm border border-gray-100">
-    <Box className="flex justify-between items-center mb-4">
-      <Text.Title className="font-bold text-lg">Thống kê tổng quan</Text.Title>
-      <Box className="bg-gray-100 px-3 py-1 rounded-lg flex items-center text-sm font-medium">
-        Tháng 6... <Icon icon="zi-chevron-down" className="ml-1 text-xs" />
-      </Box>
-    </Box>
-    
-    <Box className="bg-blue-50 text-blue-800 px-3 py-2 rounded-lg flex justify-between items-center mb-4">
-      <Box className="flex items-center"><Icon icon="zi-location" className="mr-2" /> Tất cả cơ sở</Box>
-      <Icon icon="zi-chevron-down" />
-    </Box>
-
-    <Box className="grid grid-cols-2 gap-3 mb-3">
-      <Box className="bg-blue-500 text-white p-3 rounded-xl">
-        <Text size="small" className="opacity-90">DOANH THU THÁNG</Text>
-        <Text.Title className="text-xl font-bold mt-1">630.000đ</Text.Title>
-      </Box>
-      <Box className="bg-blue-500 text-white p-3 rounded-xl">
-        <Text size="small" className="opacity-90 flex items-center">
-          <Icon icon="zi-check-circle" className="mr-1 text-xs" /> ĐÃ PHỤC VỤ
-        </Text>
-        <Text.Title className="text-xl font-bold mt-1">1 đơn</Text.Title>
-      </Box>
-    </Box>
-
-    <Box className="bg-red-50 p-3 rounded-xl flex justify-between items-center mb-3">
-      <Text className="text-gray-800 font-medium">Chi phí nền tảng <br/><span className="font-normal text-sm">(Còn nợ):</span></Text>
-      <Text className="text-red-500 font-bold">-63.000đ <Icon icon="zi-chevron-right" className="text-sm ml-1" /></Text>
-    </Box>
-
-    <Box className="bg-orange-50 p-3 rounded-xl flex justify-between items-center">
-      <Text className="text-gray-800 font-medium flex items-center">
-        <Icon icon="zi-clock-1" className="text-orange-500 mr-2" /> Tổng doanh thu lũy kế:
-      </Text>
-      <Text className="text-orange-600 font-bold">1.340.000đ</Text>
-    </Box>
-  </Box>
-);
-
-// 3. KHỐI DỊCH VỤ & BÀI ĐĂNG
-const ShopServices: FC = () => (
-  <Box className="m-4 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-    <Box className="p-4 pb-0"><Text.Title className="font-bold text-lg">Dịch vụ & Bài đăng</Text.Title></Box>
-    <List>
-      <List.Item title="Quản lý hệ thống cơ sở" subTitle="1 cơ sở trực thuộc" prefix={<Icon icon="zi-location" className="text-blue-500" />} suffix={<Icon icon="zi-chevron-right" />} />
-      <List.Item title="Đăng dịch vụ mới" prefix={<Icon icon="zi-plus-circle" className="text-gray-600" />} suffix={<Icon icon="zi-chevron-right" />} />
-      <List.Item title="Quản lý đơn hàng" subTitle="Theo dõi tất cả đơn đặt lịch" prefix={<Icon icon="zi-note" className="text-blue-400" />} 
-        suffix={<Box className="flex items-center"><span className="bg-red-400 text-white text-xs px-2 py-1 rounded-full mr-2">3 mới</span><Icon icon="zi-chevron-right" /></Box>} 
-      />
-      <List.Item title="Xem trang cửa hàng" subTitle="Xem giao diện khách hàng" prefix={<Icon icon="zi-list-1" className="text-blue-300" />} suffix={<Icon icon="zi-chevron-right" />} />
-    </List>
-  </Box>
-);
-
-// 4. KHỐI QUẢN LÝ & HỖ TRỢ
-const ShopManagement: FC = () => (
-  <Box className="m-4 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-    <Box className="p-4 pb-0"><Text.Title className="font-bold text-lg">Quản lý & Hỗ trợ</Text.Title></Box>
-    <List>
-      <List.Item title="Danh sách khách hàng" subTitle="Người dùng do Shop giới thiệu" prefix={<Icon icon="zi-group" className="text-orange-400" />} suffix={<Icon icon="zi-chevron-right" />} />
-      <List.Item title="Chia sẻ ứng dụng" subTitle="QR Code + Mã giới thiệu" prefix={<Icon icon="zi-share" className="text-purple-500" />} suffix={<Icon icon="zi-chevron-right" />} />
-      <List.Item title="Đổi mật khẩu" prefix={<Icon icon="zi-lock" className="text-red-400" />} suffix={<Icon icon="zi-chevron-right" />} />
-      <List.Item title="Gửi phản hồi" prefix={<Icon icon="zi-chat" className="text-teal-500" />} suffix={<Icon icon="zi-chevron-right" />} />
-    </List>
-  </Box>
-);
-
-// 5. KHỐI TIỆN ÍCH KHÁC
-const ShopUtilities: FC = () => {
+const DistributorPage: FC = () => {
   const navigate = useNavigate();
-  
+  const [userData, setUserData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const userPhone = localStorage.getItem("user_phone");
+
+    if (!userPhone) {
+      navigate("/profile");
+      return;
+    }
+
+    // 1. TÌM TRONG BẢNG "shops" TRƯỚC
+    const qShop = query(collection(db, "shops"), where("phone", "==", userPhone));
+    
+    const unsubscribeShop = onSnapshot(qShop, (shopSnap) => {
+      if (!shopSnap.empty) {
+        // TÌM THẤY SHOP: Lấy dữ liệu và ép role="provider" để khớp với code của giao diện cũ
+        const docData = shopSnap.docs[0];
+        setUserData({ id: docData.id, ...docData.data(), role: "provider" });
+        setLoading(false);
+      } else {
+        // 2. NẾU KHÔNG THẤY TRONG "shops", TÌM TRONG BẢNG "users"
+        const qUser = query(collection(db, "users"), where("phone", "==", userPhone));
+        getDocs(qUser).then(userSnap => {
+            if (!userSnap.empty) {
+                const docData = userSnap.docs[0];
+                const data = docData.data();
+                
+                if (data.role === "admin") {
+                    setUserData({ id: docData.id, ...data });
+                } else if (data.branchInfo) {
+                    setUserData({ id: docData.id, ...data, role: "member" });
+                } else {
+                    // Người dùng bình thường đi lạc vào đây
+                    setUserData({ id: docData.id, ...data, role: "member", isUnauthorized: true });
+                }
+            } else {
+                setUserData(null);
+            }
+            setLoading(false);
+        }).catch(err => {
+            console.error("Lỗi truy vấn:", err);
+            setLoading(false);
+        });
+      }
+    }, (error) => {
+      console.error("Lỗi lấy dữ liệu:", error);
+      setLoading(false);
+    });
+
+    return () => unsubscribeShop();
+  }, [navigate]);
+
   const handleLogout = async () => {
-    await signOut(auth);
-    navigate("/"); // Trở về trang chủ sau khi đăng xuất
+    try {
+      await signOut(auth);
+      localStorage.removeItem("user_phone");
+      navigate("/profile"); 
+    } catch (error) {
+      console.error("Lỗi đăng xuất:", error);
+    }
   };
 
-  return (
-    <Box className="m-4 mb-8 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-      <Box className="p-4 pb-0"><Text.Title className="font-bold text-lg">Tiện ích khác</Text.Title></Box>
-      <List>
-        <List.Item title="Liên hệ hỗ trợ" prefix={<Icon icon="zi-call" className="text-blue-500" />} />
-        <List.Item title="Điều khoản sử dụng" prefix={<Icon icon="zi-note" className="text-gray-800" />} />
-        {/* Đã sửa lỗi: Trả title về dạng string bình thường và đưa màu đỏ ra ngoài className */}
-        <List.Item 
-          title="Đăng xuất" 
-          prefix={<Icon icon="zi-leave" className="text-red-500" />} 
-          onClick={handleLogout}
-          className="text-red-500 font-medium"
-        />
-      </List>
-    </Box>
-  );
-};
+  if (loading) {
+    return (
+      <Page className="bg-gray-50 flex justify-center items-center h-screen">
+        <Spinner visible logo="" />
+      </Page>
+    );
+  }
 
-// COMPONENT GỐC: RÁP TẤT CẢ LẠI VỚI NHAU
-const DistributorPage: FC = () => {
+  if (!userData) {
+    return (
+      <Page className="bg-gray-50 flex justify-center items-center h-screen flex-col">
+        <Text className="mb-4">Không tìm thấy thông tin tài khoản!</Text>
+        <Box onClick={handleLogout} className="text-blue-500 font-bold cursor-pointer bg-blue-50 p-2 rounded-lg">Đăng xuất & Thử lại</Box>
+      </Page>
+    );
+  }
+
   return (
-    <Page className="bg-gray-50 overflow-y-auto pb-16">
-      <Header title="Hồ sơ cá nhân" showBackIcon={false} />
-      
-      <ShopProfileHeader />
-      <ShopStatistics />
-      <ShopServices />
-      <ShopManagement />
-      <ShopUtilities />
-      
+    <Page className="bg-gray-50 overflow-y-auto pb-20 hide-scroll">
+      <Header title="Trang Quản Lý" showBackIcon={false} />
+
+      {/* TỰ ĐỘNG BẬT GIAO DIỆN THEO ROLE */}
+      {userData.role === "admin" && <AdminView userData={userData} onLogout={handleLogout} />}
+
+      {userData.role === "provider" && <ProviderView userData={userData} onLogout={handleLogout} />}
+
+      {userData.role === "member" && userData.branchInfo && !userData.isUnauthorized && <BranchView userData={userData} onLogout={handleLogout} />}
+
+      {userData.role === "member" && userData.isUnauthorized && (
+        <Box p={4} className="text-center mt-10">
+          <Text className="text-red-500 mb-4">Bạn không có quyền truy cập trang Quản lý.</Text>
+          <Button onClick={handleLogout}>Đăng xuất</Button>
+        </Box>
+      )}
+
     </Page>
   );
 };

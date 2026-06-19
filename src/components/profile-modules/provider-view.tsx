@@ -2,38 +2,57 @@ import React, { FC, useState, useEffect } from "react";
 import { Box, Text, Icon, Button, Avatar, List, Modal, Input, Spinner, useSnackbar, Progress, Select } from "zmp-ui";
 import { useNavigate } from "react-router-dom";
 import { collection, query, where, getDocs, doc, updateDoc, addDoc, setDoc, serverTimestamp, orderBy, limit, getDoc, onSnapshot } from "firebase/firestore";
-import { db } from "../../services/firebase"; 
+import { db } from "../../firebase"; 
 import { openShareSheet } from "zmp-sdk/apis";
 
 const { Item } = List;
 const { TextArea } = Input;
 const { Option } = Select;
 // 👉 Placeholder cho App ID của bạn
-const YOUR_APP_ID = "2196212719506893777"; 
+const YOUR_APP_ID = "3525851935148341014"; 
 
 // 👉 1. HÀM TÍNH RANK SHOP & LOGIC LÊN HẠNG (CẬP NHẬT)
 const calculateShopRankInfo = (points: number) => {
   const p = points || 0;
-  // Cấu trúc trả về: { Rank hiện tại, Rank kế tiếp, Mục tiêu điểm }
+  
   if (p < 300) return { 
-      name: "Thạch Anh", color: "bg-gray-100 text-gray-600", icon: "zi-star", 
-      nextRank: "Ngọc Bích", target: 300 
+    name: "Khởi Nghiệp Nhí", 
+    color: "bg-gray-100 text-gray-600", 
+    icon: "zi-star", 
+    nextRank: "Cửa Tiệm Xanh", 
+    target: 300 
   };
+  
   if (p < 1000) return { 
-      name: "Ngọc Bích", color: "bg-green-100 text-green-700", icon: "zi-shield-solid", 
-      nextRank: "Hồng Ngọc", target: 1000 
+    name: "Cửa Tiệm Xanh", 
+    color: "bg-green-100 text-green-700", 
+    icon: "zi-home-solid", 
+    nextRank: "Đối Tác Uy Tín", 
+    target: 1000 
   };
+  
   if (p < 2000) return { 
-      name: "Hồng Ngọc", color: "bg-red-100 text-red-600", icon: "zi-heart-solid", 
-      nextRank: "Lam Ngọc", target: 2000 
+    name: "Đối Tác Uy Tín", 
+    color: "bg-red-100 text-red-600", 
+    icon: "zi-shield-solid", 
+    nextRank: "Thương Gia Bền Vững", 
+    target: 2000 
   };
+  
   if (p < 5000) return { 
-      name: "Lam Ngọc", color: "bg-blue-100 text-blue-600", icon: "zi-diamond", 
-      nextRank: "Kim Cương", target: 5000 
+    name: "Thương Gia Bền Vững", 
+    color: "bg-blue-100 text-blue-600", 
+    icon: "zi-heart-solid", 
+    nextRank: "Thủ Lĩnh Thương Mại", 
+    target: 5000 
   };
+  
   return { 
-      name: "Kim Cương", color: "bg-purple-100 text-purple-600", icon: "zi-diamond-solid", 
-      nextRank: "Max Level", target: 0 
+    name: "Thủ Lĩnh Thương Mại", 
+    color: "bg-purple-100 text-purple-600", 
+    icon: "zi-crown", // Hoặc giữ nguyên "zi-diamond-solid" nếu thư viện không có icon vương miện
+    nextRank: "Max Level", 
+    target: 0 
   };
 };
 
@@ -46,9 +65,10 @@ const formatDate = (timestamp) => {
 
 interface ProviderProps {
   userData: any;
+  onLogout: () => void;
 }
 
-export const ProviderView: FC<ProviderProps> = ({ userData }) => {
+export const ProviderView: FC<ProviderProps> = ({ userData, onLogout}) => {
   const navigate = useNavigate();
   const { openSnackbar } = useSnackbar();
 
@@ -510,7 +530,7 @@ useEffect(() => {
       if (oldPass !== userData.password) return openSnackbar({ text: "Mật khẩu cũ sai", type: "error" });
       setPassLoading(true);
       try {
-          await updateDoc(doc(db, "users", userData.phone), { password: newPass });
+          await updateDoc(doc(db, "shops", userData.id), { password: newPass });
           openSnackbar({ text: "Đổi mật khẩu thành công!", type: "success" });
           setShowChangePassModal(false); setOldPass(""); setNewPass(""); setConfirmPass("");
       } catch (error) { openSnackbar({ text: "Lỗi hệ thống", type: "error" }); } finally { setPassLoading(false); }
@@ -566,7 +586,7 @@ useEffect(() => {
       if (!editName.trim()) return openSnackbar({ text: "Tên Shop không được để trống", type: "warning" });
       setUpdatingInfo(true);
       try {
-          await updateDoc(doc(db, "users", userData.phone), { name: editName, address: editAddress, managerName: editManager, description: editDescription, avatar: editAvatar, cover: editCover });
+        await updateDoc(doc(db, "shops", userData.id), { name: editName, address: editAddress, managerName: editManager, description: editDescription, avatar: editAvatar, cover: editCover });
           openSnackbar({ text: "Cập nhật thành công!", type: "success" });
           setShowShopInfoModal(false);
           window.dispatchEvent(new Event("authStateChanged"));
@@ -757,7 +777,7 @@ useEffect(() => {
     setSavingLocations(true);
     try {
       // 1. Lưu danh sách cơ sở vào data của Shop chính
-      await updateDoc(doc(db, "users", userData.phone), { locations: locations });
+      await updateDoc(doc(db, "shops", userData.id), { locations: locations });
 
       // 2. Tự động tạo tài khoản mặc định cho các Quản lý (nếu họ chưa có tài khoản)
       for (const loc of locations) {
@@ -966,20 +986,26 @@ useEffect(() => {
                   <Item title="Chia sẻ ứng dụng" subTitle="QR Code + Mã giới thiệu" prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-purple-50"><Icon icon="zi-share-external-1" className="text-purple-600" size={18}/></div>} suffix={<Icon icon="zi-chevron-right" className="text-gray-400"/>} onClick={() => setShowShareModal(true)} />
                   <Item title="Đổi mật khẩu" prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-red-50"><Icon icon="zi-lock" className="text-red-600" size={18}/></div>} suffix={<Icon icon="zi-chevron-right" className="text-gray-400"/>} onClick={() => setShowChangePassModal(true)} />
                   <Item 
-    title="Gửi phản hồi" 
-    prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-teal-50"><Icon icon="zi-chat" className="text-teal-600" size={18}/></div>} 
-    suffix={
-        <Box flex alignItems="center">
-            {unreadFeedbackCount > 0 && (
-                <Box className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full mr-2 shadow-sm animate-pulse">
-                    {unreadFeedbackCount} mới
-                </Box>
-            )}
-            <Icon icon="zi-chevron-right" className="text-gray-400"/>
-        </Box>
-    } 
-    onClick={() => { setShowFeedbackModal(true); fetchMyFeedbacks(); }} 
-/>
+                        title="Gửi phản hồi" 
+                        prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-teal-50"><Icon icon="zi-chat" className="text-teal-600" size={18}/></div>} 
+                        suffix={
+                            <Box flex alignItems="center">
+                                {unreadFeedbackCount > 0 && (
+                                    <Box className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full mr-2 shadow-sm animate-pulse">
+                                        {unreadFeedbackCount} mới
+                                    </Box>
+                                )}
+                                <Icon icon="zi-chevron-right" className="text-gray-400"/>
+                            </Box>
+                        } 
+                        onClick={() => { setShowFeedbackModal(true); fetchMyFeedbacks(); }} 
+                         />
+                  <Item 
+                      title="Đăng xuất tài khoản" 
+                      prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100"><Icon icon="zi-leave" className="text-red-500" size={18}/></div>} 
+                      suffix={<Icon icon="zi-chevron-right" className="text-gray-400"/>}
+                      onClick={onLogout} 
+                        />
               </List>
           </Box>
       </Box>

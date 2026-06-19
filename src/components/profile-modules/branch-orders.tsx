@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Page, Header, Box, Text, Icon, Button, Input, useSnackbar, Spinner, Modal } from "zmp-ui";
 import { useNavigate } from "react-router-dom";
 import { doc, updateDoc, collection, query, where, getDocs, serverTimestamp, increment, getDoc } from "firebase/firestore";
-import { db } from "../../services/firebase"; // Đảm bảo đường dẫn này đúng với dự án của bạn
+import { db } from "../../firebase"; // Đảm bảo đường dẫn này đúng với dự án của bạn
 
 const BranchOrdersPage: React.FC = () => {
   const navigate = useNavigate();

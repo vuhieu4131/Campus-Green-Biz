@@ -4,7 +4,7 @@ import { Box, Text, Icon, Button, List, Modal, Input, useSnackbar, Avatar, Spinn
 const { Option } = Select;
 import { useNavigate } from "react-router-dom";
 import { doc, updateDoc, collection, addDoc, serverTimestamp, query, orderBy, limit, where, getDocs, increment, getDoc, onSnapshot } from "firebase/firestore";
-import { db } from "../../services/firebase"; 
+import { db } from "../../firebase"; 
 // 👉 Import API chia sẻ của Zalo
 import { openShareSheet } from "zmp-sdk/apis";
 

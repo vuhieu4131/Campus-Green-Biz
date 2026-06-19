@@ -2,11 +2,12 @@ import React, { FC, useState, useEffect } from "react";
 import { Box, Header, Icon, Page, Text, Avatar, Button, List } from "zmp-ui";
 import subscriptionDecor from "static/subscription-decor.svg";
 import { AuthOverlay } from "./auth";
+import { useNavigate } from "react-router-dom"; // THÊM DÒNG NÀY
 
 // IMPORT CÔNG CỤ FIREBASE
 import { auth, db } from "../firebase";
 import { onAuthStateChanged, signOut, User } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore"; // THÊM CÁC LỆNH TRUY VẤN
 
 // --- COMPONENT CHƯA ĐĂNG NHẬP (LỜI MỜI) ---
 const Subscription: FC<{ onOpenAuth: () => void }> = ({ onOpenAuth }) => {
@@ -83,8 +84,10 @@ const UserUtilities: FC<{ onLogout: () => void }> = ({ onLogout }) => (
 );
 
 // --- TRANG PROFILE CHÍNH ---
+// --- TRANG PROFILE CHÍNH ---
 const ProfilePage: FC = () => {
   const [authVisible, setAuthVisible] = useState(false);
+  const navigate = useNavigate(); // Công cụ chuyển trang
   
   // Trạng thái quản lý User
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -94,28 +97,58 @@ const ProfilePage: FC = () => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        setCurrentUser(user); // Đã đăng nhập
-        // Lên Firestore lấy thông tin chi tiết (Họ tên, SĐT...)
-        const docRef = doc(db, "users", user.uid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setUserData(docSnap.data());
+        // 1. Kích hoạt giao diện đã đăng nhập ngay lập tức để chống "nháy" màn hình
+        setCurrentUser(user); 
+
+        // Lấy SĐT từ email
+        const phoneFromEmail = user.email ? user.email.replace("@campus.com", "") : "";
+        const localPhone = localStorage.getItem("user_phone");
+        const finalPhone = phoneFromEmail || localPhone;
+
+        if (finalPhone) {
+          // 2. CHỐT SỐ ĐIỆN THOẠI VÀO BỘ NHỚ TRƯỚC KHI CHUYỂN TRANG
+          // (Để tệp distributor.tsx không đá văng người dùng ra ngoài)
+          if (!localPhone) {
+            localStorage.setItem("user_phone", finalPhone);
+          }
+
+          try {
+            // Dò tìm SĐT trong bảng "shops"
+            const qShop = query(collection(db, "shops"), where("phone", "==", finalPhone));
+            const shopSnap = await getDocs(qShop);
+
+            if (!shopSnap.empty) {
+              // NẾU LÀ SHOP: Bẻ lái sang trang quản lý một cách an toàn!
+              navigate("/distributor", { replace: true });
+              return; 
+            }
+          } catch (error) {
+            console.error("Lỗi kiểm tra quyền Shop:", error);
+          }
+
+          // 3. NẾU LÀ KHÁCH HÀNG: Tải dữ liệu từ bảng "users" (Dùng finalPhone làm ID)
+          const docRef = doc(db, "users", finalPhone);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            setUserData(docSnap.data());
+          }
         }
       } else {
         // Chưa đăng nhập hoặc vừa đăng xuất
         setCurrentUser(null);
         setUserData(null);
+        localStorage.removeItem("user_phone"); // Dọn dẹp rác bộ nhớ
       }
     });
 
-    return () => unsubscribe(); // Dọn dẹp bộ nhớ khi chuyển trang
-  }, []);
+    return () => unsubscribe(); 
+  }, [navigate]);
 
   // Hàm xử lý Đăng xuất
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      // Firebase sẽ tự động cập nhật currentUser về null và giao diện sẽ đổi
+      localStorage.removeItem("user_phone"); // Xóa dữ liệu tạm
     } catch (error) {
       console.error("Lỗi đăng xuất:", error);
     }
@@ -128,19 +161,16 @@ const ProfilePage: FC = () => {
       {/* HIỂN THỊ DỰA TRÊN TRẠNG THÁI ĐĂNG NHẬP */}
       {currentUser ? (
         <>
-          {/* KỊCH BẢN 1: ĐÃ ĐĂNG NHẬP -> Hiển thị thông tin Khách hàng */}
           <UserInfo 
             name={userData?.fullName || "Thành viên Campus"} 
             phone={userData?.phone || currentUser.email?.replace("@campus.com", "")} 
           />
           <UserMembership />
           <UserPersonalMenu />
-          {/* Truyền hàm đăng xuất vào nút tiện ích */}
           <UserUtilities onLogout={handleLogout} /> 
         </>
       ) : (
         <>
-          {/* KỊCH BẢN 2: CHƯA ĐĂNG NHẬP (hoặc vừa đăng xuất) -> Hiển thị khối màu xanh */}
           <Subscription onOpenAuth={() => setAuthVisible(true)} />
         </>
       )}

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Box, Button, Input, Select, Text, useSnackbar, Header, Icon, Spinner, Avatar, Page } from "zmp-ui";
 import { doc, setDoc, serverTimestamp, collection, query, where, getDocs, updateDoc, increment, getDoc } from "firebase/firestore";
-import { db } from "../../services/firebase";
+import { db } from "../../firebase";
 
 const { Option } = Select;
 

@@ -1,7 +1,7 @@
 import React, { FC, useState } from "react";
 import { Box, Text, Avatar, Icon, Modal, Progress, Spinner, useNavigate, Button } from "zmp-ui";
 import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
-import { db } from "../../services/firebase";
+import { db } from "../../firebase";
 
 const calculateMemberRankInfo = (points: number) => {
   const p = points || 0;
