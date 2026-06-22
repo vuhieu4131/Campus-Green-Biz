@@ -1,4 +1,4 @@
-import React, { FC, useState, useEffect } from "react";
+import React, { FC, useState, useEffect, startTransition } from "react";
 import { Box, Header, Icon, Page, Text, Avatar, Button, List } from "zmp-ui";
 import subscriptionDecor from "static/subscription-decor.svg";
 import { AuthOverlay } from "./auth";
@@ -119,7 +119,9 @@ const ProfilePage: FC = () => {
 
             if (!shopSnap.empty) {
               // NẾU LÀ SHOP: Bẻ lái sang trang quản lý một cách an toàn!
-              navigate("/distributor", { replace: true });
+              startTransition(() => {
+                navigate("/distributor", { replace: true });
+              });
               return; 
             }
           } catch (error) {
@@ -176,10 +178,12 @@ const ProfilePage: FC = () => {
       )}
 
       {/* Lớp phủ đăng nhập/đăng ký */}
-      <AuthOverlay 
-        visible={authVisible} 
-        onClose={() => setAuthVisible(false)} 
-      />
+      {!currentUser && authVisible && (
+  <AuthOverlay 
+    visible={authVisible} 
+    onClose={() => setAuthVisible(false)} 
+  />
+)}
     </Page>
   );
 };
