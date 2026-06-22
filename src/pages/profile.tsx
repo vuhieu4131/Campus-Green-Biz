@@ -1,5 +1,5 @@
-import React, { FC, useState, useEffect, startTransition } from "react";
-import { Box, Header, Icon, Page, Text, Avatar, Button, List } from "zmp-ui";
+import React, { FC, useState, useEffect, startTransition, Suspense } from "react";
+import { Box, Header, Icon, Page, Text, Avatar, Button, List, Spinner } from "zmp-ui";
 import subscriptionDecor from "static/subscription-decor.svg";
 import { AuthOverlay } from "./auth";
 import { useNavigate } from "react-router-dom"; // THÊM DÒNG NÀY
@@ -179,11 +179,17 @@ const ProfilePage: FC = () => {
 
       {/* Lớp phủ đăng nhập/đăng ký */}
       {!currentUser && authVisible && (
-  <AuthOverlay 
-    visible={authVisible} 
-    onClose={() => setAuthVisible(false)} 
-  />
-)}
+        <Suspense fallback={
+          <Box className="fixed inset-0 z-50 flex justify-center items-center bg-black/50">
+             <Spinner visible />
+          </Box>
+        }>
+          <AuthOverlay 
+            visible={authVisible} 
+            onClose={() => setAuthVisible(false)} 
+          />
+        </Suspense>
+      )}
     </Page>
   );
 };
