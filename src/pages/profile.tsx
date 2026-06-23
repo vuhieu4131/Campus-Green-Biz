@@ -1,5 +1,5 @@
 import React, { FC, useState, useEffect } from "react";
-import { Box, Header, Icon, Page, Text, Avatar, Button, List } from "zmp-ui";
+import { Box, Header, Icon, Page, Text, Avatar, Button, useNavigate } from "zmp-ui";
 import subscriptionDecor from "static/subscription-decor.svg";
 import { AuthOverlay } from "./auth";
 
@@ -7,6 +7,34 @@ import { AuthOverlay } from "./auth";
 import { auth, db } from "../firebase";
 import { onAuthStateChanged, signOut, User } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
+
+class ErrorBoundary extends React.Component<any, { hasError: boolean, error: any }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("ErrorBoundary caught an error", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <Box p={4} className="bg-red-50 text-red-600 mt-10 rounded-xl m-4">
+          <Text.Title className="text-red-600 font-bold">Lỗi Giao Diện</Text.Title>
+          <Text className="mt-2">{this.state.error?.toString()}</Text>
+          <Text className="mt-2 text-xs opacity-70">Vui lòng chụp màn hình lỗi này gửi cho AI.</Text>
+        </Box>
+      );
+    }
+    return this.props.children; 
+  }
+}
 
 // --- COMPONENT CHƯA ĐĂNG NHẬP (LỜI MỜI) ---
 const Subscription: FC<{ onOpenAuth: () => void }> = ({ onOpenAuth }) => {
@@ -29,58 +57,109 @@ const Subscription: FC<{ onOpenAuth: () => void }> = ({ onOpenAuth }) => {
 };
 
 // --- CÁC KHỐI GIAO DIỆN KHI ĐÃ ĐĂNG NHẬP ---
-const UserInfo: FC<{ name: string; phone: string }> = ({ name, phone }) => (
-  <Box className="bg-white p-4 flex items-center border-b border-gray-100">
-    <Avatar size={60} src="https://i.pravatar.cc/150?img=11" className="mr-4" />
-    <Box>
-      <Text.Title className="text-xl font-bold">{name}</Text.Title>
-      <Text className="text-gray-600 mt-1">{phone}</Text>
-    </Box>
-  </Box>
-);
 
-const UserMembership: FC = () => (
-  <Box className="px-4 py-3">
-    <Box className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center justify-between">
-      <Box className="flex items-center">
-        <Box className="bg-orange-50 w-12 h-12 rounded-full flex items-center justify-center mr-3">
-          <Icon icon="zi-check" className="text-orange-500" />
-        </Box>
-        <Box>
-          <Text className="font-bold text-gray-800 text-base">Ví điểm & Thành viên</Text>
-          <Text className="text-gray-500 text-sm mt-1">79 điểm - Hạng Bạc</Text>
+// --- COMPONENT MỚI CHO GIAO DIỆN PROFILE ---
+const calculateMemberRankInfo = (points: number) => {
+  const p = points || 0;
+  if (p < 5) return { name: "Thành viên mới", sub: "KHÁCH HÀNG", target: 5 };
+  if (p <= 100) return { name: "Hạng Đồng", sub: "KHÁCH HÀNG THÂN THIẾT", target: 101 };
+  if (p <= 300) return { name: "Hạng Bạc", sub: "SILVER STATUS", target: 301 };
+  return { name: "Hạng Vàng", sub: "ELITE STATUS", target: 1000 };
+};
+
+const NewMemberView: FC<{ user: any, points: number }> = ({ user, points }) => {
+  const navigate = useNavigate();
+  const rankInfo = calculateMemberRankInfo(points);
+
+  const dummyImages = [
+    "https://images.unsplash.com/photo-1497436072909-60f360e1d4b1?w=500&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=500&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?w=500&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1492496913980-501348b61469?w=500&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1505506874110-6a7a6c9924c7?w=500&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=500&h=500&fit=crop"
+  ];
+
+  return (
+    <Box className="bg-white min-h-screen pb-10">
+      {/* 1. Header tùy chỉnh */}
+      <Box className="flex justify-between items-center px-4 py-3 bg-white sticky top-0 z-10 shadow-sm">
+        <Text.Title className="font-bold text-green-800">{user.username}</Text.Title>
+        <Box className="flex items-center space-x-3">
+          <Icon icon="zi-setting" className="text-gray-600 text-2xl" onClick={() => navigate('/settings')} />
+          <Avatar src={user.avatar} size={32} />
         </Box>
       </Box>
-      <Text className="text-blue-600 font-semibold">Chi tiết</Text>
+
+      {/* 2. Ảnh Bìa (Cover Image) */}
+      <Box 
+        className="w-full h-48 bg-cover bg-center" 
+        style={{ backgroundImage: `url('https://images.unsplash.com/photo-1466611653911-95081537e5b7?w=800&fit=crop')` }}
+      />
+
+      {/* 3. Thông tin User & Avatar */}
+      <Box className="px-4 relative mb-2">
+        <Box className="absolute -top-12 left-4 rounded-full border-4 border-white">
+          <Avatar src={user.avatar} size={80} />
+        </Box>
+        <Box className="pt-12">
+          <Text.Title className="text-xl font-bold">{user.name}</Text.Title>
+        </Box>
+      </Box>
+
+      {/* 4. Thẻ Membership */}
+      <Box className="mx-4 mt-4 bg-[#f8f6ec] rounded-xl p-4 border border-[#e8e4d3] flex justify-between items-center shadow-sm">
+        <Box className="flex items-center">
+          <Icon icon="zi-star-solid" className="text-[#a68c4d] text-2xl mr-3" />
+          <Box>
+            <Text.Title className="font-bold uppercase text-gray-800">{rankInfo.name}</Text.Title>
+            <Text size="xSmall" className="text-gray-500 uppercase tracking-widest mt-1">{rankInfo.sub}</Text>
+          </Box>
+        </Box>
+        <Box className="text-right">
+          <Text size="xSmall" className="text-gray-500 uppercase mb-1">Ví Tích Điểm</Text>
+          <Text.Title className="font-bold text-[#a68c4d] text-lg">{points.toLocaleString()}</Text.Title>
+        </Box>
+      </Box>
+
+      {/* 5. Thống kê */}
+      <Box className="flex justify-around mt-6 mb-4 px-4">
+        <Box className="text-center">
+          <Text.Title className="font-bold text-lg">6</Text.Title>
+          <Text size="small" className="text-gray-600">bài viết</Text>
+        </Box>
+        <Box className="text-center">
+          <Text.Title className="font-bold text-lg">83</Text.Title>
+          <Text size="small" className="text-gray-600">người theo dõi</Text>
+        </Box>
+        <Box className="text-center">
+          <Text.Title className="font-bold text-lg">216</Text.Title>
+          <Text size="small" className="text-gray-600">đang theo dõi</Text>
+        </Box>
+      </Box>
+
+      {/* 6. Tabs */}
+      <Box className="flex border-t border-b border-gray-100 mb-1">
+        <Box className="flex-1 flex justify-center py-3 border-b-2 border-green-700">
+          <Icon icon="zi-grid" className="text-green-700" />
+        </Box>
+        <Box className="flex-1 flex justify-center py-3 text-gray-400">
+          <Icon icon="zi-bookmark" />
+        </Box>
+        <Box className="flex-1 flex justify-center py-3 text-gray-400">
+          <Icon icon="zi-user" />
+        </Box>
+      </Box>
+
+      {/* 7. Lưới Bài Viết */}
+      <Box className="grid grid-cols-3 gap-1">
+        {dummyImages.map((src, idx) => (
+          <Box key={idx} className="aspect-square bg-gray-200 bg-cover bg-center" style={{ backgroundImage: `url('${src}')` }} />
+        ))}
+      </Box>
     </Box>
-  </Box>
-);
-
-const UserPersonalMenu: FC = () => (
-  <Box className="mx-4 mb-4 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-    <Box className="p-4 pb-0"><Text.Title className="font-bold text-lg">Cá nhân</Text.Title></Box>
-    <List>
-      <List.Item title="Thông tin tài khoản" prefix={<Icon icon="zi-user" className="text-gray-600" />} />
-      <List.Item title="Thông báo" prefix={<Icon icon="zi-notif" className="text-blue-500" />} />
-      <List.Item title="Lịch sử đặt hẹn" prefix={<Icon icon="zi-clock-1" className="text-gray-700" />} suffix={<span className="bg-red-400 text-white text-xs px-2 py-1 rounded-full">5 cuộc hẹn</span>} />
-      <List.Item title="Người được giới thiệu" prefix={<Icon icon="zi-group" className="text-gray-700" />} />
-      <List.Item title="Chia sẻ ứng dụng" prefix={<Icon icon="zi-share" className="text-gray-700" />} />
-      <List.Item title="Đổi mật khẩu" prefix={<Icon icon="zi-lock" className="text-gray-700" />} />
-      <List.Item title="Gửi phản hồi / Hỗ trợ" prefix={<Icon icon="zi-chat" className="text-gray-700" />} />
-    </List>
-  </Box>
-);
-
-const UserUtilities: FC<{ onLogout: () => void }> = ({ onLogout }) => (
-  <Box className="mx-4 mb-8 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-    <Box className="p-4 pb-0"><Text.Title className="font-bold text-lg">Tiện ích khác</Text.Title></Box>
-    <List>
-      <List.Item title="Liên hệ hỗ trợ" prefix={<Icon icon="zi-call" className="text-blue-500" />} />
-      <List.Item title="Điều khoản sử dụng" prefix={<Icon icon="zi-note" className="text-gray-800" />} />
-      <List.Item title="Đăng xuất" prefix={<Icon icon="zi-leave" className="text-red-500" />} onClick={onLogout} className="text-red-500 font-medium" />
-    </List>
-  </Box>
-);
+  );
+};
 
 // --- TRANG PROFILE CHÍNH ---
 const ProfilePage: FC = () => {
@@ -122,35 +201,40 @@ const ProfilePage: FC = () => {
   };
 
   return (
-    <Page className="relative bg-gray-50 pb-4 overflow-y-auto">
-      <Header showBackIcon={false} title="Hồ sơ cá nhân" />
-      
-      {/* HIỂN THỊ DỰA TRÊN TRẠNG THÁI ĐĂNG NHẬP */}
-      {currentUser ? (
-        <>
-          {/* KỊCH BẢN 1: ĐÃ ĐĂNG NHẬP -> Hiển thị thông tin Khách hàng */}
-          <UserInfo 
-            name={userData?.fullName || "Thành viên Campus"} 
-            phone={userData?.phone || currentUser.email?.replace("@campus.com", "")} 
-          />
-          <UserMembership />
-          <UserPersonalMenu />
-          {/* Truyền hàm đăng xuất vào nút tiện ích */}
-          <UserUtilities onLogout={handleLogout} /> 
-        </>
-      ) : (
-        <>
-          {/* KỊCH BẢN 2: CHƯA ĐĂNG NHẬP (hoặc vừa đăng xuất) -> Hiển thị khối màu xanh */}
-          <Subscription onOpenAuth={() => setAuthVisible(true)} />
-        </>
-      )}
+    <ErrorBoundary>
+      <Page className="relative bg-gray-50 overflow-y-auto">
+        {!currentUser && <Header showBackIcon={false} title="Hồ sơ cá nhân" />}
+        
+        {/* HIỂN THỊ DỰA TRÊN TRẠNG THÁI ĐĂNG NHẬP */}
+        {currentUser ? (
+          <>
+            {/* KỊCH BẢN 1: ĐÃ ĐĂNG NHẬP -> Giao diện mới */}
+            <NewMemberView 
+              user={{
+                id: currentUser.uid,
+                username: currentUser.email ? currentUser.email.split('@')[0] : "user_name",
+                name: userData?.fullName || currentUser.email?.replace("@campus.com", "") || "Thành viên Campus",
+                avatar: userData?.avatar || "https://i.pravatar.cc/150?img=11"
+              }} 
+              points={userData?.points || 0} 
+            />
+          </>
+        ) : (
+          <>
+            {/* KỊCH BẢN 2: CHƯA ĐĂNG NHẬP (hoặc vừa đăng xuất) -> Hiển thị khối màu xanh */}
+            <Subscription onOpenAuth={() => setAuthVisible(true)} />
+          </>
+        )}
 
-      {/* Lớp phủ đăng nhập/đăng ký */}
-      <AuthOverlay 
-        visible={authVisible} 
-        onClose={() => setAuthVisible(false)} 
-      />
-    </Page>
+        {/* Lớp phủ đăng nhập/đăng ký */}
+        <React.Suspense fallback={null}>
+          <AuthOverlay 
+            visible={authVisible} 
+            onClose={() => setAuthVisible(false)} 
+          />
+        </React.Suspense>
+      </Page>
+    </ErrorBoundary>
   );
 };
 
