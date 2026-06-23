@@ -141,7 +141,7 @@ const NewMemberView: FC<{ user: any, points: number }> = ({ user, points }) => {
       {/* 6. Tabs */}
       <Box className="flex border-t border-b border-gray-100 mb-1">
         <Box className="flex-1 flex justify-center py-3 border-b-2 border-green-700">
-          <Icon icon="zi-grid" className="text-green-700" />
+          <Icon icon="zi-more-grid" className="text-green-700" />
         </Box>
         <Box className="flex-1 flex justify-center py-3 text-gray-400">
           <Icon icon="zi-bookmark" />
