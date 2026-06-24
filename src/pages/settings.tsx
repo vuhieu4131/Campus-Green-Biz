@@ -10,7 +10,7 @@ const UserPersonalMenu: FC = () => {
       <Box className="p-4 pb-0"><Text.Title className="font-bold text-lg">Cá nhân</Text.Title></Box>
       <List>
         <List.Item onClick={() => navigate('/account-info')} title="Thông tin tài khoản" prefix={<Icon icon="zi-user" className="text-gray-600" />} suffix={<Icon icon="zi-chevron-right" />} />
-        <List.Item onClick={() => navigate('/notifications')} title="Thông báo" prefix={<Icon icon="zi-notif" className="text-blue-500" />} suffix={<Icon icon="zi-chevron-right" />} />
+        <List.Item onClick={() => navigate('/notification')} title="Thông báo" prefix={<Icon icon="zi-notif" className="text-blue-500" />} suffix={<Icon icon="zi-chevron-right" />} />
         <List.Item onClick={() => navigate('/appointments')} title="Lịch sử đặt hẹn" prefix={<Icon icon="zi-clock-1" className="text-gray-700" />} suffix={<Box className="flex items-center"><span className="bg-red-400 text-white text-xs px-2 py-1 rounded-full mr-2">5 cuộc hẹn</span><Icon icon="zi-chevron-right" /></Box>} />
         <List.Item onClick={() => navigate('/referrals')} title="Người được giới thiệu" prefix={<Icon icon="zi-group" className="text-gray-700" />} suffix={<Icon icon="zi-chevron-right" />} />
         <List.Item onClick={() => navigate('/share')} title="Chia sẻ ứng dụng" prefix={<Icon icon="zi-share" className="text-gray-700" />} suffix={<Icon icon="zi-chevron-right" />} />
