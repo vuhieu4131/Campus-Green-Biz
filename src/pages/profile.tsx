@@ -84,7 +84,7 @@ const NewMemberView: FC<{ user: any, points: number }> = ({ user, points }) => {
     <Box className="bg-white min-h-screen pb-10">
       {/* 1. Header tùy chỉnh */}
       <Box className="flex justify-between items-center px-4 py-3 bg-white sticky top-0 z-10 shadow-sm">
-        <Text.Title className="font-bold text-green-800">{user.username}</Text.Title>
+        <Text.Title className="font-bold" style={{ color: '#166534' }}>{user.username}</Text.Title>
         <Box className="flex items-center space-x-3">
           <Icon icon="zi-setting" className="text-gray-600 text-2xl" onClick={() => navigate('/settings')} />
           <Avatar src={user.avatar} size={32} />
@@ -108,17 +108,14 @@ const NewMemberView: FC<{ user: any, points: number }> = ({ user, points }) => {
       </Box>
 
       {/* 4. Thẻ Membership */}
-      <Box className="mx-4 mt-4 bg-[#f8f6ec] rounded-xl p-4 border border-[#e8e4d3] flex justify-between items-center shadow-sm">
-        <Box className="flex items-center">
-          <Icon icon="zi-star-solid" className="text-[#a68c4d] text-2xl mr-3" />
-          <Box>
-            <Text.Title className="font-bold uppercase text-gray-800">{rankInfo.name}</Text.Title>
-            <Text size="xSmall" className="text-gray-500 uppercase tracking-widest mt-1">{rankInfo.sub}</Text>
-          </Box>
-        </Box>
-        <Box className="text-right">
-          <Text size="xSmall" className="text-gray-500 uppercase mb-1">Ví Tích Điểm</Text>
-          <Text.Title className="font-bold text-[#a68c4d] text-lg">{points.toLocaleString()}</Text.Title>
+      <Box 
+        className="mx-4 mt-4 bg-[#f8f6ec] rounded-xl p-4 border border-[#e8e4d3] flex items-center shadow-sm cursor-pointer"
+        onClick={() => navigate('/wallet')}
+      >
+        <Icon icon="zi-star-solid" className="text-[#a68c4d] text-2xl mr-3" />
+        <Box>
+          <Text.Title className="font-bold uppercase text-gray-800">{rankInfo.name}</Text.Title>
+          <Text size="xSmall" className="text-gray-500 uppercase tracking-widest mt-1">{rankInfo.sub}</Text>
         </Box>
       </Box>
 
@@ -140,8 +137,13 @@ const NewMemberView: FC<{ user: any, points: number }> = ({ user, points }) => {
 
       {/* 6. Tabs */}
       <Box className="flex border-t border-b border-gray-100 mb-1">
-        <Box className="flex-1 flex justify-center py-3 border-b-2 border-green-700">
-          <Icon icon="zi-more-grid" className="text-green-700" />
+        <Box className="flex-1 flex justify-center py-3 border-b-2" style={{ borderColor: '#15803d' }}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="#15803d" xmlns="http://www.w3.org/2000/svg">
+            <rect x="3" y="3" width="8" height="8" rx="1" />
+            <rect x="13" y="3" width="8" height="8" rx="1" />
+            <rect x="3" y="13" width="8" height="8" rx="1" />
+            <rect x="13" y="13" width="8" height="8" rx="1" />
+          </svg>
         </Box>
         <Box className="flex-1 flex justify-center py-3 text-gray-400">
           <Icon icon="zi-bookmark" />

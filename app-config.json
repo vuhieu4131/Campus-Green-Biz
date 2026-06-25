@@ -14,7 +14,7 @@
   "listAsyncJS": [],
   "template": {
     "name": "zaui-coffee",
-    "primaryColor": "#006af5",
+    "primaryColor": "#22c55e",
     "prefixCurrencySymbol": false,
     "currencySymbol": "đ",
     "headerLogo": ""
