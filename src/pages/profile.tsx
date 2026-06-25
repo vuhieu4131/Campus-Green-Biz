@@ -88,6 +88,7 @@ const calculateMemberRankInfo = (points: number) => {
 
 const NewMemberView: FC<{ user: any; points: number }> = ({ user, points }) => {
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<'posts' | 'saved' | 'tagged'>('posts');
   const rankInfo = calculateMemberRankInfo(points);
 
   const dummyImages = [
@@ -169,16 +170,17 @@ const NewMemberView: FC<{ user: any; points: number }> = ({ user, points }) => {
       </Box>
 
       {/* 6. Tabs */}
-      <Box className="flex border-t border-b border-gray-100 mb-1">
+      <Box className="flex border-t border-b border-gray-100 mb-1 bg-transparent">
         <Box
-          className="flex-1 flex justify-center py-3 border-b-2"
-          style={{ borderColor: "#15803d" }}
+          className={`flex-1 flex justify-center py-3 cursor-pointer ${activeTab === 'posts' ? 'border-b-2' : ''}`}
+          style={{ borderColor: activeTab === 'posts' ? "#15803d" : "transparent" }}
+          onClick={() => setActiveTab('posts')}
         >
           <svg
             width="24"
             height="24"
             viewBox="0 0 24 24"
-            fill="#15803d"
+            fill={activeTab === 'posts' ? "#15803d" : "#9ca3af"}
             xmlns="http://www.w3.org/2000/svg"
           >
             <rect x="3" y="3" width="8" height="8" rx="1" />
@@ -187,24 +189,48 @@ const NewMemberView: FC<{ user: any; points: number }> = ({ user, points }) => {
             <rect x="13" y="13" width="8" height="8" rx="1" />
           </svg>
         </Box>
-        <Box className="flex-1 flex justify-center py-3 text-gray-400">
+        <Box 
+          className={`flex-1 flex justify-center py-3 cursor-pointer ${activeTab === 'saved' ? 'border-b-2 text-[#15803d]' : 'text-gray-400'}`}
+          style={{ borderColor: activeTab === 'saved' ? "#15803d" : "transparent" }}
+          onClick={() => setActiveTab('saved')}
+        >
           <Icon icon="zi-bookmark" />
         </Box>
-        <Box className="flex-1 flex justify-center py-3 text-gray-400">
+        <Box 
+          className={`flex-1 flex justify-center py-3 cursor-pointer ${activeTab === 'tagged' ? 'border-b-2 text-[#15803d]' : 'text-gray-400'}`}
+          style={{ borderColor: activeTab === 'tagged' ? "#15803d" : "transparent" }}
+          onClick={() => setActiveTab('tagged')}
+        >
           <Icon icon="zi-user" />
         </Box>
       </Box>
 
-      {/* 7. Lưới Bài Viết */}
-      <Box className="grid grid-cols-3 gap-1">
-        {dummyImages.map((src, idx) => (
-          <Box
-            key={idx}
-            className="aspect-square bg-gray-200 bg-cover bg-center"
-            style={{ backgroundImage: `url('${src}')` }}
-          />
-        ))}
-      </Box>
+      {/* 7. Nội dung Tab */}
+      {activeTab === 'posts' && (
+        <Box className="grid grid-cols-3 gap-1">
+          {dummyImages.map((src, idx) => (
+            <Box
+              key={idx}
+              className="aspect-square bg-gray-200 bg-cover bg-center"
+              style={{ backgroundImage: `url('${src}')` }}
+            />
+          ))}
+        </Box>
+      )}
+
+      {activeTab === 'saved' && (
+        <Box className="py-12 flex flex-col items-center justify-center text-gray-500">
+          <Icon icon="zi-bookmark" className="text-4xl text-gray-300 mb-2" />
+          <Text>Chưa có bài viết yêu thích nào</Text>
+        </Box>
+      )}
+
+      {activeTab === 'tagged' && (
+        <Box className="py-12 flex flex-col items-center justify-center text-gray-500">
+          <Icon icon="zi-user" className="text-4xl text-gray-300 mb-2" />
+          <Text>Chưa có bài viết nào gắn thẻ bạn</Text>
+        </Box>
+      )}
     </Box>
   );
 };

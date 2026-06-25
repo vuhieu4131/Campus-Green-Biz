@@ -9,9 +9,10 @@ interface UserPersonalMenuProps {
   onReferralClick: () => void;
   onShareClick: () => void;
   onChangePasswordClick: () => void;
+  onSupportClick: () => void;
 }
 
-const UserPersonalMenu: FC<UserPersonalMenuProps> = ({ onReferralClick, onShareClick, onChangePasswordClick }) => {
+const UserPersonalMenu: FC<UserPersonalMenuProps> = ({ onReferralClick, onShareClick, onChangePasswordClick, onSupportClick }) => {
   const navigate = useNavigate();
   return (
     <SectionBox title="Cá nhân">
@@ -22,7 +23,7 @@ const UserPersonalMenu: FC<UserPersonalMenuProps> = ({ onReferralClick, onShareC
         <List.Item onClick={onReferralClick} title="Người được giới thiệu" prefix={<Icon icon="zi-group" className="text-gray-700" />} suffix={<Icon icon="zi-chevron-right" />} />
         <List.Item onClick={onShareClick} title="Chia sẻ ứng dụng" prefix={<Icon icon="zi-share" className="text-gray-700" />} suffix={<Icon icon="zi-chevron-right" />} />
         <List.Item onClick={onChangePasswordClick} title="Đổi mật khẩu" prefix={<Icon icon="zi-lock" className="text-gray-700" />} suffix={<Icon icon="zi-chevron-right" />} />
-        <List.Item onClick={() => navigate('/support')} title="Gửi phản hồi / Hỗ trợ" prefix={<Icon icon="zi-chat" className="text-gray-700" />} suffix={<Icon icon="zi-chevron-right" />} />
+        <List.Item onClick={onSupportClick} title="Gửi phản hồi / Hỗ trợ" prefix={<Icon icon="zi-chat" className="text-gray-700" />} suffix={<Icon icon="zi-chevron-right" />} />
       </List>
     </SectionBox>
   );
@@ -46,6 +47,8 @@ const SettingsPage: FC = () => {
   const [showShareModal, setShowShareModal] = useState(false);
   const [showRefModal, setShowRefModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showSupportModal, setShowSupportModal] = useState(false);
+  const [supportTab, setSupportTab] = useState<'send' | 'history'>('send');
 
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -96,6 +99,7 @@ const SettingsPage: FC = () => {
         onReferralClick={() => setShowRefModal(true)} 
         onShareClick={() => setShowShareModal(true)} 
         onChangePasswordClick={() => setShowPasswordModal(true)}
+        onSupportClick={() => setShowSupportModal(true)}
       />
       <UserUtilities onLogout={handleLogout} />
 
@@ -197,6 +201,72 @@ const SettingsPage: FC = () => {
             }}
           >
             Cập nhật
+          </Box>
+        </Box>
+      </Modal>
+
+      {/* Modal Phản hồi & Hỗ trợ */}
+      <Modal
+        visible={showSupportModal}
+        title="Phản hồi & Hỗ trợ"
+        onClose={() => setShowSupportModal(false)}
+      >
+        <Box className="flex flex-col mt-2">
+          {/* Tabs */}
+          <Box className="flex border-b border-gray-200 mb-4">
+            <Box 
+              className={`flex-1 text-center py-2 font-medium cursor-pointer ${supportTab === 'send' ? 'text-[#15803d] border-b-2 border-[#15803d]' : 'text-gray-500'}`}
+              onClick={() => setSupportTab('send')}
+            >
+              Gửi yêu cầu
+            </Box>
+            <Box 
+              className={`flex-1 text-center py-2 font-medium cursor-pointer ${supportTab === 'history' ? 'text-[#15803d] border-b-2 border-[#15803d]' : 'text-gray-500'}`}
+              onClick={() => setSupportTab('history')}
+            >
+              Lịch sử (0)
+            </Box>
+          </Box>
+
+          {supportTab === 'send' ? (
+            <Box>
+              <Text size="small" className="text-gray-600 mb-4 leading-relaxed">
+                Gửi các ý kiến góp ý hoặc yêu cầu hỗ trợ kỹ thuật đến Admin hệ thống.
+              </Text>
+              
+              <Text size="small" className="text-gray-600 mb-2">Nội dung</Text>
+              <textarea 
+                className="w-full bg-gray-50 border-none rounded-xl p-3 outline-none resize-none mb-4" 
+                rows={4} 
+                placeholder="Nhập chi tiết yêu cầu của bạn..."
+              ></textarea>
+
+              <Box 
+                className="w-full bg-[#15803d] text-black py-3 rounded-xl flex items-center justify-center font-bold cursor-pointer shadow-sm"
+                onClick={() => {
+                  alert("Gửi yêu cầu thành công!");
+                  setShowSupportModal(false);
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" className="mr-2">
+                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                </svg>
+                Gửi yêu cầu
+              </Box>
+            </Box>
+          ) : (
+            <Box className="py-8 text-center">
+              <Text size="small" className="text-gray-400">Chưa có yêu cầu hỗ trợ nào.</Text>
+            </Box>
+          )}
+
+          <Box className="w-full h-px bg-gray-200 my-4"></Box>
+
+          <Box 
+            className="w-full bg-[#dbeafe] text-blue-600 py-3 rounded-xl text-center font-medium cursor-pointer"
+            onClick={() => setShowSupportModal(false)}
+          >
+            Đóng bảng hỗ trợ
           </Box>
         </Box>
       </Modal>
