@@ -15,6 +15,11 @@ const tabs: Record<string, MenuItem> = {
       </svg>
     ),
   },
+  "/distributor": {
+    label: "Cửa hàng",
+    icon: <Icon icon="zi-store" />,
+    activeIcon: <Icon icon="zi-store" />,
+  },
   "/notification": {
     label: "Thông báo",
     icon: <Icon icon="zi-notif" />,
