@@ -22,24 +22,35 @@ export const Welcome: FC = () => {
   }, []);
 
   return (
-    <Box className="flex justify-between items-center px-4 py-3 bg-transparent sticky top-0 z-10 backdrop-blur-md">
-      {/* Left: Avatar & Green Points */}
-      <Box className="flex items-center space-x-3 cursor-pointer" onClick={() => navigate('/profile')}>
-        <Avatar src={userData?.avatar || "https://i.pravatar.cc/150?img=11"} size={36} className="border-2 border-white shadow-sm" />
-        <Box className="bg-white/80 backdrop-blur px-3 py-1 rounded-full shadow-sm flex items-center border border-green-100">
-          <Icon icon="zi-star-solid" className="text-[#15803d] text-sm mr-1" />
-          <Text size="xSmall" className="font-bold text-[#15803d]">
-            {userData?.points || 0} Điểm Xanh
+    <Box className="flex justify-between items-center px-4 py-2 bg-white sticky top-0 z-50 shadow-md">
+      {/* Trái: Avatar & Điểm */}
+      <Box className="flex items-center space-x-2 cursor-pointer w-1/3" onClick={() => navigate('/profile')}>
+        <Avatar src={userData?.avatar || "https://i.pravatar.cc/150?img=11"} size={36} className="border border-gray-200" />
+        <Box className="bg-green-50 px-2 py-1.5 rounded-full flex items-center">
+          <Icon icon="zi-star-solid" className="text-[#14502e] text-xs mr-1" />
+          <Text size="xxxxSmall" className="font-bold text-[#14502e]">
+            {userData?.points || 0}
           </Text>
         </Box>
       </Box>
 
-      {/* Right: Search Icon */}
-      <Box 
-        className="w-10 h-10 bg-white rounded-full flex justify-center items-center shadow-sm cursor-pointer border border-gray-100 text-gray-600 hover:text-[#15803d]"
-        onClick={() => navigate('/search')}
-      >
-        <Icon icon="zi-search" />
+      {/* Giữa: Logo Thương hiệu */}
+      <Box className="flex justify-center items-center w-1/3">
+        <Text.Title className="text-[#14502e] font-black text-xl tracking-tight">GreenBiz</Text.Title>
+      </Box>
+
+      {/* Phải: Công cụ (Tìm kiếm & Thông báo) */}
+      <Box className="flex justify-end items-center space-x-4 w-1/3 text-gray-700">
+        <Icon 
+          icon="zi-search" 
+          className="text-2xl cursor-pointer hover:text-[#14502e]" 
+          onClick={() => navigate('/search')}
+        />
+        <Icon 
+          icon="zi-notif" 
+          className="text-2xl cursor-pointer hover:text-[#14502e]" 
+          onClick={() => navigate('/notification')}
+        />
       </Box>
     </Box>
   );

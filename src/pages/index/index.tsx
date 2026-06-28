@@ -6,10 +6,10 @@ import { Welcome } from "./welcome";
 
 const HomePage: React.FunctionComponent = () => {
   return (
-    <Page className="relative flex-1 flex flex-col">
+    <Page className="relative flex-1 flex flex-col bg-[#f0fdf4]">
       <Welcome />
-      <Box className="flex-1 overflow-auto bg-gray-100">
-        <Box className="bg-white pb-3 mb-2 shadow-sm">
+      <Box className="flex-1 overflow-auto bg-transparent">
+        <Box className="bg-transparent pb-3 mb-2">
           <Banner />
         </Box>
         <FeedList />

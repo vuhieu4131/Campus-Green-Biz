@@ -805,13 +805,13 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                 <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${postTab==="approved"?"border-green-600 text-green-600 font-bold":"border-transparent text-gray-500"}`} onClick={()=>setPostTab("approved")}>Đã duyệt ({poApproved.length})</Box>
             </Box>
             {poDisplay.length===0 && <Text size="small" className="text-center text-gray mt-4">Trống.</Text>}
-            {poDisplay.map((p) => (<Box key={p.id} className="mb-3 p-3 border rounded-lg bg-white shadow-sm"><Box flex className="mb-2"><img src={p.image||"https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png"} className="w-16 h-16 rounded object-cover mr-3 bg-gray-200"/><Box className="flex-1"><Text bold size="small" className="line-clamp-2">{p.title}</Text><Text size="xxSmall" className="text-gray">{p.shopName}</Text><Text size="xxSmall" className="text-gray">{formatDate(p.createdAt)}</Text></Box></Box><Box flex justifyContent="space-between" alignItems="center"><Text size="xxSmall" className="text-red-500 cursor-pointer" onClick={() => handleDeleteItem("services", p.id)}><Icon icon="zi-delete"/> Xóa</Text><Button size="small" variant={p.status==="approved"?"secondary":"primary"} onClick={() => handleApprovePost(p)}>{p.status==="approved"?"Ẩn":"Duyệt"}</Button></Box></Box>))}
+            {poDisplay.map((p) => (<Box key={p.id} className="mb-3 p-3 border rounded-lg bg-white shadow-md"><Box flex className="mb-2"><img src={p.image||"https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png"} className="w-16 h-16 rounded object-cover mr-3 bg-gray-200"/><Box className="flex-1"><Text bold size="small" className="line-clamp-2">{p.title}</Text><Text size="xxSmall" className="text-gray">{p.shopName}</Text><Text size="xxSmall" className="text-gray">{formatDate(p.createdAt)}</Text></Box></Box><Box flex justifyContent="space-between" alignItems="center"><Text size="xxSmall" className="text-red-500 cursor-pointer" onClick={() => handleDeleteItem("services", p.id)}><Icon icon="zi-delete"/> Xóa</Text><Button size="small" variant={p.status==="approved"?"secondary":"primary"} onClick={() => handleApprovePost(p)}>{p.status==="approved"?"Ẩn":"Duyệt"}</Button></Box></Box>))}
           </Box>
         );
       case "banners": return (
           <Box>
              <Box className="bg-gray-50 p-3 rounded-lg mb-6 border border-gray-200"><Text size="small" bold className="mb-2">Thêm Banner</Text><Box mb={2}><Input placeholder="Link ảnh" value={bannerInput} onChange={(e)=>setBannerInput(e.target.value)}/></Box><Box mb={2}><Input placeholder="Link điều hướng" value={bannerLinkInput} onChange={(e)=>setBannerLinkInput(e.target.value)}/></Box><Button fullWidth onClick={handleAddBanner}>Đăng</Button></Box>
-             {dataList.map((b) => (<Box key={b.id} className="mb-4 relative border rounded-lg overflow-hidden shadow-sm"><img src={b.image} className="w-full h-32 object-cover"/><Box className="absolute top-2 right-2 bg-white rounded-full p-1 shadow cursor-pointer" onClick={()=>handleDeleteItem("banners", b.id)}><Icon icon="zi-delete" className="text-red-500" size={18}/></Box></Box>))}
+             {dataList.map((b) => (<Box key={b.id} className="mb-4 relative border rounded-lg overflow-hidden shadow-md"><img src={b.image} className="w-full h-32 object-cover"/><Box className="absolute top-2 right-2 bg-white rounded-full p-1 shadow cursor-pointer" onClick={()=>handleDeleteItem("banners", b.id)}><Icon icon="zi-delete" className="text-red-500" size={18}/></Box></Box>))}
           </Box>
         );
         case "feedbacks": 
@@ -828,7 +828,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
             {fbDisplay.length === 0 && <Text className="text-center text-gray-400 mt-4">Trống.</Text>}
             
             {fbDisplay.map((f) => (
-                <Box key={f.id} className="mb-4 p-4 rounded-xl border bg-white shadow-sm animate-fade-in-up">
+                <Box key={f.id} className="mb-4 p-4 rounded-xl border bg-white shadow-md animate-fade-in-up">
                     <Box flex justifyContent="space-between" alignItems="center" mb={2}>
                         <Text bold size="small" className="text-blue-800">
                             {f.userName} <span className="text-gray-500 font-normal">({f.userPhone})</span>
@@ -909,7 +909,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                       </Box>
                                   </Box>
 
-                                  <Box className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-4">
+                                  <Box className="bg-white p-4 rounded-xl border border-gray-200 shadow-md mb-4">
                                       <Text size="normal" bold className="text-blue-600 mb-4">{voucherConfig.title || "Chưa có tên chiến dịch"}</Text>
                                       
                                       <Box flex alignItems="center" mb={2}>
@@ -956,7 +956,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                       </Box>
                                   </Box>
                                   
-                                  <Box className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-4">
+                                  <Box className="bg-white p-4 rounded-xl border border-gray-200 shadow-md mb-4">
                                       <Box mb={3}>
                                           <Text size="small" className="mb-1 font-medium text-gray-700">Tên thông báo / Chiến dịch</Text>
                                           <Input placeholder="VD: Tuần lễ vàng đổi điểm nhận quà!" value={voucherConfig.title} onChange={(e) => setVoucherConfig({...voucherConfig, title: e.target.value})} />
@@ -1017,7 +1017,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                                       <Box 
                                                           key={svc.id} 
                                                           flex alignItems="center" 
-                                                          className={`mb-2 p-2 rounded-lg border shadow-sm cursor-pointer transition-colors ${isChecked ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-100 hover:bg-gray-100'}`}
+                                                          className={`mb-2 p-2 rounded-lg border shadow-md cursor-pointer transition-colors ${isChecked ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-100 hover:bg-gray-100'}`}
                                                           onClick={() => {
                                                               const newArr = isChecked
                                                                   ? voucherConfig.applicableProducts.filter(id => id !== svc.id) // Bỏ chọn
@@ -1057,7 +1057,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                               <Text className="text-center text-gray-500 mt-4">Chưa có lịch sử chiến dịch nào.</Text>
                           ) : (
                               dataList.map(camp => (
-                                  <Box key={camp.id} className="mb-3 p-3 bg-white rounded-xl border border-gray-200 shadow-sm flex justify-between items-center">
+                                  <Box key={camp.id} className="mb-3 p-3 bg-white rounded-xl border border-gray-200 shadow-md flex justify-between items-center">
                                       <Box className="flex-1 pr-2">
                                           <Text bold size="small" className="text-gray-800 line-clamp-1">{camp.title || "Không có tên"}</Text>
                                           <Text size="xxxxSmall" className="text-gray-500 mt-1">
@@ -1109,7 +1109,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                   {/* --- TAB 1: PHÍ NỀN TẢNG (GIỮ NGUYÊN LOGIC CŨ) --- */}
                   {reconciliationTab === "fees" && (
                       <Box className="animate-fade-in-down">
-                          <Box className="bg-blue-50 p-3 rounded-xl border border-blue-100 mb-4 flex items-center shadow-sm">
+                          <Box className="bg-blue-50 p-3 rounded-xl border border-blue-100 mb-4 flex items-center shadow-md">
                               <Icon icon="zi-info-circle" className="text-blue-500 mr-2" />
                               <Text size="xSmall" className="text-blue-700">
                                   Danh sách các Shop đang nợ phí. Khi Shop chuyển khoản xong, Admin bấm "Xác nhận thu" để gạch nợ.
@@ -1122,9 +1122,9 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                               const shopsToRemindCount = dataList.filter(shop => !shop.hasReported).length;
 
                               if (dataList.length > 0) return (
-                                  <Box className={`mb-4 p-3 rounded-xl border shadow-sm flex items-center justify-between ${isRemindDay ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-200'}`}>
+                                  <Box className={`mb-4 p-3 rounded-xl border shadow-md flex items-center justify-between ${isRemindDay ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-200'}`}>
                                       <Box flex alignItems="center">
-                                          <Box className={`w-8 h-8 rounded-full flex items-center justify-center mr-2 ${isRemindDay ? 'bg-orange-100' : 'bg-white shadow-sm'}`}>
+                                          <Box className={`w-8 h-8 rounded-full flex items-center justify-center mr-2 ${isRemindDay ? 'bg-orange-100' : 'bg-white shadow-md'}`}>
                                               <Icon icon="zi-notif-ring" className={isRemindDay ? 'text-orange-500' : 'text-gray-400'} size={18}/>
                                           </Box>
                                           <Box>
@@ -1155,7 +1155,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                               </Box>
                           ) : (
                               dataList.map((shopGroup, idx) => (
-                                  <Box key={idx} className="mb-4 p-4 bg-white rounded-xl border border-red-100 shadow-sm animate-fade-in-up">
+                                  <Box key={idx} className="mb-4 p-4 bg-white rounded-xl border border-red-100 shadow-md animate-fade-in-up">
                                       <Box flex justifyContent="space-between" alignItems="flex-start" mb={2}>
                                             <Box>
                                                 <Box flex alignItems="center" mb={0.5}>
@@ -1163,7 +1163,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                                     
                                                     {/* 👉 GẮN HUY HIỆU NẾU SHOP ĐÃ BÁO CÁO */}
                                                     {shopGroup.hasReported && (
-                                                        <Box className="ml-2 px-2 py-0.5 bg-orange-100 rounded border border-orange-200 flex items-center shadow-sm">
+                                                        <Box className="ml-2 px-2 py-0.5 bg-orange-100 rounded border border-orange-200 flex items-center shadow-md">
                                                             <Icon icon="zi-clock-1" size={12} className="text-orange-600 mr-1"/>
                                                             <Text size="xxxxSmall" bold className="text-orange-600 uppercase tracking-wider">Đã Chuyển khoản</Text>
                                                         </Box>
@@ -1199,7 +1199,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                   {/* 👉 BƯỚC 3: NỘI DUNG TAB LỊCH SỬ ĐÃ THU PHÍ */}
                   {reconciliationTab === "history" && (
                       <Box className="animate-fade-in-up">
-                          <Box className="bg-green-50 p-3 rounded-xl border border-green-100 mb-4 flex items-center shadow-sm">
+                          <Box className="bg-green-50 p-3 rounded-xl border border-green-100 mb-4 flex items-center shadow-md">
                               <Icon icon="zi-check-circle" className="text-green-500 mr-2" />
                               <Text size="xSmall" className="text-green-700 leading-relaxed">
                                   Lịch sử các khoản phí nền tảng đã được Admin duyệt và gạch nợ thành công.
@@ -1210,7 +1210,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                               <Box py={8} className="text-center text-gray-400 bg-white rounded-2xl border border-dashed">Chưa có lịch sử thanh toán nào.</Box>
                           ) : (
                               paidDataList.map((shopGroup, idx) => (
-                                  <Box key={idx} className="mb-4 p-4 bg-white rounded-xl border border-green-100 shadow-sm animate-fade-in-up opacity-90">
+                                  <Box key={idx} className="mb-4 p-4 bg-white rounded-xl border border-green-100 shadow-md animate-fade-in-up opacity-90">
                                       <Box flex justifyContent="space-between" alignItems="flex-start" mb={2}>
                                           <Box>
                                               <Text size="small" bold className="text-gray-800">{shopGroup.shopName}</Text>
@@ -1240,7 +1240,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                               <Text bold size="normal" className="text-gray-800">Cấu hình thông tin nhận tiền</Text>
                           </Box>
                           
-                          <Box className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                          <Box className="bg-white p-4 rounded-xl border border-gray-200 shadow-md">
                               <Box mb={4}>
                                   <Text size="small" bold className="mb-1 text-gray-700">1. Thông tin ngân hàng (Dạng chữ)</Text>
                                   <Text size="xxxxSmall" className="text-gray-400 mb-2 italic">* Nội dung này sẽ hiển thị cho Shop copy khi họ đối soát phí.</Text>
@@ -1289,7 +1289,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
           <Box p={2}>
               <Text size="small" bold className="mb-2 text-gray-800">Cấu hình Tài chính</Text>
               {/* 👇 BẮT ĐẦU: CÔNG TẮC KIỂM DUYỆT ZALO 👇 */}
-              <Box className="bg-orange-50 p-4 rounded-xl border border-orange-200 shadow-sm mb-4 flex items-center justify-between">
+              <Box className="bg-orange-50 p-4 rounded-xl border border-orange-200 shadow-md mb-4 flex items-center justify-between">
                   <Box className="flex-1 pr-4">
                       <Text size="small" bold className="mb-1 text-orange-800">Hiển thị Giá tiền & Nút thanh toán</Text>
                       <Text size="xxxxSmall" className="text-orange-700 italic leading-relaxed">
@@ -1302,7 +1302,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                   />
               </Box>
               {/* 👆 KẾT THÚC: CÔNG TẮC KIỂM DUYỆT ZALO 👆 */}
-              <Box className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-4">
+              <Box className="bg-white p-4 rounded-xl border border-gray-200 shadow-md mb-4">
                   <Text size="small" className="mb-2 text-gray-600">Tỷ lệ trích trả Chi phí nền tảng (%)</Text>
                   <Input 
                       type="number" 
@@ -1314,7 +1314,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
               </Box>
   
               {/* 👉 ĐÃ THÊM: Ô CÀI ĐẶT TỶ LỆ TÍCH ĐIỂM */}
-              <Box className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-4">
+              <Box className="bg-white p-4 rounded-xl border border-gray-200 shadow-md mb-4">
                   <Text size="small" className="mb-2 text-gray-600">Tỷ lệ tích điểm tối thiểu (%)</Text>
                   <Input 
                       type="number" 
@@ -1338,7 +1338,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
               const fee = order.platformFee !== undefined ? Number(order.platformFee) : Math.floor(total * 10 / 100);
               
               return (
-                  <Box key={order.id} className="mb-3 p-3 bg-white rounded-xl border border-gray-200 shadow-sm">
+                  <Box key={order.id} className="mb-3 p-3 bg-white rounded-xl border border-gray-200 shadow-md">
                       {/* Mã đơn & Trạng thái */}
                       <Box flex justifyContent="space-between" className="border-b border-gray-100 pb-2 mb-2">
                           <Text size="small" bold className="text-blue-600">#{order.id.slice(0,6).toUpperCase()}</Text>
@@ -1395,13 +1395,13 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
             </Box>
         </Box>
       </Box>
-      <Box className="m-4 bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+      <Box className="m-4 bg-white rounded-2xl shadow-md border border-gray-100 p-4">
           <Text bold size="normal" className="text-gray-800 mb-3">Thống kê tổng quan</Text>
       {/* 👉 BƯỚC 2: BẢNG THỐNG KÊ GỌN GÀNG (CHỈ HIỆN SỐ CÒN NỢ) */}
       <Box className="grid grid-cols-2 gap-3">
           {/* Ô 1: Tổng Doanh thu */}
           <Box 
-              className="col-span-2 p-4 rounded-xl flex justify-between items-center shadow-sm"
+              className="col-span-2 p-4 rounded-xl flex justify-between items-center shadow-md"
               style={{ backgroundColor: '#10b981', color: '#ffffff' }} 
           >
               <Box>
@@ -1435,7 +1435,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
       </Box>
       <Box className="m-4 grid grid-cols-2 gap-4">
         {MENU_ITEMS.map((item) => (
-          <Box key={item.id} className="bg-white p-4 rounded-xl flex flex-col items-center shadow-sm border border-gray-50 relative cursor-pointer active:opacity-80" onClick={() => setSelectedFeature(item.id)}>
+          <Box key={item.id} className="bg-white p-4 rounded-xl flex flex-col items-center shadow-md border border-gray-50 relative cursor-pointer active:opacity-80" onClick={() => setSelectedFeature(item.id)}>
             <Icon icon={item.icon as any} className={`${item.color} text-3xl mb-2`} />
             <Text bold size="small" className="text-center">{item.label}</Text>
             {pendingCounts[item.id] > 0 && (<Box className="absolute top-2 right-2 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold shadow-md">{pendingCounts[item.id]}</Box>)}
@@ -1453,7 +1453,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
       {selectedFeature && (
           <Box className="fixed inset-0 bg-white z-[100] flex flex-col h-[100vh] w-[100vw] animate-fade-in">
               {/* Header Điều hướng */}
-              <Box className="bg-white border-b border-gray-200 px-4 py-3 flex items-center shadow-sm shrink-0">
+              <Box className="bg-white border-b border-gray-200 px-4 py-3 flex items-center shadow-md shrink-0">
                   <Box onClick={() => setSelectedFeature(null)} className="mr-3 cursor-pointer p-1 flex items-center">
                       <Icon icon="zi-arrow-left" size={24} className="text-blue-600" />
                   </Box>
@@ -1504,7 +1504,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                     <Button 
                         fullWidth 
                         variant="secondary" 
-                        className="bg-blue-50 text-blue-600 border border-blue-200 shadow-sm font-bold"
+                        className="bg-blue-50 text-blue-600 border border-blue-200 shadow-md font-bold"
                         onClick={() => {
                             setNotifyTitle("Thông báo từ Ban quản trị"); // Tiêu đề mặc định cho nhanh
                             setNotifyContent("");
@@ -1515,7 +1515,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                     </Button>
                 </Box>
                 {/* 👉 BƯỚC 4: KHUNG LỊCH SỬ THÔNG BÁO */}
-                <Box mt={4} className="w-full border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                <Box mt={4} className="w-full border border-gray-200 rounded-xl overflow-hidden shadow-md">
                     <Box className="bg-gray-50 p-2.5 border-b border-gray-200 flex justify-between items-center">
                         <Text size="xSmall" bold className="text-gray-700">Lịch sử thông báo đã gửi</Text>
                         <Text size="xxxxSmall" className="bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-bold">{userNotifs.length}</Text>
@@ -1610,7 +1610,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
 
                 <Box p={4} className="flex-1 overflow-y-auto hide-scroll">
                     {/* BỘ LỌC SHOP */}
-                    <Box mb={4} className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
+                    <Box mb={4} className="bg-white p-3 rounded-xl border border-gray-200 shadow-md">
                         <Text size="small" bold className="mb-2 text-gray-700">Lọc theo Shop (Nhà cung cấp):</Text>
                         <Select
                             value={statsShopFilter}
@@ -1647,7 +1647,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                         return (
                             <Box>
                                 {/* 👉 SỐ TỔNG HIỂN THỊ NỔI BẬT THEO TỪNG TAB */}
-                                <Box className={`p-3 rounded-xl border shadow-sm mb-4 text-center ${statsTab === 'collected' ? 'bg-green-50 border-green-200' : statsTab === 'unpaid' ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200'}`}>
+                                <Box className={`p-3 rounded-xl border shadow-md mb-4 text-center ${statsTab === 'collected' ? 'bg-green-50 border-green-200' : statsTab === 'unpaid' ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200'}`}>
                                     <Text size="xSmall" className="text-gray-600 uppercase tracking-wider mb-1">
                                         {statsTab === 'collected' ? 'Tổng phí đã thu' : statsTab === 'unpaid' ? 'Tổng phí còn nợ' : 'Tổng phí nền tảng'} ({filteredOrders.length} đơn)
                                     </Text>
@@ -1657,7 +1657,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                 </Box>
 
                                 {filteredOrders.map((order, idx) => (
-                                    <Box key={order.id} className="mb-3 p-3 bg-white rounded-xl border border-gray-200 shadow-sm animate-fade-in-up">
+                                    <Box key={order.id} className="mb-3 p-3 bg-white rounded-xl border border-gray-200 shadow-md animate-fade-in-up">
                                         <Box flex justifyContent="space-between" className="border-b border-gray-100 pb-2 mb-2">
                                             <Text size="small" bold className="text-blue-600">#{order.id.slice(0,6).toUpperCase()}</Text>
                                             <Text size="xSmall" className="text-gray-500">{formatDate(order.createdAt)}</Text>

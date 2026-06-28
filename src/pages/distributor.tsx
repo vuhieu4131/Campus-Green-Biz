@@ -1,143 +1,125 @@
 import React, { FC } from "react";
-import { Page, Header, Box, Text, Icon, List, Avatar } from "zmp-ui";
-import { useNavigate } from "react-router-dom";
-import { auth } from "../firebase";
-import { signOut } from "firebase/auth";
+import { Page, Box, Text, Avatar, Icon, Input } from "zmp-ui";
 
-// 1. KHỐI HỒ SƠ CỬA HÀNG
-const ShopProfileHeader: FC = () => (
-  <Box className="m-4 p-4 bg-white rounded-2xl shadow-sm border border-gray-100 flex items-center relative">
-    <Box className="absolute top-4 right-4 flex space-x-3 text-gray-600">
-      <Icon icon="zi-notif" />
-      <Icon icon="zi-edit" />
-    </Box>
-    <Avatar size={70} className="mr-4 border border-blue-100" />
-    <Box>
-      <Text.Title className="text-xl font-bold flex items-center">
-        THỜI TRAN... <Icon icon="zi-check-circle-solid" className="text-gray-800 ml-1 text-sm" />
-      </Text.Title>
-      <Text size="small" className="text-gray-600 flex items-center mt-1">
-        <Icon icon="zi-star" className="text-gray-400 mr-1 text-xs" /> THẠCH ANH SHOP
-      </Text>
-      <Text size="xSmall" className="text-gray-500 mt-1">Yên Nghĩa, Hà Đông, Hà Nội</Text>
-      <Box className="bg-blue-50 text-blue-600 inline-block px-2 py-1 rounded mt-2 text-sm font-semibold">
-        0834869131
+const StoreWelcome: FC = () => (
+  <Box className="bg-[#14502e] rounded-b-[40px] pt-12 pb-16 px-4 relative">
+    <Box className="flex justify-between items-center">
+      <Box className="flex items-center space-x-3">
+        <Avatar src="https://i.pravatar.cc/150?img=11" size={48} className="border-2 border-white" />
+        <Box>
+          <Text className="text-white/80 text-sm">Chào buổi sáng,</Text>
+          <Text.Title className="text-white font-bold text-xl">Đức</Text.Title>
+        </Box>
+      </Box>
+      <Box className="bg-white/20 backdrop-blur-md rounded-full px-3 py-1.5 flex items-center space-x-1 border border-white/30">
+        <Icon icon="zi-leaf" className="text-white" />
+        <Box>
+          <Text className="text-white font-bold text-sm leading-none">150</Text>
+          <Text size="xxxxSmall" className="text-white/80 leading-none">Điểm Xanh</Text>
+        </Box>
       </Box>
     </Box>
   </Box>
 );
 
-// 2. KHỐI THỐNG KÊ TỔNG QUAN
-const ShopStatistics: FC = () => (
-  <Box className="m-4 p-4 bg-white rounded-2xl shadow-sm border border-gray-100">
-    <Box className="flex justify-between items-center mb-4">
-      <Text.Title className="font-bold text-lg">Thống kê tổng quan</Text.Title>
-      <Box className="bg-gray-100 px-3 py-1 rounded-lg flex items-center text-sm font-medium">
-        Tháng 6... <Icon icon="zi-chevron-down" className="ml-1 text-xs" />
-      </Box>
-    </Box>
-    
-    <Box className="bg-blue-50 text-blue-800 px-3 py-2 rounded-lg flex justify-between items-center mb-4">
-      <Box className="flex items-center"><Icon icon="zi-location" className="mr-2" /> Tất cả cơ sở</Box>
-      <Icon icon="zi-chevron-down" />
-    </Box>
-
-    <Box className="grid grid-cols-2 gap-3 mb-3">
-      <Box className="bg-blue-500 text-white p-3 rounded-xl">
-        <Text size="small" className="opacity-90">DOANH THU THÁNG</Text>
-        <Text.Title className="text-xl font-bold mt-1">630.000đ</Text.Title>
-      </Box>
-      <Box className="bg-blue-500 text-white p-3 rounded-xl">
-        <Text size="small" className="opacity-90 flex items-center">
-          <Icon icon="zi-check-circle" className="mr-1 text-xs" /> ĐÃ PHỤC VỤ
-        </Text>
-        <Text.Title className="text-xl font-bold mt-1">1 đơn</Text.Title>
-      </Box>
-    </Box>
-
-    <Box className="bg-red-50 p-3 rounded-xl flex justify-between items-center mb-3">
-      <Text className="text-gray-800 font-medium">Chi phí nền tảng <br/><span className="font-normal text-sm">(Còn nợ):</span></Text>
-      <Text className="text-red-500 font-bold">-63.000đ <Icon icon="zi-chevron-right" className="text-sm ml-1" /></Text>
-    </Box>
-
-    <Box className="bg-orange-50 p-3 rounded-xl flex justify-between items-center">
-      <Text className="text-gray-800 font-medium flex items-center">
-        <Icon icon="zi-clock-1" className="text-orange-500 mr-2" /> Tổng doanh thu lũy kế:
-      </Text>
-      <Text className="text-orange-600 font-bold">1.340.000đ</Text>
-    </Box>
-  </Box>
-);
-
-// 3. KHỐI DỊCH VỤ & BÀI ĐĂNG
-const ShopServices: FC = () => (
-  <Box className="m-4 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-    <Box className="p-4 pb-0"><Text.Title className="font-bold text-lg">Dịch vụ & Bài đăng</Text.Title></Box>
-    <List>
-      <List.Item title="Quản lý hệ thống cơ sở" subTitle="1 cơ sở trực thuộc" prefix={<Icon icon="zi-location" className="text-blue-500" />} suffix={<Icon icon="zi-chevron-right" />} />
-      <List.Item title="Đăng dịch vụ mới" prefix={<Icon icon="zi-plus-circle" className="text-gray-600" />} suffix={<Icon icon="zi-chevron-right" />} />
-      <List.Item title="Quản lý đơn hàng" subTitle="Theo dõi tất cả đơn đặt lịch" prefix={<Icon icon="zi-note" className="text-blue-400" />} 
-        suffix={<Box className="flex items-center"><span className="bg-red-400 text-white text-xs px-2 py-1 rounded-full mr-2">3 mới</span><Icon icon="zi-chevron-right" /></Box>} 
+const StoreSearch: FC = () => (
+  <Box className="px-4 -mt-6 relative z-10">
+    <Box className="bg-white rounded-full flex items-center px-4 py-3 shadow-md">
+      <Icon icon="zi-search" className="text-gray-400 text-xl mr-2" />
+      <Input
+        placeholder="Tìm kiếm dịch vụ, sản phẩm..."
+        className="flex-1 bg-transparent border-none p-0 text-sm"
+        clearable
       />
-      <List.Item title="Xem trang cửa hàng" subTitle="Xem giao diện khách hàng" prefix={<Icon icon="zi-list-1" className="text-blue-300" />} suffix={<Icon icon="zi-chevron-right" />} />
-    </List>
+    </Box>
   </Box>
 );
 
-// 4. KHỐI QUẢN LÝ & HỖ TRỢ
-const ShopManagement: FC = () => (
-  <Box className="m-4 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-    <Box className="p-4 pb-0"><Text.Title className="font-bold text-lg">Quản lý & Hỗ trợ</Text.Title></Box>
-    <List>
-      <List.Item title="Danh sách khách hàng" subTitle="Người dùng do Shop giới thiệu" prefix={<Icon icon="zi-group" className="text-orange-400" />} suffix={<Icon icon="zi-chevron-right" />} />
-      <List.Item title="Chia sẻ ứng dụng" subTitle="QR Code + Mã giới thiệu" prefix={<Icon icon="zi-share" className="text-purple-500" />} suffix={<Icon icon="zi-chevron-right" />} />
-      <List.Item title="Đổi mật khẩu" prefix={<Icon icon="zi-lock" className="text-red-400" />} suffix={<Icon icon="zi-chevron-right" />} />
-      <List.Item title="Gửi phản hồi" prefix={<Icon icon="zi-chat" className="text-teal-500" />} suffix={<Icon icon="zi-chevron-right" />} />
-    </List>
+const StoreBanner: FC = () => (
+  <Box className="px-4 mt-6">
+    <Box className="bg-gradient-to-r from-[#14502e] to-[#22c55e] rounded-2xl p-4 flex justify-between items-center text-white relative overflow-hidden shadow-md">
+      <Box className="relative z-10 w-2/3">
+        <Text className="font-bold text-lg leading-tight mb-1">Ưu Đãi Đặc Biệt<br/>Tháng 10</Text>
+        <Text size="xSmall" className="text-white/80 mb-2">Giảm 25% cho sản phẩm Xanh</Text>
+        <Box className="bg-white text-[#14502e] inline-block px-3 py-1 rounded-full text-xs font-bold shadow-md">
+          Mua Ngay
+        </Box>
+      </Box>
+      <Box className="w-1/3 flex justify-end relative z-10">
+        {/* Placeholder cho ảnh sản phẩm trong banner */}
+        <Box className="w-16 h-16 bg-white/20 rounded-xl backdrop-blur-sm border border-white/30 flex items-center justify-center">
+          <Icon icon="zi-poll" className="text-white text-3xl" />
+        </Box>
+      </Box>
+      {/* Vòng tròn trang trí */}
+      <Box className="absolute -bottom-4 -right-4 w-24 h-24 bg-white/10 rounded-full blur-md" />
+    </Box>
   </Box>
 );
 
-// 5. KHỐI TIỆN ÍCH KHÁC
-const ShopUtilities: FC = () => {
-  const navigate = useNavigate();
-  
-  const handleLogout = async () => {
-    await signOut(auth);
-    navigate("/"); // Trở về trang chủ sau khi đăng xuất
-  };
+const StoreCategories: FC = () => {
+  const categories = [
+    { icon: "zi-calendar", label: "Lịch hẹn" },
+    { icon: "zi-ticket", label: "Ưu đãi" },
+    { icon: "zi-qrline", label: "Quét QR" },
+    { icon: "zi-store", label: "Cửa hàng" },
+  ];
 
   return (
-    <Box className="m-4 mb-8 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-      <Box className="p-4 pb-0"><Text.Title className="font-bold text-lg">Tiện ích khác</Text.Title></Box>
-      <List>
-        <List.Item title="Liên hệ hỗ trợ" prefix={<Icon icon="zi-call" className="text-blue-500" />} />
-        <List.Item title="Điều khoản sử dụng" prefix={<Icon icon="zi-note" className="text-gray-800" />} />
-        {/* Đã sửa lỗi: Trả title về dạng string bình thường và đưa màu đỏ ra ngoài className */}
-        <List.Item 
-          title="Đăng xuất" 
-          prefix={<Icon icon="zi-leave" className="text-red-500" />} 
-          onClick={handleLogout}
-          className="text-red-500 font-medium"
-        />
-      </List>
+    <Box className="px-4 mt-6 grid grid-cols-4 gap-4">
+      {categories.map((cat, idx) => (
+        <Box key={idx} className="flex flex-col items-center">
+          <Box className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-md mb-2 text-[#14502e]">
+            <Icon icon={cat.icon} className="text-2xl" />
+          </Box>
+          <Text size="xxSmall" className="font-medium text-gray-800 text-center">{cat.label}</Text>
+        </Box>
+      ))}
     </Box>
   );
 };
 
-// COMPONENT GỐC: RÁP TẤT CẢ LẠI VỚI NHAU
-const DistributorPage: FC = () => {
+const StoreRecommend: FC = () => {
+  const products = [
+    { name: "Bình nước tre", image: "https://images.unsplash.com/photo-1606115915090-be18fea23ce7?w=500&fit=crop", stars: 5 },
+    { name: "Túi vải canvas", image: "https://images.unsplash.com/photo-1597484661643-2f5fef640dd1?w=500&fit=crop", stars: 4 },
+    { name: "Xà phòng hữu cơ", image: "https://images.unsplash.com/photo-1600857062241-98e5dba7f214?w=500&fit=crop", stars: 5 },
+    { name: "Sổ tay tái chế", image: "https://images.unsplash.com/photo-1544816155-12df9643f363?w=500&fit=crop", stars: 5 },
+  ];
+
   return (
-    <Page className="bg-gray-50 overflow-y-auto pb-16">
-      <Header title="Hồ sơ cá nhân" showBackIcon={false} />
-      
-      <ShopProfileHeader />
-      <ShopStatistics />
-      <ShopServices />
-      <ShopManagement />
-      <ShopUtilities />
-      
+    <Box className="px-4 mt-8 mb-6">
+      <Text.Title className="font-bold text-lg text-[#14502e] mb-4">Gợi ý cho bạn</Text.Title>
+      <Box className="grid grid-cols-2 gap-4">
+        {products.map((p, i) => (
+          <Box key={i} className="flex flex-col bg-white rounded-2xl p-3 shadow-md">
+            <Box 
+              className="w-full aspect-[4/3] rounded-xl bg-cover bg-center mb-2"
+              style={{ backgroundImage: `url('${p.image}')` }}
+            />
+            <Text className="font-semibold text-gray-800 text-sm line-clamp-1">{p.name}</Text>
+            <Box className="flex text-yellow-400 mt-1 space-x-0.5">
+              {[...Array(5)].map((_, idx) => (
+                <Icon key={idx} icon={idx < p.stars ? "zi-star-solid" : "zi-star"} className="text-xs" />
+              ))}
+            </Box>
+          </Box>
+        ))}
+      </Box>
+    </Box>
+  );
+};
+
+const ConsumerStorePage: FC = () => {
+  return (
+    <Page className="bg-[#f0fdf4] overflow-y-auto pb-20">
+      <StoreWelcome />
+      <StoreSearch />
+      <StoreBanner />
+      <StoreCategories />
+      <StoreRecommend />
     </Page>
   );
 };
 
-export default DistributorPage;
+export default ConsumerStorePage;

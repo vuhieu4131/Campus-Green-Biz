@@ -10,11 +10,11 @@ export const SectionBox: FC<PropsWithChildren<SectionBoxProps>> = ({ title, padd
   return (
     <Box className="mt-6 mb-2">
       {title && (
-        <Text className="px-4 font-bold text-[#15803d] text-lg mb-2">
+        <Text className="px-4 font-bold text-[#14502e] text-lg mb-2">
           {title}
         </Text>
       )}
-      <Box className={`mx-4 bg-white rounded-2xl shadow-sm border border-green-50 overflow-hidden ${padding === 'all' ? 'p-4' : ''}`}>
+      <Box className={`mx-4 bg-white rounded-2xl shadow-md border border-green-50 overflow-hidden ${padding === 'all' ? 'p-4' : ''}`}>
         {children}
       </Box>
     </Box>

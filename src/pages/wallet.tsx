@@ -76,14 +76,14 @@ const WalletPage: FC = () => {
       <Box className="flex justify-center space-x-4 mt-6 mx-4">
         <Box 
           onClick={() => setActiveTab('rank')}
-          className={`flex-1 flex flex-col items-center p-3 rounded-xl border ${activeTab === 'rank' ? 'bg-orange-50 border-orange-300' : 'bg-white border-green-100'} transition-all shadow-sm`}
+          className={`flex-1 flex flex-col items-center p-3 rounded-xl border ${activeTab === 'rank' ? 'bg-orange-50 border-orange-300' : 'bg-white border-green-100'} transition-all shadow-md`}
         >
           <Icon icon="zi-poll" className={activeTab === 'rank' ? 'text-orange-600' : 'text-gray-600'} />
           <Text size="small" bold className={`mt-1 ${activeTab === 'rank' ? 'text-orange-600' : 'text-gray-600'}`}>Ví Tính Hạng</Text>
         </Box>
         <Box 
           onClick={() => setActiveTab('promo')}
-          className={`flex-1 flex flex-col items-center p-3 rounded-xl border ${activeTab === 'promo' ? 'bg-blue-50 border-blue-300' : 'bg-white border-green-100'} transition-all shadow-sm`}
+          className={`flex-1 flex flex-col items-center p-3 rounded-xl border ${activeTab === 'promo' ? 'bg-blue-50 border-blue-300' : 'bg-white border-green-100'} transition-all shadow-md`}
         >
           <Icon icon="zi-star-solid" className={activeTab === 'promo' ? 'text-blue-600' : 'text-gray-600'} />
           <Text size="small" bold className={`mt-1 ${activeTab === 'promo' ? 'text-blue-600' : 'text-gray-600'}`}>Ví Ưu Đãi</Text>
@@ -147,8 +147,8 @@ const WalletPage: FC = () => {
       {/* Cửa hàng Voucher */}
       {activeTab === 'promo' && (
         <Box className="mx-4 mt-8">
-          <Text className="font-bold text-[#15803d] text-lg mb-2">Cửa hàng đổi Voucher</Text>
-          <Box className="border border-dashed border-green-300 rounded-2xl p-8 bg-white text-center shadow-sm">
+          <Text className="font-bold text-[#14502e] text-lg mb-2">Cửa hàng đổi Voucher</Text>
+          <Box className="border border-dashed border-green-300 rounded-2xl p-8 bg-white text-center shadow-md">
             <Text bold className="text-gray-800 mb-2">Chưa có đợt đổi quà</Text>
             <Text size="small" className="text-gray-500">Cửa hàng Voucher hiện đang đóng. Vui lòng theo dõi và quay lại vào đợt sau nhé!</Text>
           </Box>

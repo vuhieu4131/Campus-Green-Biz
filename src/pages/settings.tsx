@@ -124,10 +124,10 @@ const SettingsPage: FC = () => {
           <Box className="w-full bg-[#f0fdf4] border border-green-300 border-dashed rounded-xl p-4 flex justify-between items-center mb-3">
             <Box>
               <Text size="xSmall" className="text-gray-500 mb-1">MÃ GIỚI THIỆU</Text>
-              <Text.Title className="text-[#15803d] font-bold tracking-widest">{referralCode}</Text.Title>
+              <Text.Title className="text-[#14502e] font-bold tracking-widest">{referralCode}</Text.Title>
             </Box>
             <Box 
-              className="bg-[#15803d] text-black px-4 py-2 rounded-full text-sm font-medium cursor-pointer shadow-sm"
+              className="bg-[#14502e] text-black px-4 py-2 rounded-full text-sm font-medium cursor-pointer shadow-md"
               onClick={handleCopy}
             >
               Sao chép
@@ -187,7 +187,7 @@ const SettingsPage: FC = () => {
           </Box>
           
           <Box 
-            className="w-full bg-[#15803d] text-black py-3 rounded-xl text-center font-bold mt-4 cursor-pointer shadow-sm"
+            className="w-full bg-[#14502e] text-black py-3 rounded-xl text-center font-bold mt-4 cursor-pointer shadow-md"
             onClick={() => {
               if (newPassword !== confirmPassword) {
                 alert("Mật khẩu xác nhận không khớp!");
@@ -215,13 +215,13 @@ const SettingsPage: FC = () => {
           {/* Tabs */}
           <Box className="flex border-b border-gray-200 mb-4">
             <Box 
-              className={`flex-1 text-center py-2 font-medium cursor-pointer ${supportTab === 'send' ? 'text-[#15803d] border-b-2 border-[#15803d]' : 'text-gray-500'}`}
+              className={`flex-1 text-center py-2 font-medium cursor-pointer ${supportTab === 'send' ? 'text-[#14502e] border-b-2 border-[#14502e]' : 'text-gray-500'}`}
               onClick={() => setSupportTab('send')}
             >
               Gửi yêu cầu
             </Box>
             <Box 
-              className={`flex-1 text-center py-2 font-medium cursor-pointer ${supportTab === 'history' ? 'text-[#15803d] border-b-2 border-[#15803d]' : 'text-gray-500'}`}
+              className={`flex-1 text-center py-2 font-medium cursor-pointer ${supportTab === 'history' ? 'text-[#14502e] border-b-2 border-[#14502e]' : 'text-gray-500'}`}
               onClick={() => setSupportTab('history')}
             >
               Lịch sử (0)
@@ -242,7 +242,7 @@ const SettingsPage: FC = () => {
               ></textarea>
 
               <Box 
-                className="w-full bg-[#15803d] text-black py-3 rounded-xl flex items-center justify-center font-bold cursor-pointer shadow-sm"
+                className="w-full bg-[#14502e] text-black py-3 rounded-xl flex items-center justify-center font-bold cursor-pointer shadow-md"
                 onClick={() => {
                   alert("Gửi yêu cầu thành công!");
                   setShowSupportModal(false);

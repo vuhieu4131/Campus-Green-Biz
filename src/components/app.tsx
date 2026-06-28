@@ -4,6 +4,17 @@ import { RecoilRoot } from "recoil";
 import { getConfig } from "utils/config";
 import { Layout } from "./layout";
 import { ConfigProvider } from "./config-provider";
+import ProfilePage from "pages/profile";
+import DistributorPage from "pages/distributor";
+import AdminDashboardPage from "pages/admin-dashboard";
+import SearchPage from "pages/search";
+import CategoryPage from "pages/category";
+import NotificationPage from "pages/notification";
+import CartPage from "pages/cart";
+import CheckoutResultPage from "pages/result";
+import WalletPage from "pages/wallet";
+import SettingsPage from "pages/settings";
+import AccountInfoPage from "pages/account-info";
 
 const MyApp = () => {
   return (

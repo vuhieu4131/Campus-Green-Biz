@@ -10,6 +10,7 @@ import ProfilePage from "pages/profile";
 import SearchPage from "pages/search";
 import CheckoutResultPage from "pages/result";
 import DistributorPage from "pages/distributor"; // (hoặc đường dẫn tương ứng tới file distributor.tsx)
+import AdminDashboardPage from "pages/admin-dashboard";
 import SettingsPage from "pages/settings";
 import AccountInfoPage from "pages/account-info";
 import WalletPage from "pages/wallet";
@@ -46,6 +47,7 @@ export const Layout: FC = () => {
           <Route path="/profile" element={<ProfilePage />}></Route>
           <Route path="/result" element={<CheckoutResultPage />}></Route>
           <Route path="/distributor" element={<DistributorPage />} />
+          <Route path="/admin-dashboard" element={<AdminDashboardPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/account-info" element={<AccountInfoPage />} />
           <Route path="/wallet" element={<WalletPage />} />

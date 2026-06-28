@@ -86,7 +86,7 @@ const calculateMemberRankInfo = (points: number) => {
   return { name: "Hạng Vàng", sub: "ELITE STATUS", target: 1000 };
 };
 
-const NewMemberView: FC<{ user: any; points: number }> = ({ user, points }) => {
+const NewMemberView: FC<{ user: any; points: number; role?: string }> = ({ user, points, role }) => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'posts' | 'saved' | 'tagged'>('posts');
   const rankInfo = calculateMemberRankInfo(points);
@@ -130,7 +130,7 @@ const NewMemberView: FC<{ user: any; points: number }> = ({ user, points }) => {
 
       {/* 4. Thẻ Membership */}
       <Box
-        className="mx-4 mt-4 bg-[#f8f6ec] rounded-xl p-4 border border-[#e8e4d3] flex items-center shadow-sm cursor-pointer"
+        className="mx-4 mt-4 bg-[#f8f6ec] rounded-xl p-4 border border-[#e8e4d3] flex items-center shadow-md cursor-pointer"
         onClick={() => navigate("/wallet")}
       >
         <Icon icon="zi-star-solid" className="text-[#a68c4d] text-2xl mr-3" />
@@ -146,6 +146,19 @@ const NewMemberView: FC<{ user: any; points: number }> = ({ user, points }) => {
           </Text>
         </Box>
       </Box>
+
+      {/* Nút Quản Lý Dành Cho Admin/Distributor */}
+      {role === "distributor" && (
+        <Box className="px-4 mt-4">
+          <Button
+            fullWidth
+            className="bg-[#14502e] text-white font-bold rounded-xl shadow-md"
+            onClick={() => navigate("/admin-dashboard")}
+          >
+            <Icon icon="zi-setting" className="mr-2" /> Quản lý Cửa Hàng
+          </Button>
+        </Box>
+      )}
 
       {/* 5. Thống kê */}
       <Box className="flex justify-around mt-6 mb-4 px-4">
@@ -173,14 +186,14 @@ const NewMemberView: FC<{ user: any; points: number }> = ({ user, points }) => {
       <Box className="flex border-t border-b border-gray-100 mb-1 bg-transparent">
         <Box
           className={`flex-1 flex justify-center py-3 cursor-pointer ${activeTab === 'posts' ? 'border-b-2' : ''}`}
-          style={{ borderColor: activeTab === 'posts' ? "#15803d" : "transparent" }}
+          style={{ borderColor: activeTab === 'posts' ? "#14502e" : "transparent" }}
           onClick={() => setActiveTab('posts')}
         >
           <svg
             width="24"
             height="24"
             viewBox="0 0 24 24"
-            fill={activeTab === 'posts' ? "#15803d" : "#9ca3af"}
+            fill={activeTab === 'posts' ? "#14502e" : "#9ca3af"}
             xmlns="http://www.w3.org/2000/svg"
           >
             <rect x="3" y="3" width="8" height="8" rx="1" />
@@ -190,15 +203,15 @@ const NewMemberView: FC<{ user: any; points: number }> = ({ user, points }) => {
           </svg>
         </Box>
         <Box 
-          className={`flex-1 flex justify-center py-3 cursor-pointer ${activeTab === 'saved' ? 'border-b-2 text-[#15803d]' : 'text-gray-400'}`}
-          style={{ borderColor: activeTab === 'saved' ? "#15803d" : "transparent" }}
+          className={`flex-1 flex justify-center py-3 cursor-pointer ${activeTab === 'saved' ? 'border-b-2 text-[#14502e]' : 'text-gray-400'}`}
+          style={{ borderColor: activeTab === 'saved' ? "#14502e" : "transparent" }}
           onClick={() => setActiveTab('saved')}
         >
           <Icon icon="zi-bookmark" />
         </Box>
         <Box 
-          className={`flex-1 flex justify-center py-3 cursor-pointer ${activeTab === 'tagged' ? 'border-b-2 text-[#15803d]' : 'text-gray-400'}`}
-          style={{ borderColor: activeTab === 'tagged' ? "#15803d" : "transparent" }}
+          className={`flex-1 flex justify-center py-3 cursor-pointer ${activeTab === 'tagged' ? 'border-b-2 text-[#14502e]' : 'text-gray-400'}`}
+          style={{ borderColor: activeTab === 'tagged' ? "#14502e" : "transparent" }}
           onClick={() => setActiveTab('tagged')}
         >
           <Icon icon="zi-user" />
@@ -283,20 +296,21 @@ const ProfilePage: FC = () => {
         {currentUser ? (
           <>
             {/* KỊCH BẢN 1: ĐÃ ĐĂNG NHẬP -> Giao diện mới */}
-            <NewMemberView
-              user={{
-                id: currentUser.uid,
-                username: currentUser.email
-                  ? currentUser.email.split("@")[0]
-                  : "user_name",
-                name:
-                  userData?.fullName ||
-                  currentUser.email?.replace("@campus.com", "") ||
-                  "Thành viên Campus",
-                avatar: userData?.avatar || "https://i.pravatar.cc/150?img=11",
-              }}
-              points={userData?.points || 0}
-            />
+              <NewMemberView
+                user={{
+                  id: currentUser.uid,
+                  username: currentUser.email
+                    ? currentUser.email.split("@")[0]
+                    : "user_name",
+                  name:
+                    userData?.fullName ||
+                    currentUser.email?.replace("@campus.com", "") ||
+                    "Thành viên Campus",
+                  avatar: userData?.avatar || "https://i.pravatar.cc/150?img=11",
+                }}
+                points={userData?.points || 0}
+                role={userData?.role}
+              />
           </>
         ) : (
           <>
