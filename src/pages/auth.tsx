@@ -1,7 +1,7 @@
 import React, { FC, useState } from "react";
 // Đã GỘP useNavigate vào thư viện chuẩn zmp-ui để sửa lỗi trắng màn hình[cite: 7]
 import { Box, Text, Input, Button, Switch, Avatar, Icon, useNavigate } from "zmp-ui"; 
-import { useRecoilValue } from "recoil";
+import { useRecoilValue, useRecoilValueLoadable } from "recoil";
 import { userState } from "state";
 import { auth, db } from "../firebase"; 
 // BỔ SUNG: Nhập thêm hàm deleteUser để dọn dẹp tài khoản lỗi
@@ -15,7 +15,8 @@ interface AuthOverlayProps {
 
 export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
   const navigate = useNavigate(); 
-  const userInfo = useRecoilValue(userState);
+  const userInfoLoadable = useRecoilValueLoadable(userState);
+  const userInfo = userInfoLoadable.state === "hasValue" ? userInfoLoadable.contents : null;
 
   const [formType, setFormType] = useState<"login" | "register">("login");
   const [phone, setPhone] = useState("");
