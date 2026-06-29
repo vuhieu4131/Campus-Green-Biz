@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { Page, Header, Box, Text, Avatar, Button, Icon, Tabs, useSnackbar, Spinner, Modal } from "zmp-ui";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { doc, getDoc, collection, query, where, getDocs, deleteDoc } from "firebase/firestore";
-import { db } from "../services/firebase";
+import { db } from "../firebase";
 import { openPhone, openChat } from "zmp-sdk/apis";
 
 const ShopDetailPage: React.FunctionComponent = () => {
@@ -280,9 +280,27 @@ const filteredServices = selectedCategory === 'Tất cả'
                                     {item.title || item.name}
                                     </Text>
                                     {showPrice ? (
-                                        <Text size="small" bold className="text-orange-600">
-                                        {Number(item.price || 0).toLocaleString()}đ
-                                        </Text>
+                                        <Box flex flexDirection="column">
+                                            {/* 1. Hiển thị Giá bán (Thực thu) */}
+                                            <Text size="small" bold className="text-orange-600">
+                                                {Number(item.price || 0).toLocaleString()}đ
+                                            </Text>
+                                            
+                                            {/* 2. Kiểm tra: Nếu có Giá gốc > Giá bán thì mới hiển thị phần gạch ngang */}
+                                            {Number(item.originalPrice) > Number(item.price) && Number(item.price) > 0 && (
+                                                <Box flex alignItems="center" className="mt-0.5 gap-1.5">
+                                                    {/* Giá gốc gạch ngang */}
+                                                    <Text size="xxxxSmall" className="text-gray-400 line-through decoration-red-500">
+                                                        {Number(item.originalPrice).toLocaleString()}đ
+                                                    </Text>
+                                                    
+                                                    {/* Nhãn % giảm giá */}
+                                                    <Box className="bg-red-50 border border-red-200 text-red-600 px-1 rounded text-[9px] font-bold">
+                                                        -{item.discountPercent || Math.round(((Number(item.originalPrice) - Number(item.price)) / Number(item.originalPrice)) * 100)}%
+                                                    </Box>
+                                                </Box>
+                                            )}
+                                        </Box>
                                     ) : (
                                         <Text size="xSmall" bold className="text-blue-600 italic mt-1">
                                         Liên hệ báo giá

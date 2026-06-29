@@ -3,7 +3,7 @@ import React, { FC, useState, useEffect } from "react";
 import { Page, Header, Box, Text, Button, Icon, Modal, Input, useSnackbar, useNavigate, DatePicker, Select, Spinner } from "zmp-ui"; 
 import { useLocation } from "react-router-dom";
 import { collection, query, where, getDocs, addDoc, serverTimestamp, doc, updateDoc, getDoc } from "firebase/firestore";
-import { db } from "../services/firebase";
+import { db } from "../firebase";
 import { useSetRecoilState } from "recoil";
 import { cartState } from "../state";
 

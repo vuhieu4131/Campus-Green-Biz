@@ -3,9 +3,10 @@ import { Page, Box, Input, Button, Text, useSnackbar, Header, Icon, Spinner, Sel
 // 👉 BƯỚC 1: Bổ sung doc và getDoc để đọc cấu hình Admin
 import { collection, addDoc, updateDoc, serverTimestamp, query, where, getDocs, doc, getDoc } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { db } from "../services/firebase"; 
+import { db } from "../firebase"; 
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { getUserInfo } from "zmp-sdk/apis";
+
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -26,17 +27,18 @@ const PostPage: React.FunctionComponent = () => {
   const [minRewardRate, setMinRewardRate] = useState(10);
 
   const [uploadingImage, setUploadingImage] = useState(false); // State xoay vòng loading tải ảnh
+  const [uploadingVideo, setUploadingVideo] = useState(false); // State xoay vòng loading tải video
 
   const [form, setForm] = useState<{
-    title: string; price: string; shopName: string; points: string;
-    description: string; images: string[]; selectedLocation: string; category: string;
+    title: string; price: string; originalPrice: string; shopName: string; points: string; // 👉 THÊM originalPrice
+    description: string; images: string[]; videoUrl: string; selectedLocation: string; category: string;
     stock: string; 
-    productCategory: string; // 👇 THÊM MỚI: Biến lưu nhãn phân loại
+    productCategory: string;
   }>({
-    title: "", price: "", shopName: "", points: "",
-    description: "", images: [], selectedLocation: "", category: "package", 
+    title: "", price: "", originalPrice: "", shopName: "", points: "", // 👉 THÊM originalPrice: ""
+    description: "", images: [], videoUrl: "", selectedLocation: "", category: "package", 
     stock: "",
-    productCategory: ""      // 👇 THÊM MỚI: Mặc định rỗng
+    productCategory: ""
   });
 
   // 👉 THÊM MỚI: State quản lý Phân loại hàng (Màu sắc, Size...)
@@ -51,11 +53,13 @@ const PostPage: React.FunctionComponent = () => {
           setForm({
               title: editingPost.title || "",
               price: editingPost.price?.toString() || "",
+              originalPrice: editingPost.originalPrice?.toString() || "", // 👉 BỔ SUNG DÒNG NÀY
               shopName: editingPost.shopName || "",
               points: editingPost.points?.toString() || "",
               description: editingPost.description || "",
               // Ưu tiên lấy mảng ảnh (gallery), nếu không có thì lấy ảnh đơn (image)
               images: editingPost.gallery || (editingPost.image ? [editingPost.image] : []),
+              videoUrl: editingPost.videoUrl || "",
               selectedLocation: editingPost.locationAddress || "",
               category: editingPost.category || "package",
               stock: editingPost.stock && editingPost.stock !== -1 ? editingPost.stock.toString() : "",
@@ -168,14 +172,49 @@ const PostPage: React.FunctionComponent = () => {
 };
 
 // Hàm xóa bớt ảnh khi Shop đổi ý
-const handleRemoveImage = (index: number) => {
-    setForm(prev => {
-        const newImages = [...prev.images];
-        newImages.splice(index, 1);
-        return { ...prev, images: newImages };
-    });
+  const handleRemoveImage = (index: number) => {
+      setForm(prev => {
+          const newImages = [...prev.images];
+          newImages.splice(index, 1);
+          return { ...prev, images: newImages };
+      });
+  };
+  // 👉 HÀM UPLOAD VIDEO LÊN FIREBASE STORAGE
+const handleVideoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0]; // Lấy file đầu tiên (chỉ cho phép 1 video)
+  if (!file) return;
+
+  // Giới hạn dung lượng video (Ví dụ: 20MB = 20 * 1024 * 1024 bytes)
+  const maxVideoSize = 20 * 1024 * 1024;
+  if (file.size > maxVideoSize) {
+      openSnackbar({ text: `Video quá lớn! Vui lòng chọn video dưới 20MB.`, type: "warning", position: "top" });
+      return;
+  }
+
+  setUploadingVideo(true);
+  try {
+      const storage = getStorage();
+      // Tạo thư mục riêng cho video để dễ quản lý
+      const storageRef = ref(storage, `services_videos/${Date.now()}_${file.name}`);
+      
+      await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(storageRef);
+      
+      // Cập nhật link video vào State
+      setForm(prev => ({ ...prev, videoUrl: downloadURL }));
+      openSnackbar({ text: `Tải video lên thành công!`, type: "success", position: "top" });
+  } catch (error) {
+      console.error("Lỗi tải video:", error);
+      openSnackbar({ text: "Lỗi hệ thống khi tải video lên!", type: "error", position: "top" });
+  } finally {
+      setUploadingVideo(false);
+  }
 };
 
+// 👉 Hàm xóa video khi Shop đổi ý
+const handleRemoveVideo = () => {
+  setForm(prev => ({ ...prev, videoUrl: "" }));
+};
   const handleSubmit = async () => {
     if (form.images.length === 0) {
       openSnackbar({ text: "Vui lòng tải lên ít nhất 1 hình ảnh sản phẩm!", type: "error", position: "top" });
@@ -184,6 +223,13 @@ const handleRemoveImage = (index: number) => {
     
     // 👉 BƯỚC 5: CHỐT CHẶN - Kiểm tra điểm Shop nhập vào có đạt yêu cầu không
     const numericPrice = Number(form.price) || 0;
+    const numericOriginalPrice = Number(form.originalPrice) || 0; // 👉 BỔ SUNG
+
+    // 👉 TÍNH % GIẢM GIÁ ĐỂ LƯU DATABASE
+    const discountPercent = (numericOriginalPrice > numericPrice && numericPrice > 0)
+        ? Math.round(((numericOriginalPrice - numericPrice) / numericOriginalPrice) * 100)
+        : 0;
+    // ...
     const enteredPoints = Number(form.points) || 0;
     const requiredMinPoints = Math.floor((numericPrice * minRewardRate / 100) / 1000);
 
@@ -216,11 +262,14 @@ const handleRemoveImage = (index: number) => {
       const postData = {
         title: form.title,
         price: numericPrice,
+        originalPrice: numericOriginalPrice, // 👉 BỔ SUNG
+        discountPercent: discountPercent,    // 👉 BỔ SUNG
         shopName: form.shopName,
         points: enteredPoints, 
         description: form.description || "",
         image: form.images[0] || "",
         gallery: form.images,
+        videoUrl: form.videoUrl,
         locationAddress: form.selectedLocation, 
         category: form.category,
         productCategory: form.productCategory || "Khác", // 👇 THÊM MỚI: Nếu shop quên nhập, mặc định là "Khác"
@@ -233,17 +282,24 @@ const handleRemoveImage = (index: number) => {
 
       if (id) {
         // 👇 NẾU CÓ ID -> CHẾ ĐỘ CHỈNH SỬA
-        await updateDoc(doc(db, "services", id), {
+        // Chỉ định đúng bảng "services" và bài viết có "id" tương ứng
+        const docRef = doc(db, "services", id);
+        
+        // Cập nhật dữ liệu
+        await updateDoc(docRef, {
             ...postData,
-            updatedAt: serverTimestamp(), // Lưu thời gian sửa
+            updatedAt: serverTimestamp(), // Hàm của Firebase để tự động ghi nhận giờ sửa
         });
         openSnackbar({ text: "Cập nhật bài viết thành công!", type: "success", position: "top" });
       } else {
         // 👇 NẾU KHÔNG CÓ ID -> CHẾ ĐỘ ĐĂNG MỚI
-        await addDoc(collection(db, "services"), {
+        // Thêm dữ liệu mới vào bảng "services"
+        const collectionRef = collection(db, "services");
+        
+        await addDoc(collectionRef, {
             ...postData,
-            status: "pending", // Bài đăng mới cần duyệt
-            createdAt: serverTimestamp(),
+            status: "pending", // Bạn có thể thêm trường trạng thái để chờ Admin duyệt
+            createdAt: serverTimestamp(), // Ghi nhận giờ tạo
         });
         openSnackbar({ text: "Đăng bài thành công! Vui lòng chờ duyệt.", type: "success", position: "top" });
       }
@@ -273,10 +329,10 @@ const handleRemoveImage = (index: number) => {
 
   return (
     <Page className="bg-white">
-      <Header title={id ? "Chỉnh sửa Dịch Vụ" : "Đăng Dịch Vụ Mới"} showBackIcon={true} />
+      <Header title={id ? "Chỉnh sửa Dịch Vụ" : "Đăng Sản phẩm/ Dịch Vụ Mới"} showBackIcon={true} />
       
       <Box p={4} className="pb-20">
-        {/* 👉 BƯỚC 5: GIAO DIỆN LƯỚI ALBUM ẢNH (TỐI ĐA 5 ẢNH) */}
+        {/* 👉 BƯỚC 5: GIAO DIỆN LƯỚI ALBUM ẢNH (TỐI ĐA 10 ẢNH) */}
         <Box mb={4}>
           <Box flex justifyContent="space-between" alignItems="center" mb={2}>
               <Text size="small" className="font-medium">Hình ảnh sản phẩm <span className="text-red-500">*</span></Text>
@@ -329,15 +385,58 @@ const handleRemoveImage = (index: number) => {
             </Box>
             <Text size="xxxxSmall" className="text-gray-400 italic mt-2">* Bạn chọn tối đa 10 ảnh. Ảnh đầu tiên sẽ làm ảnh đại diện chính.</Text>
         </Box>
-
+        {/* 👉 GIAO DIỆN TẢI VIDEO (TỐI ĐA 1 VIDEO) */}
         <Box mb={4}>
-          <Input label="Tên dịch vụ" placeholder="VD: Gội đầu dưỡng sinh" value={form.title} onChange={(e) => handleChange("title", e.target.value)} />
+            <Box flex justifyContent="space-between" alignItems="center" mb={2}>
+                <Text size="small" className="font-medium">Video sản phẩm (Tùy chọn)</Text>
+                <Text size="xxxxSmall" className="text-gray-500 font-bold">{form.videoUrl ? "1/1" : "0/1"} video</Text>
+            </Box>
+
+            <Box className="relative w-full pt-[56.25%] rounded-lg overflow-hidden border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center">
+                {form.videoUrl ? (
+                    // Nếu đã có video thì hiển thị trình phát video
+                    <>
+                        <video src={form.videoUrl} controls className="absolute inset-0 w-full h-full object-cover" />
+                        {/* Nút xóa video */}
+                        <Box 
+                            className="absolute top-2 right-2 bg-white/90 rounded-full w-8 h-8 flex items-center justify-center cursor-pointer shadow active:bg-red-50 z-10"
+                            onClick={handleRemoveVideo}
+                        >
+                            <Icon icon="zi-close" className="text-red-500" size={18} />
+                        </Box>
+                    </>
+                ) : (
+                    // Nếu chưa có video thì hiển thị nút chọn file
+                    <>
+                        <input 
+                            type="file" 
+                            accept="video/*" 
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" 
+                            onChange={handleVideoChange} 
+                            disabled={uploadingVideo} 
+                        />
+                        <Box className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                            {uploadingVideo ? (
+                                <Spinner />
+                            ) : (
+                                <>
+                                    <Icon icon="zi-video" className="text-gray-400 text-3xl mb-1"/>
+                                    <Text size="xxxxSmall" className="text-gray-500 font-medium">Nhấn để thêm video (Max 20MB)</Text>
+                                </>
+                            )}
+                        </Box>
+                    </>
+                )}
+            </Box>
+        </Box>                      
+        <Box mb={4}>
+          <Input label="Tên sản phẩm/ dịch vụ" placeholder="VD: Tinh dầu bạch đàn" value={form.title} onChange={(e) => handleChange("title", e.target.value)} />
         </Box>
         {/* 👇 THÊM MỚI: Ô nhập Nhãn phân loại 👇 */}
         <Box mb={4}>
           <Input 
-              label="Nhãn dòng sản phẩm (Để tạo bộ lọc)" 
-              placeholder="VD: Chăm sóc da, Phụ kiện, Dầu gội..." 
+              label="Nhãn sản phẩm (Để tạo bộ lọc)" 
+              placeholder="VD: Tinh dầu, Bút gỗ, Móc khóa..." 
               value={form.productCategory} 
               onChange={(e) => handleChange("productCategory", e.target.value)} 
           />
@@ -349,7 +448,7 @@ const handleRemoveImage = (index: number) => {
                 onChange={(val) => handleChange("category", val as string)}
                 closeOnSelect
             >
-                <Option value="package" title="Gói Trị Liệu" />
+                <Option value="package" title="Dịch vụ" />
                 <Option value="product" title="Sản Phẩm" />
                 <Option value="academy" title="Đào Tạo" />
                 <Option value="franchise" title="Nhượng Quyền" />
@@ -426,9 +525,21 @@ const handleRemoveImage = (index: number) => {
             )}
         </Box>
 
+        {/* 👉 GIAO DIỆN NHẬP GIÁ MỚI */}
+        <Box mb={3}>
+            <Input type="number" label="Giá gốc (Chưa giảm - Tùy chọn)" placeholder="Ví dụ: 300000" value={form.originalPrice} onChange={(e) => handleChange("originalPrice", e.target.value)} />
+        </Box>
+
         <Box mb={2} flex flexDirection="row" style={{ gap: 12 }}>
-          <Box style={{ flex: 1 }}>
-            <Input type="number" label="Giá (VNĐ)" placeholder="200000" value={form.price} onChange={(e) => handleChange("price", e.target.value)} />
+          <Box style={{ flex: 1, position: 'relative' }}>
+            <Input type="number" label="Giá bán (Thực thu)" placeholder="200000" value={form.price} onChange={(e) => handleChange("price", e.target.value)} />
+            
+            {/* 👉 HIỂN THỊ NHÃN % GIẢM GIÁ THỜI GIAN THỰC (MÀU ĐỎ) */}
+            {Number(form.originalPrice) > Number(form.price) && Number(form.price) > 0 && (
+                <Box className="absolute -top-2 -right-2 bg-red-500 text-white px-2 py-0.5 rounded-full text-[10px] font-bold shadow-sm z-10 animate-pulse border border-white">
+                    Giảm {Math.round(((Number(form.originalPrice) - Number(form.price)) / Number(form.originalPrice)) * 100)}%
+                </Box>
+            )}
           </Box>
           <Box style={{ flex: 1 }}>
             <Input type="number" label="Điểm thưởng" placeholder="10" value={form.points} onChange={(e) => handleChange("points", e.target.value)} />

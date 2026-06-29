@@ -13,7 +13,8 @@ import DistributorPage from "pages/distributor"; // (hoặc đường dẫn tư�
 import { getSystemInfo } from "zmp-sdk";
 import { ScrollRestoration } from "./scroll-restoration";
 import { useHandlePayment } from "hooks";
-
+import ShopPublicView from '../pages/ShopPublicView';
+import PostPage from '../pages/post';
 
 if (import.meta.env.DEV) {
   document.body.style.setProperty("--zaui-safe-area-inset-top", "24px");
@@ -43,6 +44,8 @@ export const Layout: FC = () => {
           <Route path="/profile" element={<ProfilePage />}></Route>
           <Route path="/result" element={<CheckoutResultPage />}></Route>
           <Route path="/distributor" element={<DistributorPage />} />
+          <Route path="/shop-details/:id" element={<ShopPublicView />} />
+          <Route path="/post-service" element={<PostPage />} />
         </Routes>
       </Box>
       <Navigation />

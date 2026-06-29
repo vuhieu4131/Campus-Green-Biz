@@ -2,7 +2,7 @@ import React, { FC, useEffect, useState } from "react";
 import { Page, Header, Box, Text, Icon, Spinner, Button, Modal, Input, useSnackbar } from "zmp-ui";
 import { getUserInfo } from "zmp-sdk/apis";
 import { collection, query, where, getDocs, doc, addDoc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore"; 
-import { db } from "../services/firebase";
+import { db } from "../firebase";
 import { useNavigate } from "react-router-dom";
 
 // Hàm format tiền tệ

@@ -1,7 +1,7 @@
 import React, { FC, useState, useEffect } from "react";
 import { Page, Header, Box, Text, Icon, Spinner, Tabs } from "zmp-ui";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
-import { db } from "../services/firebase";
+import { db } from "../firebase";
 import { useLocation } from "react-router-dom";
 
 const ShopOrdersPage: FC = () => {

@@ -2,7 +2,7 @@ import React, { FC, useEffect, useState } from "react";
 import { Page, Header, Box, Text, Avatar, Button, Icon, Tabs, useSnackbar, Spinner, Modal } from "zmp-ui";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
-import { db } from "../services/firebase";
+import { db } from "../firebase";
 import { openPhone, openChat } from "zmp-sdk/apis";
 
 const ShopPublicView: FC = () => {
@@ -245,9 +245,23 @@ const ShopPublicView: FC = () => {
                                 {/* ĐÃ CẬP NHẬT: Giá tiền màu cam, không có mũi tên */}
                                 {/* 👇 HIỂN THỊ GIÁ DỰA TRÊN CÔNG TẮC ADMIN 👇 */}
                                 {showPrice ? (
-                                    <Text size="small" bold className="text-orange-600 mt-2">
-                                      {Number(item.price || 0).toLocaleString()}đ
-                                    </Text>
+                                    <Box mt={2}>
+                                        <Text size="small" bold className="text-orange-600">
+                                            {Number(item.price || 0).toLocaleString()}đ
+                                        </Text>
+                                        
+                                        {/* 👉 HIỂN THỊ GIÁ GỐC GẠCH NGANG & % GIẢM GIÁ */}
+                                        {Number(item.originalPrice) > Number(item.price) && (
+                                            <Box flex alignItems="center" className="mt-0.5">
+                                                <Text size="xSmall" className="text-gray-400 line-through mr-1.5">
+                                                    {Number(item.originalPrice).toLocaleString()}đ
+                                                </Text>
+                                                <Text size="xxxxSmall" className="bg-red-100 text-red-600 px-1 py-0.5 rounded font-bold">
+                                                    -{Math.round(((Number(item.originalPrice) - Number(item.price)) / Number(item.originalPrice)) * 100)}%
+                                                </Text>
+                                            </Box>
+                                        )}
+                                    </Box>
                                 ) : (
                                     <Text size="xSmall" bold className="text-blue-600 mt-2 italic">
                                       Liên hệ báo giá
