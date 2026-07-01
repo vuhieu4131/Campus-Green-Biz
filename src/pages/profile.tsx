@@ -9,6 +9,8 @@ import {
   Button,
   useNavigate,
   Tabs,
+  Sheet,
+  useSnackbar,
 } from "zmp-ui";
 import { useLocation } from "react-router-dom";
 import subscriptionDecor from "static/subscription-decor.svg";
@@ -17,7 +19,7 @@ import { AuthOverlay } from "./auth";
 // IMPORT CÔNG CỤ FIREBASE
 import { auth, db } from "../firebase";
 import { onAuthStateChanged, signOut, User } from "firebase/auth";
-import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import { PostItem } from "../components/post-item";
 import { RawPost } from "../utils/edgeRanker";
 
@@ -90,10 +92,24 @@ const calculateMemberRankInfo = (points: number) => {
   return { name: "Hạng Vàng", sub: "ELITE STATUS", target: 1000 };
 };
 
-const NewMemberView: FC<{ user: any; points: number; role?: string; isOtherProfile?: boolean }> = ({ user, points, role, isOtherProfile }) => {
+const NewMemberView: FC<{ 
+  user: any; 
+  points: number; 
+  role?: string; 
+  isOtherProfile?: boolean;
+  followers?: string[];
+  currentUserId?: string;
+  onFollowToggle?: () => void;
+}> = ({ user, points, role, isOtherProfile, followers = [], currentUserId, onFollowToggle }) => {
   const navigate = useNavigate();
+  const { openSnackbar } = useSnackbar();
   const [activeTab, setActiveTab] = useState<'posts' | 'saved' | 'tagged'>('posts');
   const rankInfo = calculateMemberRankInfo(points);
+  
+  const [showFollowingOptions, setShowFollowingOptions] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+
+  const isFollowing = currentUserId ? followers.includes(currentUserId) : false;
 
   const [posts, setPosts] = useState<RawPost[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
@@ -152,13 +168,39 @@ const NewMemberView: FC<{ user: any; points: number; role?: string; isOtherProfi
       />
 
       {/* 3. Thông tin User & Avatar */}
-      <Box className="px-4 relative mb-2">
-        <Box className="absolute -top-12 left-4 rounded-full border-4 border-white">
-          <Avatar src={user.avatar} size={80} />
+      <Box className="px-4 relative mb-2 flex justify-between items-end">
+        <Box>
+          <Box className="absolute -top-12 left-4 rounded-full border-4 border-white">
+            <Avatar src={user.avatar} size={80} />
+          </Box>
+          <Box className="pt-12">
+            <Text.Title className="text-xl font-bold">{user.name}</Text.Title>
+          </Box>
         </Box>
-        <Box className="pt-12">
-          <Text.Title className="text-xl font-bold">{user.name}</Text.Title>
-        </Box>
+        {isOtherProfile && (
+          <Button 
+            className="rounded-full font-medium shadow-sm px-4 h-8 text-sm flex-shrink-0 flex items-center justify-center"
+            style={{ 
+              backgroundColor: isFollowing ? "#f3f4f6" : "#14502e", 
+              color: isFollowing ? "#374151" : "white",
+              border: isFollowing ? "1px solid #e5e7eb" : "none"
+            }}
+            onClick={() => {
+              if (isFollowing) {
+                setShowFollowingOptions(true);
+              } else {
+                if (onFollowToggle) onFollowToggle();
+              }
+            }}
+          >
+            {isFollowing ? (
+              <Box className="flex items-center">
+                Đang theo dõi
+                <Icon icon="zi-chevron-down" className="ml-1 text-[16px]" />
+              </Box>
+            ) : "Theo dõi"}
+          </Button>
+        )}
       </Box>
 
       {/* 4. Thẻ Membership */}
@@ -204,13 +246,13 @@ const NewMemberView: FC<{ user: any; points: number; role?: string; isOtherProfi
           </Text>
         </Box>
         <Box className="text-center">
-          <Text.Title className="font-bold text-lg">83</Text.Title>
+          <Text.Title className="font-bold text-lg">{followers.length}</Text.Title>
           <Text size="small" className="text-gray-600">
             người theo dõi
           </Text>
         </Box>
         <Box className="text-center">
-          <Text.Title className="font-bold text-lg">216</Text.Title>
+          <Text.Title className="font-bold text-lg">0</Text.Title>
           <Text size="small" className="text-gray-600">
             đang theo dõi
           </Text>
@@ -308,6 +350,27 @@ const NewMemberView: FC<{ user: any; points: number; role?: string; isOtherProfi
           <Text>Chưa có bài viết nào gắn thẻ bạn</Text>
         </Box>
       )}
+
+      {/* Menu Tùy chọn Đang theo dõi */}
+      <Sheet visible={showFollowingOptions} onClose={() => setShowFollowingOptions(false)} autoHeight title="Đang theo dõi">
+        <Box className="p-2 pb-6">
+          <Box className="flex items-center p-4 cursor-pointer active:bg-gray-100 rounded-xl text-gray-700" onClick={() => { 
+            setNotificationsEnabled(!notificationsEnabled);
+            openSnackbar({ text: notificationsEnabled ? "Đã tắt thông báo" : "Đã bật thông báo nhận bài viết mới", type: "success" });
+            setShowFollowingOptions(false);
+          }}>
+            <Icon icon={notificationsEnabled ? "zi-notif-off" : "zi-notif"} className="mr-3 text-2xl" />
+            <Text className="text-[16px] font-medium">{notificationsEnabled ? "Tắt thông báo bài viết mới" : "Nhận thông báo bài viết mới"}</Text>
+          </Box>
+          <Box className="flex items-center p-4 cursor-pointer active:bg-gray-100 rounded-xl text-red-500 border-t border-gray-100" onClick={() => {
+            if (onFollowToggle) onFollowToggle();
+            setShowFollowingOptions(false);
+          }}>
+            <Icon icon="zi-close-circle" className="mr-3 text-2xl" />
+            <Text className="text-[16px] font-medium">Hủy theo dõi</Text>
+          </Box>
+        </Box>
+      </Sheet>
     </Box>
   );
 };
@@ -332,13 +395,13 @@ const ProfilePage: FC = () => {
       const fetchTarget = async () => {
         let snap = await getDoc(doc(db, "users", profileId));
         if (snap.exists()) {
-          setTargetUserData({ id: snap.id, ...snap.data() });
+          setTargetUserData({ id: snap.id, collectionName: "users", ...snap.data() });
           setLoadingTarget(false);
           return;
         }
         snap = await getDoc(doc(db, "shops", profileId));
         if (snap.exists()) {
-          setTargetUserData({ id: snap.id, ...snap.data() });
+          setTargetUserData({ id: snap.id, collectionName: "shops", ...snap.data() });
         }
         setLoadingTarget(false);
       };
@@ -389,6 +452,30 @@ const ProfilePage: FC = () => {
     }
   };
 
+  const handleFollowToggle = async () => {
+    if (!currentUser) {
+      setAuthVisible(true);
+      return;
+    }
+    if (!targetUserData || !targetUserData.collectionName) return;
+
+    const targetRef = doc(db, targetUserData.collectionName, targetUserData.id);
+    const followers = targetUserData.followers || [];
+    const isFollowing = followers.includes(currentUser.uid);
+
+    try {
+      if (isFollowing) {
+        await updateDoc(targetRef, { followers: arrayRemove(currentUser.uid) });
+        setTargetUserData({ ...targetUserData, followers: followers.filter((id: string) => id !== currentUser.uid) });
+      } else {
+        await updateDoc(targetRef, { followers: arrayUnion(currentUser.uid) });
+        setTargetUserData({ ...targetUserData, followers: [...followers, currentUser.uid] });
+      }
+    } catch (error) {
+      console.error("Follow toggle failed", error);
+    }
+  };
+
   return (
     <ErrorBoundary>
       <Page className="relative overflow-y-auto">
@@ -411,6 +498,9 @@ const ProfilePage: FC = () => {
               points={targetUserData.points || 0}
               role={targetUserData.role}
               isOtherProfile={true}
+              followers={targetUserData.followers || []}
+              currentUserId={currentUser?.uid}
+              onFollowToggle={handleFollowToggle}
             />
           ) : (
             <Box className="flex justify-center items-center h-40">
@@ -435,6 +525,8 @@ const ProfilePage: FC = () => {
               points={userData?.points || 0}
               role={userData?.role}
               isOtherProfile={false}
+              followers={userData?.followers || []}
+              currentUserId={currentUser.uid}
             />
           </>
         ) : (
