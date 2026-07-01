@@ -2,7 +2,7 @@ import { useVirtualKeyboardVisible } from "hooks";
 import React, { FC, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { MenuItem } from "types/menu";
-import { BottomNavigation, Icon } from "zmp-ui";
+import { BottomNavigation, Icon, Box } from "zmp-ui";
 import { CartIcon } from "./cart-icon";
 
 const StoreIcon = ({ active }: { active?: boolean }) => {
@@ -36,6 +36,35 @@ const tabs: Record<string, MenuItem> = {
     icon: <StoreIcon />,
     activeIcon: <StoreIcon active />,
   },
+  "/create-post": {
+    label: "ㅤ",
+    icon: (
+      <div className="relative w-8 h-8 mx-auto flex items-center justify-center">
+        <div 
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#14502e] text-white flex items-center justify-center z-50"
+          style={{ width: '52px', height: '38px', borderRadius: '14px', marginTop: '2px' }}
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+        </div>
+      </div>
+    ),
+    activeIcon: (
+      <div className="relative w-8 h-8 mx-auto flex items-center justify-center">
+        <div 
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#14502e] text-white flex items-center justify-center z-50 opacity-80"
+          style={{ width: '52px', height: '38px', borderRadius: '14px', marginTop: '2px' }}
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+        </div>
+      </div>
+    ),
+  },
   "/notification": {
     label: "Thông báo",
     icon: <Icon icon="zi-notif" />,
@@ -55,7 +84,7 @@ const tabs: Record<string, MenuItem> = {
 
 export type TabKeys = keyof typeof tabs;
 
-export const NO_BOTTOM_NAVIGATION_PAGES = ["/search", "/category", "/result"];
+export const NO_BOTTOM_NAVIGATION_PAGES = ["/search", "/category", "/result", "/create-post"];
 
 export const Navigation: FC = () => {
   const keyboardVisible = useVirtualKeyboardVisible();
