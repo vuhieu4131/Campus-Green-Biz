@@ -1,7 +1,7 @@
 import React, { FC, useState } from "react";
 import { Box, Text, Avatar, Icon, Modal, Progress, Spinner, useNavigate, Button } from "zmp-ui";
 import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
-import { db } from "../../services/firebase";
+import { db } from "../../firebase";
 
 const calculateMemberRankInfo = (points: number) => {
   const p = points || 0;
@@ -56,7 +56,7 @@ export const MemberView: FC<{ user: any; points: number }> = ({ user, points }) 
   };
 
   return (
-    <Box className="bg-gray-100 min-h-screen pb-10">
+    <Box className="pb-4">
       {/* SECTION 1: THÔNG TIN TÀI KHOẢN & 2 VÍ */}
       <Box className="bg-white p-4 flex flex-col items-center border-b shadow-sm">
         <Avatar src={user?.avatar} size={64} className="mb-2 border-2 border-orange-400" />
