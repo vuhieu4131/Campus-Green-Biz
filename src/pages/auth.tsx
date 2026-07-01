@@ -1,12 +1,11 @@
 import React, { FC, useState } from "react";
-// Đã GỘP useNavigate vào thư viện chuẩn zmp-ui để sửa lỗi trắng màn hình[cite: 7]
 import { Box, Text, Input, Button, Switch, Avatar, Icon, useNavigate } from "zmp-ui"; 
-import { useRecoilValue, useRecoilValueLoadable } from "recoil";
+import { useRecoilValueLoadable } from "recoil";
 import { userState } from "state";
 import { auth, db } from "../firebase"; 
-// BỔ SUNG: Nhập thêm hàm deleteUser để dọn dẹp tài khoản lỗi
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, deleteUser } from "firebase/auth";
-import { doc, setDoc, getDoc } from "firebase/firestore"; // Bổ sung getDoc 
+// 👉 ĐÃ BỔ SUNG: Thêm collection, query, where, getDocs để hỗ trợ quét dữ liệu ngoại lệ
+import { doc, setDoc, getDoc, collection, query, where, getDocs } from "firebase/firestore"; 
 
 interface AuthOverlayProps {
   visible: boolean;
@@ -39,30 +38,42 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
     try {
       const email = `${phone}@campus.com`;
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
+      // 👉 LẤY MÃ UID TỪ FIREBASE ĐỂ TÌM KIẾM
+      const uid = userCredential.user.uid; 
 
-      // 1. ƯU TIÊN TÌM TRONG NGĂN TỦ "shops" TRƯỚC
-      const shopRef = doc(db, "shops", user.uid);
+      // 1. TÌM TRONG BẢNG "shops" BẰNG UID
+      const shopRef = doc(db, "shops", uid);
       const shopSnap = await getDoc(shopRef);
 
       if (shopSnap.exists()) {
         alert("Chào mừng Nhà phân phối quay trở lại!");
         onClose(); 
         navigate("/distributor"); 
-        return; // Kết thúc sớm nếu đã tìm thấy Shop
+        return; 
       }
 
-      // 2. NẾU KHÔNG THẤY Ở "shops", TÌM TIẾP TRONG "users"
-      const userRef = doc(db, "users", user.uid);
+      // 2. TÌM TRONG BẢNG "users" BẰNG UID
+      const userRef = doc(db, "users", uid);
       const userSnap = await getDoc(userRef);
 
       if (userSnap.exists()) {
-        alert("Đăng nhập thành công!");
+        alert(`Đăng nhập thành công! Chào ${userSnap.data().fullName || "bạn"}`);
         onClose(); 
-      } else {
-        alert("Đăng nhập thành công!");
-        onClose();
+        return;
+      } 
+      
+      // 3. LỚP CỨU CÁNH: Nếu UID không khớp (Dành riêng cho Shop bạn tự tạo bằng tay trên Firebase)
+      const qShop = query(collection(db, "shops"), where("phone", "==", phone));
+      const shopByPhoneSnap = await getDocs(qShop);
+      if (!shopByPhoneSnap.empty) {
+        alert("Chào mừng Nhà phân phối quay trở lại!");
+        onClose(); 
+        navigate("/distributor"); 
+        return;
       }
+
+      alert("Đăng nhập thành công!");
+      onClose(); 
 
     } catch (error: any) {
       alert("Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin!");
@@ -86,30 +97,28 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
       
       // 1. Tạo tài khoản đăng nhập bên Xác thực (Auth)
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
+      // 👉 LẤY MÃ UID VỪA TẠO
+      const uid = userCredential.user.uid; 
 
-      // 2. TẠO BIẾN QUYẾT ĐỊNH NƠI LƯU TRỮ DỮ LIỆU
-      // Nếu isShopConfig là true -> chọn "shops", ngược lại chọn "users"
       const collectionName = isShopConfig ? "shops" : "users";
 
-      // 3. Lưu thông tin vào đúng ngăn tủ đã chọn trên Firestore
-      await setDoc(doc(db, collectionName, user.uid), {
+      // 2. LƯU DỮ LIỆU BẰNG MÃ UID
+      await setDoc(doc(db, collectionName, uid), {
         phone: phone,
         fullName: fullName,
         referralCode: referralCode,
-        isShopConfig: isShopConfig, // Vẫn lưu lại cờ này để dễ kiểm tra sau này
+        isShopConfig: isShopConfig, 
         zaloName: userInfo?.name || "",
         createdAt: new Date().toISOString()
       });
 
-      // 4. Hiển thị thông báo phù hợp với lựa chọn của khách
       if (isShopConfig) {
         alert("Đăng ký mở Gian hàng (Nhà phân phối) thành công!");
       } else {
         alert("Đăng ký thành viên thành công!");
       }
       
-      onClose(); // Đóng popup
+      onClose(); 
     } catch (error: any) {
       console.error("LỖI CHI TIẾT CỦA FIREBASE:", error);
       if (error.code === 'auth/email-already-in-use') {

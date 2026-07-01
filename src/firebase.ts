@@ -4,14 +4,15 @@ import { getFirestore, doc, updateDoc, increment, setDoc, getDoc } from "firebas
 import { getStorage } from "firebase/storage";
 import { getAuth } from "firebase/auth"; // Nếu dự án của bạn có dùng Auth
 
-// Cấu hình Firebase thực tế trích xuất từ dự án "campus-green-biz" của bạn
+// Cấu hình Firebase thực tế trích xuất từ dự án "campusbizproject" của bạn
 const firebaseConfig = {
-  apiKey: "AIzaSyBqjmQY_ED4l0jTSQgGN325oGOxUVFqBBU",
-  authDomain: "campus-green-biz.firebaseapp.com",
-  projectId: "campus-green-biz",
-  storageBucket: "campus-green-biz.firebasestorage.app",
-  messagingSenderId: "279440017514",
-  appId: "1:279440017514:web:2a0c5e21770ca0cb642213"
+  apiKey: "AIzaSyDF4jBlhobzytz0xphXgH_VzSNn7c_TpZc",
+  authDomain: "campusbizproject.firebaseapp.com",
+  projectId: "campusbizproject",
+  storageBucket: "campusbizproject.firebasestorage.app",
+  messagingSenderId: "981136546059",
+  appId: "1:981136546059:web:47f3a7b8a6c0c49766aa0e",
+  measurementId: "G-FJKCT56XNN"
 };
 
 // Khởi tạo ứng dụng Firebase

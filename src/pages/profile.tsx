@@ -129,7 +129,7 @@ const ProfilePage: FC = () => {
           }
 
           // 3. NẾU LÀ KHÁCH HÀNG: Tải dữ liệu từ bảng "users" (Dùng finalPhone làm ID)
-          const docRef = doc(db, "users", finalPhone);
+          const docRef = doc(db, "users", user.uid);
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
             setUserData(docSnap.data());
