@@ -244,24 +244,34 @@ const ProfilePage: FC = () => {
   const [userData, setUserData] = useState<any>(null);
 
   // Lắng nghe trạng thái đăng nhập từ Firebase
+  // Lắng nghe trạng thái đăng nhập từ Firebase
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        setCurrentUser(user); // Đã đăng nhập
-        // Lên Firestore lấy thông tin chi tiết (Họ tên, SĐT...)
-        const docRef = doc(db, "users", user.uid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setUserData(docSnap.data());
+        setCurrentUser(user);
+        
+        // 1. THỬ TÌM TRONG BẢNG "shops" TRƯỚC
+        const shopRef = doc(db, "shops", user.uid);
+        const shopSnap = await getDoc(shopRef);
+
+        if (shopSnap.exists()) {
+          setUserData(shopSnap.data()); // Nhận diện là Shop
+          return; // Thoát hàm nếu đã tìm thấy Shop
+        }
+
+        // 2. NẾU KHÔNG THẤY TRONG SHOPS, MỚI TÌM TRONG BẢNG "users"
+        const userRef = doc(db, "users", user.uid);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          setUserData(userSnap.data()); // Nhận diện là User
         }
       } else {
-        // Chưa đăng nhập hoặc vừa đăng xuất
         setCurrentUser(null);
         setUserData(null);
       }
     });
 
-    return () => unsubscribe(); // Dọn dẹp bộ nhớ khi chuyển trang
+    return () => unsubscribe();
   }, []);
 
   // Hàm xử lý Đăng xuất
