@@ -8,6 +8,7 @@ import {
   Avatar,
   Button,
   useNavigate,
+  Tabs,
 } from "zmp-ui";
 import subscriptionDecor from "static/subscription-decor.svg";
 import { AuthOverlay } from "./auth";
@@ -15,7 +16,9 @@ import { AuthOverlay } from "./auth";
 // IMPORT CÔNG CỤ FIREBASE
 import { auth, db } from "../firebase";
 import { onAuthStateChanged, signOut, User } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { PostItem } from "../components/post-item";
+import { RawPost } from "../utils/edgeRanker";
 
 class ErrorBoundary extends React.Component<
   any,
@@ -91,14 +94,36 @@ const NewMemberView: FC<{ user: any; points: number; role?: string }> = ({ user,
   const [activeTab, setActiveTab] = useState<'posts' | 'saved' | 'tagged'>('posts');
   const rankInfo = calculateMemberRankInfo(points);
 
-  const dummyImages = [
-    "https://images.unsplash.com/photo-1497436072909-60f360e1d4b1?w=500&h=500&fit=crop",
-    "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=500&h=500&fit=crop",
-    "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?w=500&h=500&fit=crop",
-    "https://images.unsplash.com/photo-1492496913980-501348b61469?w=500&h=500&fit=crop",
-    "https://images.unsplash.com/photo-1505506874110-6a7a6c9924c7?w=500&h=500&fit=crop",
-    "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=500&h=500&fit=crop",
-  ];
+  const [posts, setPosts] = useState<RawPost[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(true);
+
+  useEffect(() => {
+    const fetchPosts = async () => {
+      try {
+        const q = query(
+          collection(db, "posts"), 
+          where("authorId", "==", user.id)
+        );
+        const snapshot = await getDocs(q);
+        const fetchedPosts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as RawPost[];
+        // Sắp xếp bài viết: Ghim lên đầu, sau đó mới nhất lên đầu
+        fetchedPosts.sort((a, b) => {
+          if (a.isPinned && !b.isPinned) return -1;
+          if (!a.isPinned && b.isPinned) return 1;
+
+          const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
+          const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
+          return timeB - timeA;
+        });
+        setPosts(fetchedPosts);
+      } catch (error) {
+        console.error("Lỗi lấy bài viết:", error);
+      } finally {
+        setLoadingPosts(false);
+      }
+    };
+    if (user?.id) fetchPosts();
+  }, [user.id]);
 
   return (
     <Box className="min-h-screen pb-10 relative">
@@ -163,7 +188,7 @@ const NewMemberView: FC<{ user: any; points: number; role?: string }> = ({ user,
       {/* 5. Thống kê */}
       <Box className="flex justify-around mt-6 mb-4 px-4">
         <Box className="text-center">
-          <Text.Title className="font-bold text-lg">6</Text.Title>
+          <Text.Title className="font-bold text-lg">{posts.length}</Text.Title>
           <Text size="small" className="text-gray-600">
             bài viết
           </Text>
@@ -220,14 +245,43 @@ const NewMemberView: FC<{ user: any; points: number; role?: string }> = ({ user,
 
       {/* 7. Nội dung Tab */}
       {activeTab === 'posts' && (
-        <Box className="grid grid-cols-3 gap-1">
-          {dummyImages.map((src, idx) => (
-            <Box
-              key={idx}
-              className="aspect-square bg-gray-200 bg-cover bg-center"
-              style={{ backgroundImage: `url('${src}')` }}
-            />
-          ))}
+        <Box className="grid grid-cols-3 gap-1 pt-1">
+          {loadingPosts ? (
+            <Box className="col-span-3 py-10 flex justify-center">
+              <Text className="text-gray-400">Đang tải...</Text>
+            </Box>
+          ) : posts.length === 0 ? (
+            <Box className="col-span-3 py-10 flex justify-center flex-col items-center">
+              <Icon icon="zi-camera" className="text-gray-300 text-4xl mb-2" />
+              <Text className="text-gray-500">Chưa có bài viết nào</Text>
+            </Box>
+          ) : (
+            posts.map((post) => (
+              <Box
+                key={post.id}
+                className="aspect-square bg-gray-200 relative cursor-pointer active:opacity-80 overflow-hidden"
+                onClick={() => navigate(`/post-detail?id=${post.id}`)}
+              >
+                {post.images && post.images.length > 0 ? (
+                  <img src={post.images[0]} className="w-full h-full object-cover" alt="post" />
+                ) : (
+                  <Box className="w-full h-full bg-[#f8f6ec] p-2 flex items-center justify-center border border-[#e8e4d3]">
+                    <Text size="xxSmall" className="text-gray-700 text-center line-clamp-4 break-words">
+                      {post.content}
+                    </Text>
+                  </Box>
+                )}
+                {post.images && post.images.length > 1 && (
+                  <Icon icon="zi-copy" className="absolute top-1 right-1 text-white opacity-80" size={16} />
+                )}
+                {post.isPinned && (
+                  <Box className="absolute top-1 left-1 bg-white/90 p-1 rounded-full shadow-sm z-10 flex items-center justify-center">
+                    <Icon icon="zi-star-solid" className="text-[#a68c4d]" size={12} />
+                  </Box>
+                )}
+              </Box>
+            ))
+          )}
         </Box>
       )}
 
