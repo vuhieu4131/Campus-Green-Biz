@@ -1,26 +1,42 @@
 import React, { FC } from "react";
-import { Page, Box, Text, Avatar, Icon, Input } from "zmp-ui";
+import { Page, Box, Text, Avatar, Icon, Input, useNavigate } from "zmp-ui";
 
-const StoreWelcome: FC = () => (
-  <Box className="bg-[#14502e] rounded-b-[40px] pt-12 pb-16 px-4 relative">
-    <Box className="flex justify-between items-center">
-      <Box className="flex items-center space-x-3">
-        <Avatar src="https://i.pravatar.cc/150?img=11" size={48} className="border-2 border-white" />
-        <Box>
-          <Text className="text-white/80 text-sm">Chào buổi sáng,</Text>
-          <Text.Title className="text-white font-bold text-xl">Đức</Text.Title>
+const StoreWelcome: FC = () => {
+  const navigate = useNavigate();
+  return (
+    <Box className="bg-[#14502e] rounded-b-[40px] pt-12 pb-16 px-4 relative">
+      <Box className="flex justify-between items-center">
+        {/* TRÁI: Avatar, Lời chào & Điểm xanh */}
+        <Box className="flex items-center space-x-3">
+          <Avatar src="https://i.pravatar.cc/150?img=11" size={56} className="border-2 border-white shadow-sm" />
+          <Box>
+            <Text className="text-white/80 text-sm">Chào buổi sáng,</Text>
+            <Text.Title className="text-white font-bold text-xl mb-1">Đức</Text.Title>
+            <Box className="bg-white/20 backdrop-blur-md rounded-full px-2 py-0.5 flex items-center w-fit border border-white/30 shadow-sm">
+              <Icon icon="zi-star-solid" className="text-yellow-400 text-xs mr-1" />
+              <Text size="xxxxSmall" className="text-white font-bold">150 Điểm Xanh</Text>
+            </Box>
+          </Box>
         </Box>
-      </Box>
-      <Box className="bg-white/20 backdrop-blur-md rounded-full px-3 py-1.5 flex items-center space-x-1 border border-white/30">
-        <Icon icon="zi-leaf" className="text-white" />
-        <Box>
-          <Text className="text-white font-bold text-sm leading-none">150</Text>
-          <Text size="xxxxSmall" className="text-white/80 leading-none">Điểm Xanh</Text>
+
+        {/* PHẢI: Nút Giỏ Hàng */}
+        <Box 
+          className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30 cursor-pointer relative shadow-sm"
+          onClick={() => navigate('/cart')}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <path d="M16 10a4 4 0 0 1-8 0"></path>
+          </svg>
+          <Box className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full border border-[#14502e] font-bold">
+            2
+          </Box>
         </Box>
       </Box>
     </Box>
-  </Box>
-);
+  );
+};
 
 const StoreSearch: FC = () => (
   <Box className="px-4 -mt-6 relative z-10">

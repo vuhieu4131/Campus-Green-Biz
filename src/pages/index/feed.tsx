@@ -82,7 +82,7 @@ export const Post: FC<{ data: PostData }> = ({ data }) => {
   };
 
   return (
-    <Box className="bg-white mx-3 mb-4 pt-4 pb-2 rounded-2xl shadow-md border border-gray-500">
+    <Box className="bg-white mx-3 mb-4 pt-4 pb-2 rounded-2xl shadow-md border border-gray-50">
       {/* Header */}
       <Box className="flex items-center justify-between px-4 mb-2">
         <Box className="flex items-center space-x-2">

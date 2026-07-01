@@ -45,11 +45,7 @@ const tabs: Record<string, MenuItem> = {
       </svg>
     ),
   },
-  "/cart": {
-    label: "Giỏ hàng",
-    icon: <CartIcon />,
-    activeIcon: <CartIcon active />,
-  },
+
   "/profile": {
     label: "Cá nhân",
     icon: <Icon icon="zi-user" />,
