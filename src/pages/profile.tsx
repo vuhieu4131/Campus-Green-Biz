@@ -10,6 +10,7 @@ import {
   useNavigate,
   Tabs,
 } from "zmp-ui";
+import { useLocation } from "react-router-dom";
 import subscriptionDecor from "static/subscription-decor.svg";
 import { AuthOverlay } from "./auth";
 
@@ -89,7 +90,7 @@ const calculateMemberRankInfo = (points: number) => {
   return { name: "Hạng Vàng", sub: "ELITE STATUS", target: 1000 };
 };
 
-const NewMemberView: FC<{ user: any; points: number; role?: string }> = ({ user, points, role }) => {
+const NewMemberView: FC<{ user: any; points: number; role?: string; isOtherProfile?: boolean }> = ({ user, points, role, isOtherProfile }) => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'posts' | 'saved' | 'tagged'>('posts');
   const rankInfo = calculateMemberRankInfo(points);
@@ -128,11 +129,18 @@ const NewMemberView: FC<{ user: any; points: number; role?: string }> = ({ user,
   return (
     <Box className="min-h-screen pb-10 relative">
       {/* 1. Header nổi trên Ảnh Bìa */}
-      <Box className="absolute top-0 left-0 w-full flex justify-end items-center px-4 py-3 z-10">
-        <Box className="flex items-center space-x-3 bg-black/20 px-3 py-1.5 rounded-full backdrop-blur-sm cursor-pointer" onClick={() => navigate('/settings')}>
-          <Icon icon="zi-setting" className="text-white text-2xl" />
-          <Avatar src={user.avatar} size={32} className="border border-white/50" />
-        </Box>
+      <Box className="absolute top-0 left-0 w-full flex justify-between items-center px-4 py-3 z-10">
+        {isOtherProfile ? (
+          <Box className="bg-black/20 p-2 rounded-full backdrop-blur-sm cursor-pointer" onClick={() => navigate(-1)}>
+            <Icon icon="zi-arrow-left" className="text-white text-2xl" />
+          </Box>
+        ) : <div />}
+        {!isOtherProfile && (
+          <Box className="flex items-center space-x-3 bg-black/20 px-3 py-1.5 rounded-full backdrop-blur-sm cursor-pointer" onClick={() => navigate('/settings')}>
+            <Icon icon="zi-setting" className="text-white text-2xl" />
+            <Avatar src={user.avatar} size={32} className="border border-white/50" />
+          </Box>
+        )}
       </Box>
 
       {/* 2. Ảnh Bìa (Cover Image) */}
@@ -154,26 +162,28 @@ const NewMemberView: FC<{ user: any; points: number; role?: string }> = ({ user,
       </Box>
 
       {/* 4. Thẻ Membership */}
-      <Box
-        className="mx-4 mt-4 bg-[#f8f6ec] rounded-xl p-4 border border-[#e8e4d3] flex items-center shadow-md cursor-pointer"
-        onClick={() => navigate("/wallet")}
-      >
-        <Icon icon="zi-star-solid" className="text-[#a68c4d] text-2xl mr-3" />
-        <Box>
-          <Text.Title className="font-bold uppercase text-gray-800">
-            {rankInfo.name}
-          </Text.Title>
-          <Text
-            size="xSmall"
-            className="text-gray-500 uppercase tracking-widest mt-1"
-          >
-            {rankInfo.sub}
-          </Text>
+      {!isOtherProfile && (
+        <Box
+          className="mx-4 mt-4 bg-[#f8f6ec] rounded-xl p-4 border border-[#e8e4d3] flex items-center shadow-md cursor-pointer"
+          onClick={() => navigate("/wallet")}
+        >
+          <Icon icon="zi-star-solid" className="text-[#a68c4d] text-2xl mr-3" />
+          <Box>
+            <Text.Title className="font-bold uppercase text-gray-800">
+              {rankInfo.name}
+            </Text.Title>
+            <Text
+              size="xSmall"
+              className="text-gray-500 uppercase tracking-widest mt-1"
+            >
+              {rankInfo.sub}
+            </Text>
+          </Box>
         </Box>
-      </Box>
+      )}
 
       {/* Nút Quản Lý Dành Cho Admin/Distributor */}
-      {role === "distributor" && (
+      {!isOtherProfile && role === "distributor" && (
         <Box className="px-4 mt-4">
           <Button
             fullWidth
@@ -305,10 +315,38 @@ const NewMemberView: FC<{ user: any; points: number; role?: string }> = ({ user,
 // --- TRANG PROFILE CHÍNH ---
 const ProfilePage: FC = () => {
   const [authVisible, setAuthVisible] = useState(false);
+  const location = useLocation();
+  const profileId = new URLSearchParams(location.search).get("id");
 
   // Trạng thái quản lý User
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<any>(null);
+  
+  const [targetUserData, setTargetUserData] = useState<any>(null);
+  const [loadingTarget, setLoadingTarget] = useState(false);
+
+  // Lấy data của user mục tiêu nếu có profileId
+  useEffect(() => {
+    if (profileId) {
+      setLoadingTarget(true);
+      const fetchTarget = async () => {
+        let snap = await getDoc(doc(db, "users", profileId));
+        if (snap.exists()) {
+          setTargetUserData({ id: snap.id, ...snap.data() });
+          setLoadingTarget(false);
+          return;
+        }
+        snap = await getDoc(doc(db, "shops", profileId));
+        if (snap.exists()) {
+          setTargetUserData({ id: snap.id, ...snap.data() });
+        }
+        setLoadingTarget(false);
+      };
+      fetchTarget();
+    } else {
+      setTargetUserData(null);
+    }
+  }, [profileId]);
 
   // Lắng nghe trạng thái đăng nhập từ Firebase
   // Lắng nghe trạng thái đăng nhập từ Firebase
@@ -356,25 +394,48 @@ const ProfilePage: FC = () => {
       <Page className="relative overflow-y-auto">
         {!currentUser && <Header showBackIcon={false} title="Hồ sơ cá nhân" />}
 
-        {/* HIỂN THỊ DỰA TRÊN TRẠNG THÁI ĐĂNG NHẬP */}
-        {currentUser ? (
+        {/* HIỂN THỊ DỰA TRÊN TRẠNG THÁI */}
+        {profileId ? (
+          loadingTarget ? (
+            <Box className="flex justify-center items-center h-40">
+              <Text className="text-gray-400">Đang tải hồ sơ...</Text>
+            </Box>
+          ) : targetUserData ? (
+            <NewMemberView
+              user={{
+                id: targetUserData.id,
+                username: targetUserData.phone || "user_name",
+                name: targetUserData.fullName || targetUserData.phone || "Thành viên Campus",
+                avatar: targetUserData.avatar || "https://i.pravatar.cc/150?img=11",
+              }}
+              points={targetUserData.points || 0}
+              role={targetUserData.role}
+              isOtherProfile={true}
+            />
+          ) : (
+            <Box className="flex justify-center items-center h-40">
+              <Text className="text-gray-400">Không tìm thấy người dùng.</Text>
+            </Box>
+          )
+        ) : currentUser ? (
           <>
-            {/* KỊCH BẢN 1: ĐÃ ĐĂNG NHẬP -> Giao diện mới */}
-              <NewMemberView
-                user={{
-                  id: currentUser.uid,
-                  username: currentUser.email
-                    ? currentUser.email.split("@")[0]
-                    : "user_name",
-                  name:
-                    userData?.fullName ||
-                    currentUser.email?.replace("@campus.com", "") ||
-                    "Thành viên Campus",
-                  avatar: userData?.avatar || "https://i.pravatar.cc/150?img=11",
-                }}
-                points={userData?.points || 0}
-                role={userData?.role}
-              />
+            {/* KỊCH BẢN 1: ĐÃ ĐĂNG NHẬP -> Giao diện của mình */}
+            <NewMemberView
+              user={{
+                id: currentUser.uid,
+                username: currentUser.email
+                  ? currentUser.email.split("@")[0]
+                  : "user_name",
+                name:
+                  userData?.fullName ||
+                  currentUser.email?.replace("@campus.com", "") ||
+                  "Thành viên Campus",
+                avatar: userData?.avatar || "https://i.pravatar.cc/150?img=11",
+              }}
+              points={userData?.points || 0}
+              role={userData?.role}
+              isOtherProfile={false}
+            />
           </>
         ) : (
           <>
