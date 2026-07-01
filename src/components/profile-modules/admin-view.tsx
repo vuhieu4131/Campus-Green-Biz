@@ -1,7 +1,7 @@
 import React, { FC, useState, useEffect } from "react";
 import { Box, Text, Icon, Modal, Avatar, Button, Input, useSnackbar, Spinner, Select, Switch } from "zmp-ui";
 import { collection, query, where, getDocs, doc, updateDoc, deleteDoc, orderBy, addDoc, serverTimestamp, getDoc, setDoc, onSnapshot } from "firebase/firestore";
-import { db } from "../../services/firebase";
+import { db } from "../../firebase";
 const { Option } = Select;
 // Hàm format ngày giờ
 const formatDate = (timestamp) => {
