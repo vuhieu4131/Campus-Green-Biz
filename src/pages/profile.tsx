@@ -19,6 +19,9 @@ import { onAuthStateChanged, signOut, User } from "firebase/auth";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { PostItem } from "../components/post-item";
 import { RawPost } from "../utils/edgeRanker";
+import { ProviderView } from "../components/profile-modules/provider-view";
+import { BranchView } from "../components/profile-modules/branch-view";
+import { AdminView } from "../components/profile-modules/admin-view";
 
 class ErrorBoundary extends React.Component<
   any,
@@ -334,10 +337,9 @@ const ProfilePage: FC = () => {
             const shopSnap = await getDocs(qShop);
 
             if (!shopSnap.empty) {
-              // NẾU LÀ SHOP: Bẻ lái sang trang quản lý một cách an toàn!
-              startTransition(() => {
-                navigate("/distributor", { replace: true });
-              });
+              // LÀ SHOP: Load ProviderView
+              const shopData = shopSnap.docs[0].data();
+              setUserData({ id: shopSnap.docs[0].id, ...shopData, role: "provider" });
               return; 
             }
           } catch (error) {
@@ -349,7 +351,14 @@ const ProfilePage: FC = () => {
         const docRef = doc(db, "users", user.uid);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-          setUserData(docSnap.data());
+          const data = docSnap.data();
+          if (data.role === "admin") {
+              setUserData({ id: docSnap.id, ...data });
+          } else if (data.branchInfo) {
+              setUserData({ id: docSnap.id, ...data, role: "member" });
+          } else {
+              setUserData({ id: docSnap.id, ...data, role: "user" });
+          }
         }
       } else {
         setCurrentUser(null);
@@ -379,7 +388,11 @@ const ProfilePage: FC = () => {
         {/* HIỂN THỊ DỰA TRÊN TRẠNG THÁI ĐĂNG NHẬP */}
         {currentUser ? (
           <>
-            {/* KỊCH BẢN 1: ĐÃ ĐĂNG NHẬP -> Giao diện mới */}
+            {userData?.role === "admin" && <AdminView userData={userData} onLogout={handleLogout} />}
+            {userData?.role === "provider" && <ProviderView userData={userData} onLogout={handleLogout} />}
+            {userData?.role === "member" && userData.branchInfo && <BranchView userData={userData} onLogout={handleLogout} />}
+            
+            {(!userData?.role || userData?.role === "user" || (userData?.role === "member" && !userData.branchInfo)) && (
               <NewMemberView
                 user={{
                   id: currentUser.uid,
@@ -395,6 +408,7 @@ const ProfilePage: FC = () => {
                 points={userData?.points || 0}
                 role={userData?.role}
               />
+            )}
           </>
         ) : (
           <>

@@ -2,7 +2,7 @@ import React, { FC, useState } from "react";
 import { Page, Box, Text, Icon, Avatar, Button, useSnackbar, useNavigate } from "zmp-ui";
 import { chooseImage } from "zmp-sdk";
 import { auth, db, storage } from "../firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, where, getDocs, getDoc, doc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { onAuthStateChanged, User } from "firebase/auth";
 
@@ -15,10 +15,43 @@ const CreatePostPage: FC = () => {
   const [showPrivacySheet, setShowPrivacySheet] = useState(false);
   const [isPosting, setIsPosting] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
+  const [userRole, setUserRole] = useState<string>("user"); // 'user' hoặc 'provider'
+  
+  const [productName, setProductName] = useState("");
+  const [productPrice, setProductPrice] = useState("");
+  
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => setCurrentUser(user));
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      setCurrentUser(user);
+      if (user) {
+        const phoneFromEmail = user.email ? user.email.replace("@campus.com", "") : "";
+        const localPhone = localStorage.getItem("user_phone");
+        const finalPhone = phoneFromEmail || localPhone;
+
+        if (finalPhone) {
+          try {
+            const qShop = query(collection(db, "shops"), where("phone", "==", finalPhone));
+            const shopSnap = await getDocs(qShop);
+            if (!shopSnap.empty) {
+              setUserRole("provider");
+              return;
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+        
+        const docRef = doc(db, "users", user.uid);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists() && docSnap.data().role) {
+          setUserRole(docSnap.data().role);
+        } else {
+          setUserRole("user");
+        }
+      }
+    });
     return unsub;
   }, []);
 
@@ -27,9 +60,17 @@ const CreatePostPage: FC = () => {
       openSnackbar({ text: "Lỗi: Không tìm thấy tài khoản (Bạn chưa đăng nhập dự án mới)", type: "error" });
       return;
     }
-    if (!content.trim() && images.length === 0) {
-      openSnackbar({ text: "Vui lòng nhập nội dung hoặc hình ảnh!", type: "error" });
-      return;
+
+    if (userRole === "provider") {
+      if (!productName.trim() || !productPrice.trim() || images.length === 0) {
+        openSnackbar({ text: "Vui lòng nhập tên, giá và ảnh sản phẩm!", type: "error" });
+        return;
+      }
+    } else {
+      if (!content.trim() && images.length === 0) {
+        openSnackbar({ text: "Vui lòng nhập nội dung hoặc hình ảnh!", type: "error" });
+        return;
+      }
     }
 
     setIsPosting(true);
@@ -55,20 +96,31 @@ const CreatePostPage: FC = () => {
         }
       }
 
-      await addDoc(collection(db, "posts"), {
-        authorId: currentUser.uid,
-        content: content.trim(),
-        images: uploadedImageUrls,
-        privacy: privacy,
-        createdAt: serverTimestamp(),
-        likesCount: 0,
-        commentsCount: 0
-      });
-
-      openSnackbar({ text: "Đã đăng bài thành công!", type: "success" });
+      if (userRole === "provider") {
+        await addDoc(collection(db, "products"), {
+          shopId: currentUser.uid,
+          name: productName.trim(),
+          price: Number(productPrice),
+          images: uploadedImageUrls,
+          status: "active",
+          createdAt: serverTimestamp(),
+        });
+        openSnackbar({ text: "Đã đăng sản phẩm thành công!", type: "success" });
+      } else {
+        await addDoc(collection(db, "posts"), {
+          authorId: currentUser.uid,
+          content: content.trim(),
+          images: uploadedImageUrls,
+          privacy: privacy,
+          createdAt: serverTimestamp(),
+          likesCount: 0,
+          commentsCount: 0
+        });
+        openSnackbar({ text: "Đã đăng bài thành công!", type: "success" });
+      }
       navigate(-1);
     } catch (error) {
-      console.error("Lỗi đăng bài:", error);
+      console.error("Lỗi đăng bài/sản phẩm:", error);
       openSnackbar({ text: "Lỗi lưu dữ liệu. Xin thử lại.", type: "error" });
     } finally {
       setIsPosting(false);
@@ -118,14 +170,14 @@ const CreatePostPage: FC = () => {
       {/* Custom Header */}
       <Box className="flex justify-between items-center px-4 py-3 border-b border-gray-100 bg-white shadow-sm z-10">
         <Icon icon="zi-close" className="text-2xl cursor-pointer" onClick={() => navigate(-1)} />
-        <Text.Title className="font-bold text-lg text-[#14502e]">Tạo bài đăng</Text.Title>
+        <Text.Title className="font-bold text-lg text-[#14502e]">{userRole === 'provider' ? 'Tạo sản phẩm' : 'Tạo bài đăng'}</Text.Title>
         <Button 
           size="small" 
-          disabled={!content.trim() && images.length === 0 || isPosting}
-          className={`rounded-full px-4 ${(!content.trim() && images.length === 0) ? 'bg-gray-200 text-gray-400' : 'bg-[#14502e] text-white'}`}
+          disabled={isPosting || (userRole === 'provider' ? (!productName.trim() || !productPrice.trim() || images.length === 0) : (!content.trim() && images.length === 0))}
+          className={`rounded-full px-4 ${(userRole === 'provider' ? (!productName.trim() || !productPrice.trim() || images.length === 0) : (!content.trim() && images.length === 0)) ? 'bg-gray-200 text-gray-400' : 'bg-[#14502e] text-white'}`}
           onClick={handleCreatePost}
         >
-          {isPosting ? 'Đang đăng...' : 'Đăng'}
+          {isPosting ? 'Đang tải...' : 'Đăng'}
         </Button>
       </Box>
 
@@ -135,27 +187,57 @@ const CreatePostPage: FC = () => {
           <Avatar src={currentUser?.photoURL || "https://i.pravatar.cc/150?img=11"} size={48} className="border-2 border-gray-100" />
           <Box>
             <Text className="font-bold text-[15px]">{currentUser?.email?.split('@')[0] || "Người dùng"}</Text>
-            <Box 
-              className="flex items-center space-x-1 bg-gray-100 rounded-md px-2 py-0.5 mt-0.5 cursor-pointer w-fit border border-gray-200 active:bg-gray-200 transition"
-              onClick={() => setShowPrivacySheet(true)}
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-600"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-              <Text size="xxSmall" className="text-gray-600 font-medium">{privacy}</Text>
-              <Icon icon="zi-chevron-down" size={12} className="text-gray-600" />
-            </Box>
+            {userRole !== 'provider' && (
+              <Box 
+                className="flex items-center space-x-1 bg-gray-100 rounded-md px-2 py-0.5 mt-0.5 cursor-pointer w-fit border border-gray-200 active:bg-gray-200 transition"
+                onClick={() => setShowPrivacySheet(true)}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-600"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                <Text size="xxSmall" className="text-gray-600 font-medium">{privacy}</Text>
+                <Icon icon="zi-chevron-down" size={12} className="text-gray-600" />
+              </Box>
+            )}
+            {userRole === 'provider' && (
+              <Box className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs font-bold mt-1 inline-block">Cửa hàng</Box>
+            )}
           </Box>
         </Box>
 
         {/* Input Area */}
         <Box className="px-4 py-2">
-          <textarea
-            placeholder="Bạn đang nghĩ gì?"
-            value={content}
-            onChange={adjustTextareaHeight}
-            className="w-full border-none text-[17px] bg-transparent p-0 outline-none resize-none placeholder:text-gray-400 overflow-hidden"
-            style={{ minHeight: '120px' }}
-            maxLength={2000}
-          />
+          {userRole === 'provider' ? (
+            <Box className="space-y-4 mb-4">
+              <Box>
+                <Text className="font-bold text-gray-700 mb-1">Tên sản phẩm</Text>
+                <input 
+                  type="text" 
+                  value={productName}
+                  onChange={(e) => setProductName(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-green-500" 
+                  placeholder="Ví dụ: Cà phê hữu cơ"
+                />
+              </Box>
+              <Box>
+                <Text className="font-bold text-gray-700 mb-1">Giá bán (VNĐ)</Text>
+                <input 
+                  type="number" 
+                  value={productPrice}
+                  onChange={(e) => setProductPrice(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-green-500" 
+                  placeholder="Ví dụ: 50000"
+                />
+              </Box>
+            </Box>
+          ) : (
+            <textarea
+              placeholder="Bạn đang nghĩ gì?"
+              value={content}
+              onChange={adjustTextareaHeight}
+              className="w-full border-none text-[17px] bg-transparent p-0 outline-none resize-none placeholder:text-gray-400 overflow-hidden"
+              style={{ minHeight: '120px' }}
+              maxLength={2000}
+            />
+          )}
         </Box>
 
         {/* Image Preview Grid */}

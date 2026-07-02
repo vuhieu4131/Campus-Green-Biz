@@ -31,7 +31,7 @@ const tabs: Record<string, MenuItem> = {
       </svg>
     ),
   },
-  "/distributor": {
+  "/store": {
     label: "Cửa hàng",
     icon: <StoreIcon />,
     activeIcon: <StoreIcon active />,
