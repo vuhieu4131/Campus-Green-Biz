@@ -1,3 +1,4 @@
+import CustomIcon from '../custom-icon';
 import React, { useState } from "react";
 import { Box, Button, Input, Select, Text, useSnackbar, Header, Icon, Spinner, Avatar, Page } from "zmp-ui";
 import { doc, setDoc, serverTimestamp, collection, query, where, getDocs, updateDoc, increment, getDoc } from "firebase/firestore";
@@ -250,13 +251,13 @@ export const RegisterForm: React.FunctionComponent<RegisterProps> = ({ userInfo,
                 
                 {referrerName && (
                     <Text size="xxSmall" className="text-green-500 mt-1 flex items-center">
-                        <Icon icon="zi-check-circle-solid" size={14} style={{marginRight: 4}}/> 
+                        <CustomIcon icon="zi-check-circle-solid" size={14} style={{marginRight: 4}}/> 
                         Người giới thiệu: {referrerName}
                     </Text>
                 )}
                 {referralCode && referrerError && (
                     <Text size="xxSmall" className="text-red-500 mt-1">
-                        <Icon icon="zi-warning-solid" size={14} style={{marginRight: 4}}/> 
+                        <CustomIcon icon="zi-warning-solid" size={14} style={{marginRight: 4}}/> 
                         {referrerError}
                     </Text>
                 )}

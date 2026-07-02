@@ -1,3 +1,4 @@
+import CustomIcon from '../custom-icon';
 import React, { FC, useState, useEffect } from "react";
 import { Box, Text, Icon, Modal, Avatar, Button, Input, useSnackbar, Spinner, Select, Switch } from "zmp-ui";
 import { collection, query, where, getDocs, doc, updateDoc, deleteDoc, orderBy, addDoc, serverTimestamp, getDoc, setDoc, onSnapshot } from "firebase/firestore";
@@ -626,7 +627,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                       placeholder="Tìm kiếm theo tên, SĐT..." 
                       value={searchQuery} 
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      prefix={<Icon icon="zi-search" className="text-gray-400" />}
+                      prefix={<CustomIcon icon="zi-search" className="text-gray-400" />}
                       clearable
                   />
                   {/* Danh sách Chip bộ lọc cuộn ngang */}
@@ -659,7 +660,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
     {/* 👉 Hiển thị địa chỉ: Do Bước 1 đã lưu "address" nên giờ gọi thẳng là ra */}
     {m.address && (
         <Text size="xxxxSmall" className="text-gray-500 line-clamp-1 mt-0.5 flex items-center">
-            <Icon icon="zi-location" size={12} className="mr-1 shrink-0" />
+            <CustomIcon icon="zi-location" size={12} className="mr-1 shrink-0" />
             <span className="line-clamp-1">{m.address}</span>
         </Text>
     )}
@@ -672,7 +673,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                               <Text size="xxSmall" className="bg-blue-100 text-blue-600 px-2 py-1 rounded mr-2 shrink-0">{m.rank || "Mới"}</Text>
                           </Box>
                           <Box className="p-2 ml-1 cursor-pointer active:opacity-50" onClick={(e) => { e.stopPropagation(); handleDeleteItem("users", m.id); }}>
-                              <Icon icon="zi-delete" className="text-red-500" />
+                              <CustomIcon icon="zi-delete" className="text-red-500" />
                           </Box>
                       </Box>
                   ))}
@@ -723,7 +724,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                     placeholder="Tìm tên Shop, SĐT..." 
                     value={searchQuery} 
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    prefix={<Icon icon="zi-search" className="text-gray-400" />}
+                    prefix={<CustomIcon icon="zi-search" className="text-gray-400" />}
                     clearable
                 />
                 
@@ -756,7 +757,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
     {/* 👉 Hiển thị thêm địa chỉ */}
     {p.address && (
         <Text size="xxxxSmall" className="text-gray-500 line-clamp-1 mt-0.5 flex items-center">
-            <Icon icon="zi-location" size={12} className="mr-1 shrink-0" />
+            <CustomIcon icon="zi-location" size={12} className="mr-1 shrink-0" />
             <span className="line-clamp-1">{p.address}</span>
         </Text>
     )}
@@ -805,13 +806,13 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                 <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${postTab==="approved"?"border-green-600 text-green-600 font-bold":"border-transparent text-gray-500"}`} onClick={()=>setPostTab("approved")}>Đã duyệt ({poApproved.length})</Box>
             </Box>
             {poDisplay.length===0 && <Text size="small" className="text-center text-gray mt-4">Trống.</Text>}
-            {poDisplay.map((p) => (<Box key={p.id} className="mb-3 p-3 border rounded-lg bg-white shadow-md"><Box flex className="mb-2"><img src={p.image||"https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png"} className="w-16 h-16 rounded object-cover mr-3 bg-gray-200"/><Box className="flex-1"><Text bold size="small" className="line-clamp-2">{p.title}</Text><Text size="xxSmall" className="text-gray">{p.shopName}</Text><Text size="xxSmall" className="text-gray">{formatDate(p.createdAt)}</Text></Box></Box><Box flex justifyContent="space-between" alignItems="center"><Text size="xxSmall" className="text-red-500 cursor-pointer" onClick={() => handleDeleteItem("services", p.id)}><Icon icon="zi-delete"/> Xóa</Text><Button size="small" variant={p.status==="approved"?"secondary":"primary"} onClick={() => handleApprovePost(p)}>{p.status==="approved"?"Ẩn":"Duyệt"}</Button></Box></Box>))}
+            {poDisplay.map((p) => (<Box key={p.id} className="mb-3 p-3 border rounded-lg bg-white shadow-md"><Box flex className="mb-2"><img src={p.image||"https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png"} className="w-16 h-16 rounded object-cover mr-3 bg-gray-200"/><Box className="flex-1"><Text bold size="small" className="line-clamp-2">{p.title}</Text><Text size="xxSmall" className="text-gray">{p.shopName}</Text><Text size="xxSmall" className="text-gray">{formatDate(p.createdAt)}</Text></Box></Box><Box flex justifyContent="space-between" alignItems="center"><Text size="xxSmall" className="text-red-500 cursor-pointer" onClick={() => handleDeleteItem("services", p.id)}><CustomIcon icon="zi-delete"/> Xóa</Text><Button size="small" variant={p.status==="approved"?"secondary":"primary"} onClick={() => handleApprovePost(p)}>{p.status==="approved"?"Ẩn":"Duyệt"}</Button></Box></Box>))}
           </Box>
         );
       case "banners": return (
           <Box>
              <Box className="bg-gray-50 p-3 rounded-lg mb-6 border border-gray-200"><Text size="small" bold className="mb-2">Thêm Banner</Text><Box mb={2}><Input placeholder="Link ảnh" value={bannerInput} onChange={(e)=>setBannerInput(e.target.value)}/></Box><Box mb={2}><Input placeholder="Link điều hướng" value={bannerLinkInput} onChange={(e)=>setBannerLinkInput(e.target.value)}/></Box><Button fullWidth onClick={handleAddBanner}>Đăng</Button></Box>
-             {dataList.map((b) => (<Box key={b.id} className="mb-4 relative border rounded-lg overflow-hidden shadow-md"><img src={b.image} className="w-full h-32 object-cover"/><Box className="absolute top-2 right-2 bg-white rounded-full p-1 shadow cursor-pointer" onClick={()=>handleDeleteItem("banners", b.id)}><Icon icon="zi-delete" className="text-red-500" size={18}/></Box></Box>))}
+             {dataList.map((b) => (<Box key={b.id} className="mb-4 relative border rounded-lg overflow-hidden shadow-md"><img src={b.image} className="w-full h-32 object-cover"/><Box className="absolute top-2 right-2 bg-white rounded-full p-1 shadow cursor-pointer" onClick={()=>handleDeleteItem("banners", b.id)}><CustomIcon icon="zi-delete" className="text-red-500" size={18}/></Box></Box>))}
           </Box>
         );
         case "feedbacks": 
@@ -845,7 +846,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                     {f.status === 'done' && f.adminNote && (
                         <Box className="bg-blue-50 p-2 rounded-lg border border-blue-100 mb-2">
                             <Text size="xSmall" className="text-blue-800 font-bold mb-1 flex items-center">
-                                <Icon icon="zi-chat" size={12} className="mr-1"/> Admin đã trả lời:
+                                <CustomIcon icon="zi-chat" size={12} className="mr-1"/> Admin đã trả lời:
                             </Text>
                             <Text size="small" className="text-gray-800">{f.adminNote}</Text>
                         </Box>
@@ -853,7 +854,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
 
                     <Box flex justifyContent="space-between" mt={3} pt={2} className="border-t border-gray-100 items-center">
                         <Text size="xxSmall" className="text-red-500 cursor-pointer active:opacity-50" onClick={() => handleDeleteItem("feedbacks", f.id)}>
-                            <Icon icon="zi-delete"/> Xóa phiếu
+                            <CustomIcon icon="zi-delete"/> Xóa phiếu
                         </Text>
                         {f.status !== 'done' && (
                             <Button size="small" onClick={()=>{setSelectedFeedback(f);setReplyModalVisible(true)}}>
@@ -913,7 +914,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                       <Text size="normal" bold className="text-blue-600 mb-4">{voucherConfig.title || "Chưa có tên chiến dịch"}</Text>
                                       
                                       <Box flex alignItems="center" mb={2}>
-                                          <Icon icon="zi-clock-1" className="text-gray-400 mr-2" size={16} />
+                                          <CustomIcon icon="zi-clock-1" className="text-gray-400 mr-2" size={16} />
                                           <Text size="small" className="text-gray-600">
                                               <span className="font-semibold text-gray-800">Bắt đầu: </span><br/>
                                               {voucherConfig.startTime ? new Date(voucherConfig.startTime).toLocaleString('vi-VN') : "Chưa thiết lập"}
@@ -921,7 +922,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                       </Box>
                                       
                                       <Box flex alignItems="center" mb={4}>
-                                          <Icon icon="zi-clock-2" className="text-gray-400 mr-2" size={16} />
+                                          <CustomIcon icon="zi-clock-2" className="text-gray-400 mr-2" size={16} />
                                           <Text size="small" className="text-gray-600">
                                               <span className="font-semibold text-gray-800">Kết thúc: </span><br/>
                                               {voucherConfig.endTime ? new Date(voucherConfig.endTime).toLocaleString('vi-VN') : "Chưa thiết lập"}
@@ -929,7 +930,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                       </Box>
 
                                       <Box className="bg-gray-50 p-2 rounded border border-gray-100 flex items-center">
-                                          <Icon icon={voucherConfig.isOpen ? "zi-check-circle-solid" : "zi-close-circle-solid"} className={voucherConfig.isOpen ? "text-green-500 mr-2" : "text-gray-400 mr-2"} size={16} />
+                                          <CustomIcon icon={voucherConfig.isOpen ? "zi-check-circle-solid" : "zi-close-circle-solid"} className={voucherConfig.isOpen ? "text-green-500 mr-2" : "text-gray-400 mr-2"} size={16} />
                                           <Text size="xSmall" className="text-gray-600">Công tắc mở thủ công: <span className="font-bold">{voucherConfig.isOpen ? "BẬT" : "TẮT"}</span></Text>
                                       </Box>
                                   </Box>
@@ -1110,7 +1111,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                   {reconciliationTab === "fees" && (
                       <Box className="animate-fade-in-down">
                           <Box className="bg-blue-50 p-3 rounded-xl border border-blue-100 mb-4 flex items-center shadow-md">
-                              <Icon icon="zi-info-circle" className="text-blue-500 mr-2" />
+                              <CustomIcon icon="zi-info-circle" className="text-blue-500 mr-2" />
                               <Text size="xSmall" className="text-blue-700">
                                   Danh sách các Shop đang nợ phí. Khi Shop chuyển khoản xong, Admin bấm "Xác nhận thu" để gạch nợ.
                               </Text>
@@ -1125,7 +1126,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                   <Box className={`mb-4 p-3 rounded-xl border shadow-md flex items-center justify-between ${isRemindDay ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-200'}`}>
                                       <Box flex alignItems="center">
                                           <Box className={`w-8 h-8 rounded-full flex items-center justify-center mr-2 ${isRemindDay ? 'bg-orange-100' : 'bg-white shadow-md'}`}>
-                                              <Icon icon="zi-notif-ring" className={isRemindDay ? 'text-orange-500' : 'text-gray-400'} size={18}/>
+                                              <CustomIcon icon="zi-notif-ring" className={isRemindDay ? 'text-orange-500' : 'text-gray-400'} size={18}/>
                                           </Box>
                                           <Box>
                                               <Text size="small" bold className={isRemindDay ? 'text-orange-700' : 'text-gray-700'}>
@@ -1150,7 +1151,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                           })()}
                           {dataList.length === 0 ? (
                               <Box flex flexDirection="column" alignItems="center" py={8} className="bg-white rounded-2xl border border-dashed border-gray-200">
-                                  <Icon icon="zi-check-circle" size={40} className="text-green-500 mb-2"/>
+                                  <CustomIcon icon="zi-check-circle" size={40} className="text-green-500 mb-2"/>
                                   <Text className="text-center text-gray-500">Tất cả các Shop đều đã thanh toán.</Text>
                               </Box>
                           ) : (
@@ -1164,7 +1165,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                                     {/* 👉 GẮN HUY HIỆU NẾU SHOP ĐÃ BÁO CÁO */}
                                                     {shopGroup.hasReported && (
                                                         <Box className="ml-2 px-2 py-0.5 bg-orange-100 rounded border border-orange-200 flex items-center shadow-md">
-                                                            <Icon icon="zi-clock-1" size={12} className="text-orange-600 mr-1"/>
+                                                            <CustomIcon icon="zi-clock-1" size={12} className="text-orange-600 mr-1"/>
                                                             <Text size="xxxxSmall" bold className="text-orange-600 uppercase tracking-wider">Đã Chuyển khoản</Text>
                                                         </Box>
                                                     )}
@@ -1186,7 +1187,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                                 className={`border-none ${shopGroup.hasReported ? "bg-indigo-600" : "bg-green-600"}`}
                                                 loading={approvingFeeFor === shopGroup.shopId} 
                                                 onClick={() => handleApproveFee(shopGroup.shopId, shopGroup.orders)} 
-                                                prefixIcon={<Icon icon="zi-check-circle-solid" className="text-white"/>}
+                                                prefixIcon={<CustomIcon icon="zi-check-circle-solid" className="text-white"/>}
                                             >
                                                 {shopGroup.hasReported ? `Duyệt thu ${shopGroup.totalFee.toLocaleString()}đ` : `Xác nhận đã thu ${shopGroup.totalFee.toLocaleString()}đ`}
                                             </Button>
@@ -1200,7 +1201,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                   {reconciliationTab === "history" && (
                       <Box className="animate-fade-in-up">
                           <Box className="bg-green-50 p-3 rounded-xl border border-green-100 mb-4 flex items-center shadow-md">
-                              <Icon icon="zi-check-circle" className="text-green-500 mr-2" />
+                              <CustomIcon icon="zi-check-circle" className="text-green-500 mr-2" />
                               <Text size="xSmall" className="text-green-700 leading-relaxed">
                                   Lịch sử các khoản phí nền tảng đã được Admin duyệt và gạch nợ thành công.
                               </Text>
@@ -1236,7 +1237,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                   {reconciliationTab === "bank_info" && (
                       <Box className="animate-fade-in-up space-y-4">
                           <Box flex alignItems="center" className="mb-3">
-                              <Icon icon={"zi-wallet" as any} className="text-red-500 mr-2" size={20}/>
+                              <CustomIcon icon={"zi-wallet" as any} className="text-red-500 mr-2" size={20}/>
                               <Text bold size="normal" className="text-gray-800">Cấu hình thông tin nhận tiền</Text>
                           </Box>
                           
@@ -1260,7 +1261,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                       placeholder="VD: https://firebasestorage.googleapis.com/...qr_code.png" 
                                       value={adminBankQrLink} 
                                       onChange={(e) => setAdminBankQrLink(e.target.value)} 
-                                      prefix={<Icon icon={"zi-qr-code" as any} className="text-gray-400"/>}
+                                      prefix={<CustomIcon icon={"zi-qr-code" as any} className="text-gray-400"/>}
                                   />
                                   {/* Hiển thị xem trước mã QR nếu có link */}
                                   {adminBankQrLink && (
@@ -1271,7 +1272,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                               </Box>
                           </Box>
                           
-                          <Button fullWidth loading={savingBankInfo} onClick={handleSaveBankInfo} prefixIcon={<Icon icon="zi-check-circle-solid" className="text-white"/>}>
+                          <Button fullWidth loading={savingBankInfo} onClick={handleSaveBankInfo} prefixIcon={<CustomIcon icon="zi-check-circle-solid" className="text-white"/>}>
                               Lưu thông tin chuyển khoản
                           </Button>
                       </Box>
@@ -1355,11 +1356,11 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                       <Box mb={2}>
                           <Text size="small" bold className="text-gray-800">{order.productName}</Text>
                           <Box flex alignItems="center" mt={1}>
-                              <Icon icon={"zi-store" as any} size={14} className="text-gray-400 mr-1" />
+                              <CustomIcon icon={"zi-store" as any} size={14} className="text-gray-400 mr-1" />
                               <Text size="xxSmall" className="text-gray-600 line-clamp-1">{order.shopName || order.location?.name || "Chi nhánh"}</Text>
                           </Box>
                           <Box flex alignItems="center" mt={0.5}>
-                              <Icon icon="zi-user" size={14} className="text-gray-400 mr-1" />
+                              <CustomIcon icon="zi-user" size={14} className="text-gray-400 mr-1" />
                               <Text size="xxSmall" className="text-gray-600 line-clamp-1">{order.userName} ({order.userPhone || order.phone})</Text>
                           </Box>
                       </Box>
@@ -1390,8 +1391,8 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
         <Box flex alignItems="center" justifyContent="space-between">
             <Box flex alignItems="center"><Avatar src={userData.avatar} size={48} /><Box ml={3}><Text.Title className="text-white" size="small">ADMIN</Text.Title><Text size="small">Xin chào, {userData.name}</Text></Box></Box>
             <Box flex>
-                <Box onClick={() => setShowChangePass(true)} className="bg-blue-700 p-2 rounded-full cursor-pointer active:opacity-80 mr-2"><Icon icon="zi-lock" className="text-white" /></Box>
-                <Box onClick={onLogout} className="bg-blue-700 p-2 rounded-full cursor-pointer active:opacity-80"><Icon icon="zi-leave" className="text-white" /></Box>
+                <Box onClick={() => setShowChangePass(true)} className="bg-blue-700 p-2 rounded-full cursor-pointer active:opacity-80 mr-2"><CustomIcon icon="zi-lock" className="text-white" /></Box>
+                <Box onClick={onLogout} className="bg-blue-700 p-2 rounded-full cursor-pointer active:opacity-80"><CustomIcon icon="zi-leave" className="text-white" /></Box>
             </Box>
         </Box>
       </Box>
@@ -1406,12 +1407,12 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
           >
               <Box>
                   <Box flex alignItems="center" className="opacity-90 mb-1">
-                      <Icon icon="zi-poll" size={16} className="mr-1"/>
+                      <CustomIcon icon="zi-poll" size={16} className="mr-1"/>
                       <Text size="xSmall" className="uppercase tracking-wider">Tổng Doanh thu Nền tảng</Text>
                   </Box>
                   <Text bold size="xLarge">{adminStats.totalRevenue.toLocaleString()}đ</Text>
               </Box>
-              <Icon icon="zi-check-circle" size={32} className="opacity-30" />
+              <CustomIcon icon="zi-check-circle" size={32} className="opacity-30" />
           </Box>
 
           {/* Ô 2: Tổng số đơn */}
@@ -1436,7 +1437,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
       <Box className="m-4 grid grid-cols-2 gap-4">
         {MENU_ITEMS.map((item) => (
           <Box key={item.id} className="bg-white p-4 rounded-xl flex flex-col items-center shadow-md border border-gray-50 relative cursor-pointer active:opacity-80" onClick={() => setSelectedFeature(item.id)}>
-            <Icon icon={item.icon as any} className={`${item.color} text-3xl mb-2`} />
+            <CustomIcon icon={item.icon as any} className={`${item.color} text-3xl mb-2`} />
             <Text bold size="small" className="text-center">{item.label}</Text>
             {pendingCounts[item.id] > 0 && (<Box className="absolute top-2 right-2 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold shadow-md">{pendingCounts[item.id]}</Box>)}
           </Box>
@@ -1455,7 +1456,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
               {/* Header Điều hướng */}
               <Box className="bg-white border-b border-gray-200 px-4 py-3 flex items-center shadow-md shrink-0">
                   <Box onClick={() => setSelectedFeature(null)} className="mr-3 cursor-pointer p-1 flex items-center">
-                      <Icon icon="zi-arrow-left" size={24} className="text-blue-600" />
+                      <CustomIcon icon="zi-arrow-left" size={24} className="text-blue-600" />
                   </Box>
                   <Text.Title size="normal" className="text-gray-800">
                       {MENU_ITEMS.find(item => item.id === selectedFeature)?.label || "Quản lý"}
@@ -1479,7 +1480,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
 {detailUser.address && (
     <Box className="w-full bg-gray-50 p-3 rounded-lg border border-gray-100 mb-3 flex flex-col">
         <Box flex alignItems="center" mb={1}>
-            <Icon icon="zi-location" size={16} className="text-red-500 mr-1" />
+            <CustomIcon icon="zi-location" size={16} className="text-red-500 mr-1" />
             <Text size="xSmall" className="text-gray-500">Địa chỉ liên hệ</Text>
         </Box>
         <Text size="small" bold className="text-gray-800">
@@ -1495,8 +1496,8 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                 {detailUser.role==='provider' && (<Box className="w-full bg-orange-50 p-3 rounded-lg border border-orange-100 mb-2 flex justify-between items-center"><Text size="small">Người giới thiệu</Text><Text size="small" bold className="text-orange-700">{detailUser.presenterName||detailUser.presenter||"Vãng lai"}</Text></Box>)}
                 <Box className="w-full bg-yellow-50 p-3 rounded-lg border border-yellow-100 mb-2 flex justify-between"><Text size="small">Hạng thành viên</Text><Text size="small" bold className="text-yellow-700">{detailUser.rank||"Mới"}</Text></Box>
                 <Box className="w-full grid grid-cols-2 gap-2 mt-2">
-                    <Box className="bg-gray-50 p-3 rounded-lg text-center border border-gray-100"><Icon icon="zi-star-solid" className="text-yellow-500 mb-1" /><Text size="xxSmall" className="text-gray">Điểm tiêu dùng</Text><Text size="large" bold>{detailUser.spendingPoints?.toLocaleString()||0}</Text></Box>
-                    <Box className="bg-gray-50 p-3 rounded-lg text-center border border-gray-100"><Icon icon="zi-poll-solid" className="text-green-500 mb-1" /><Text size="xxSmall" className="text-gray">Tổng tích lũy</Text><Text size="large" bold>{detailUser.rankPoints?.toLocaleString()||0}</Text></Box>
+                    <Box className="bg-gray-50 p-3 rounded-lg text-center border border-gray-100"><CustomIcon icon="zi-star-solid" className="text-yellow-500 mb-1" /><Text size="xxSmall" className="text-gray">Điểm tiêu dùng</Text><Text size="large" bold>{detailUser.spendingPoints?.toLocaleString()||0}</Text></Box>
+                    <Box className="bg-gray-50 p-3 rounded-lg text-center border border-gray-100"><CustomIcon icon="zi-poll-solid" className="text-green-500 mb-1" /><Text size="xxSmall" className="text-gray">Tổng tích lũy</Text><Text size="large" bold>{detailUser.rankPoints?.toLocaleString()||0}</Text></Box>
                 </Box>
                 
                 {/* 👉 BƯỚC 3: NÚT GỬI THÔNG BÁO CHO NGƯỜI NÀY */}
@@ -1511,7 +1512,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                             setShowNotifyModal(true);
                         }}
                     >
-                        <Icon icon="zi-chat" className="mr-1" /> Gửi thông báo riêng
+                        <CustomIcon icon="zi-chat" className="mr-1" /> Gửi thông báo riêng
                     </Button>
                 </Box>
                 {/* 👉 BƯỚC 4: KHUNG LỊCH SỬ THÔNG BÁO */}
@@ -1667,7 +1668,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                             <Text size="small" bold className="text-gray-800">{order.productName}</Text>
                                             
                                             <Box flex alignItems="center" mt={1}>
-                                                <Icon icon={"zi-store" as any} size={14} className="text-orange-500 mr-1" />
+                                                <CustomIcon icon={"zi-store" as any} size={14} className="text-orange-500 mr-1" />
                                                 <Text size="xxSmall" bold className="text-orange-600 line-clamp-1">
                                                     Shop: {order.shopName || "Chưa cập nhật"}
                                                 </Text>
@@ -1675,7 +1676,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                             
                                             {order.location?.name && (
                                                 <Box flex alignItems="center" mt={0.5}>
-                                                    <Icon icon={"zi-location" as any} size={14} className="text-gray-400 mr-1" />
+                                                    <CustomIcon icon={"zi-location" as any} size={14} className="text-gray-400 mr-1" />
                                                     <Text size="xxSmall" className="text-gray-500 line-clamp-1">
                                                         Chi nhánh: {order.location.name}
                                                     </Text>

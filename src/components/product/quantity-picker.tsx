@@ -1,3 +1,4 @@
+import CustomIcon from '../custom-icon';
 import React, { FC } from "react";
 import { Box, Button, Icon, Text } from "zmp-ui";
 
@@ -27,7 +28,7 @@ export const QuantityPicker: FC<{
         onClick={() => onChange(value + 1)}
         variant="secondary"
         type="neutral"
-        icon={<Icon icon="zi-plus" />}
+        icon={<CustomIcon icon="zi-plus" />}
       />
     </Box>
   );

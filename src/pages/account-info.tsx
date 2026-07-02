@@ -1,3 +1,4 @@
+import CustomIcon from '../components/custom-icon';
 import React, { FC, useState, useEffect } from "react";
 import { Page, Header, Box, Input, Button, useSnackbar, Text, Icon } from "zmp-ui";
 import { auth, db } from "../firebase";
@@ -102,7 +103,7 @@ const AccountInfoPage: FC = () => {
           />
         ) : (
           <Box className="w-28 h-28 rounded-full bg-[#e4e6eb] flex items-center justify-center mb-3 overflow-hidden">
-            <Icon icon="zi-user-solid" className="text-white" style={{ fontSize: "100px", marginTop: "28px" }} />
+            <CustomIcon icon="zi-user-solid" className="text-white" style={{ fontSize: "100px", marginTop: "28px" }} />
           </Box>
         )}
         <Text.Title className="text-xl font-bold mb-1">{name || "Người dùng"}</Text.Title>

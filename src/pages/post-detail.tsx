@@ -1,3 +1,4 @@
+import CustomIcon from '../components/custom-icon';
 import React, { FC, useState, useEffect } from "react";
 import { Page, Box, Text, Icon } from "zmp-ui";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -35,7 +36,7 @@ const PostDetailPage: FC = () => {
     <Page className="bg-gray-50 flex flex-col h-screen">
       {/* Header */}
       <Box className="flex items-center px-4 py-3 bg-white z-50 shadow-sm border-b border-gray-100">
-        <Icon icon="zi-arrow-left" className="text-2xl mr-4 cursor-pointer" onClick={() => navigate(-1)} />
+        <CustomIcon icon="zi-arrow-left" className="text-2xl mr-4 cursor-pointer" onClick={() => navigate(-1)} />
         <Text.Title className="font-bold text-[17px]">Bài viết</Text.Title>
       </Box>
 
