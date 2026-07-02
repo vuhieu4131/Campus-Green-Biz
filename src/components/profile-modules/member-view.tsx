@@ -75,33 +75,17 @@ export const MemberView: FC<{ user: any; points: number }> = ({
   };
 
   return (
-    <Box className="bg-gray-100 min-h-screen pb-10">
+    <Box className="pb-4">
       {/* SECTION 1: THÔNG TIN TÀI KHOẢN & 2 VÍ */}
-      <Box className="bg-white p-4 flex flex-col items-center border-b shadow-sm">
-        <Avatar
-          src={user?.avatar}
-          size={64}
-          className="mb-2 border-2 border-orange-400"
-        />
-        <Text bold size="large">
-          {user?.name || "Khách hàng"}
-        </Text>
-
-        <Box
-          flex
-          justifyContent="space-around"
-          className="w-full mt-6 border-t pt-4"
-        >
-          <Box
-            flex
-            flexDirection="column"
-            alignItems="center"
-            className={`p-3 rounded-xl transition-all w-5/12 ${
-              activeWallet === "main"
-                ? "bg-orange-50 border-2 border-orange-400"
-                : "bg-gray-50"
-            }`}
-            onClick={() => setActiveWallet("main")}
+      <Box className="bg-white p-4 flex flex-col items-center border-b shadow-md">
+        <Avatar src={user?.avatar} size={64} className="mb-2 border-2 border-orange-400" />
+        <Text bold size="large">{user?.name || "Khách hàng"}</Text>
+        
+        <Box flex justifyContent="space-around" className="w-full mt-6 border-t pt-4">
+          <Box 
+            flex flexDirection="column" alignItems="center" 
+            className={`p-3 rounded-xl transition-all w-5/12 ${activeWallet === 'main' ? 'bg-orange-50 border-2 border-orange-400' : 'bg-gray-50'}`}
+            onClick={() => setActiveWallet('main')}
           >
             <Icon
               icon="zi-plus-circle"
@@ -208,7 +192,7 @@ export const MemberView: FC<{ user: any; points: number }> = ({
       </Box>
 
       {/* SECTION 3: CHIA SẺ ỨNG DỤNG & MÃ GIỚI THIỆU (MỚI BỔ SUNG) */}
-      <Box className="m-4 p-4 bg-white rounded-xl shadow-sm border border-orange-100">
+      <Box className="m-4 p-4 bg-white rounded-xl shadow-md border border-orange-100">
         <Box flex alignItems="center" className="mb-3">
           <Icon icon="zi-share-external-1" className="text-orange-500 mr-2" />
           <Text bold size="small">
@@ -246,15 +230,12 @@ export const MemberView: FC<{ user: any; points: number }> = ({
 
       {/* SECTION 4: LỊCH SỬ & THAO TÁC */}
       <Box className="mx-4 space-y-3">
-        <Box
-          className="bg-white flex justify-between items-center p-4 rounded-xl shadow-sm"
-          onClick={handleOpenHistory}
-        >
-          <Box flex alignItems="center">
-            <Icon icon="zi-clock-2" className="mr-2 text-gray-500" />
-            <Text size="small" bold>
-              Lịch sử {activeWallet === "main" ? "tích điểm" : "ưu đãi"}
-            </Text>
+          <Box className="bg-white flex justify-between items-center p-4 rounded-xl shadow-md" onClick={handleOpenHistory}>
+              <Box flex alignItems="center">
+                  <Icon icon="zi-clock-2" className="mr-2 text-gray-500" />
+                  <Text size="small" bold>Lịch sử {activeWallet === 'main' ? "tích điểm" : "ưu đãi"}</Text>
+              </Box>
+              <Icon icon="zi-chevron-right" className="text-gray-400" />
           </Box>
           <Icon icon="zi-chevron-right" className="text-gray-400" />
         </Box>

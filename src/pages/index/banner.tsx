@@ -6,7 +6,7 @@ import { Box } from "zmp-ui";
 
 export const Banner: FC = () => {
   return (
-    <Box className="bg-white" pb={4}>
+    <Box className="bg-transparent" pb={4} pt={2}>
       <Swiper
         modules={[Pagination]}
         pagination={{
@@ -21,7 +21,7 @@ export const Banner: FC = () => {
           .map((banner, i) => (
             <SwiperSlide key={i} className="px-4">
               <Box
-                className="w-full rounded-lg aspect-[2/1] bg-cover bg-center bg-skeleton"
+                className="w-full rounded-2xl aspect-[2/1] bg-cover bg-center bg-skeleton shadow-md"
                 style={{ backgroundImage: `url(${banner})` }}
               />
             </SwiperSlide>

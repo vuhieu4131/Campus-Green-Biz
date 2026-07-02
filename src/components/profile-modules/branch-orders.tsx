@@ -151,7 +151,7 @@ const BranchOrdersPage: React.FC = () => {
                       const discountAmount = Number(order.discountAmount || 0);
 
                       return (
-                          <Box key={order.id} className="bg-white p-3 rounded-xl mb-4 border border-gray-200 shadow-sm relative">
+                          <Box key={order.id} className="bg-white p-3 rounded-xl mb-4 border border-gray-200 shadow-md relative">
                               <a href={`tel:${order.userId}`} className="absolute top-3 right-3 w-8 h-8 rounded-full bg-green-100 flex items-center justify-center cursor-pointer active:opacity-70 z-10">
                                   <Icon icon="zi-call" size={16} className="text-green-600" />
                               </a>

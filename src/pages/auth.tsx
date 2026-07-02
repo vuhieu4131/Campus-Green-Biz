@@ -139,7 +139,7 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
 
       <Box className="flex-1 overflow-y-auto px-6 pb-8">
         <Box className="flex flex-col items-center mb-6">
-          <Avatar src={userInfo?.avatar} size={80} className="mb-4 shadow-sm" />
+          <Avatar src={userInfo?.avatar} size={80} className="mb-4 shadow-md" />
           {formType === "login" ? (
             <>
               <Text.Title className="text-2xl font-bold mb-1">Xin chào {userInfo?.name || "bạn"}!</Text.Title>

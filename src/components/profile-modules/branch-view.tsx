@@ -362,7 +362,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
            <Text size="xSmall" className="text-blue-100 uppercase tracking-wider font-semibold">
                Trực thuộc: {branchInfo.mainShopName || "Hệ thống trung tâm"}
            </Text>
-           <Text.Title size="large" className="font-bold text-white drop-shadow-sm">
+           <Text.Title size="large" className="font-bold text-white drop-shadow-md">
                {branchInfo.branchName || "Chi nhánh trực thuộc"}
            </Text.Title>
            <Box flex alignItems="center" className="mt-1 text-gray-300">
@@ -382,7 +382,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
       {/* 👉 BƯỚC 3: THỐNG KÊ TỔNG QUAN & QUẢN LÝ ĐƠN */}
       <Box className="mx-4 mb-5">
           {/* Ô Thống kê doanh thu */}
-          <Box className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-4">
+          <Box className="bg-white rounded-2xl shadow-md border border-gray-100 p-4 mb-4">
               <Box flex justifyContent="space-between" alignItems="center" className="mb-4">
                   <Text bold size="normal" className="text-gray-800">Thống kê tổng quan</Text>
                   <Box className="w-36">
@@ -421,14 +421,14 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
 
           {/* Nút Quản lý Đơn hàng (Kéo dài toàn màn hình) */}
           <Box 
-              className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-row items-center justify-between cursor-pointer active:bg-gray-50 transition" 
+              className="bg-white p-4 rounded-2xl shadow-md border border-gray-100 flex flex-row items-center justify-between cursor-pointer active:bg-gray-50 transition" 
               onClick={() => navigate('/branch-orders')} // 👇 Đổi thành lệnh navigate
           >
               <Box flex alignItems="center">
                   <Box className="w-12 h-12 rounded-full bg-orange-50 flex items-center justify-center mr-3 relative border border-orange-100">
                       <Icon icon={"zi-note" as any} className="text-orange-600" size={24}/>
                       {actionableCount > 0 && (
-                          <Box className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-white shadow-sm">
+                          <Box className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-white shadow-md">
                               {actionableCount}
                           </Box>
                       )}
@@ -446,7 +446,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
 
      {/* 3. MENU QUẢN LÝ TÀI KHOẢN */}
 <Box className="mx-4 mb-4">
-  <Box className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100">
+  <Box className="bg-white rounded-2xl overflow-hidden shadow-md border border-gray-100">
     <Text.Title size="small" className="p-4 pb-2 text-gray-500 font-bold bg-gray-50">Cài đặt & Hỗ trợ</Text.Title>
     
     {/* 👉 PHẦN THÔNG TIN QUẢN LÝ: Tách riêng khỏi List để tránh lỗi subTitle (không dùng Item) */}
@@ -550,7 +550,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
     suffix={
         <Box flex alignItems="center">
             {unreadFeedbackCount > 0 && (
-                <Box className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full mr-2 shadow-sm animate-pulse">
+                <Box className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full mr-2 shadow-md animate-pulse">
                     {unreadFeedbackCount} mới
                 </Box>
             )}
@@ -605,7 +605,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
                                          (cus.createdAt?.seconds ? new Date(cus.createdAt.seconds * 1000) : new Date(cus.createdAt));
                           
                           return (
-                              <Box key={idx} flex alignItems="center" className="mb-3 p-3 bg-white border border-gray-100 rounded-xl shadow-sm animate-fade-in-up">
+                              <Box key={idx} flex alignItems="center" className="mb-3 p-3 bg-white border border-gray-100 rounded-xl shadow-md animate-fade-in-up">
                                   <Avatar src={cus.avatar || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png"} size={44} className="border border-gray-200" />
                                   <Box ml={3} className="flex-1">
                                       <Text size="small" bold className="text-gray-800">{cus.name}</Text>
@@ -629,7 +629,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
       <Modal visible={showShareModal} title="Chia sẻ ứng dụng" onClose={() => setShowShareModal(false)}>
         <Box p={5} flex flexDirection="column" alignItems="center" className="text-center animate-fade-in">
             <Text size="small" className="text-gray-600 mb-5">Quét mã QR hoặc gửi link để mời khách!</Text>
-            <Box className="border-2 border-blue-400 rounded-2xl p-2 mb-6 shadow-sm bg-white">
+            <Box className="border-2 border-blue-400 rounded-2xl p-2 mb-6 shadow-md bg-white">
     <img 
         src="https://firebasestorage.googleapis.com/v0/b/nlyv-care.firebasestorage.app/o/Banner%2FTam%20An_QR.jpg?alt=media&token=657b5a1a-3784-4e75-9d07-dc760e5e07a2" 
         alt="Mã QR Tam An" 
@@ -702,7 +702,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
                                   const dateObj = fb.createdAt?.toDate ? fb.createdAt.toDate() : (fb.createdAt?.seconds ? new Date(fb.createdAt.seconds * 1000) : null);
                                   
                                   return (
-                                  <Box key={idx} className="mb-4 p-3 bg-white rounded-xl border border-gray-200 shadow-sm relative overflow-hidden">
+                                  <Box key={idx} className="mb-4 p-3 bg-white rounded-xl border border-gray-200 shadow-md relative overflow-hidden">
                                       {/* Viền màu trạng thái bên trái */}
                                       <div className={`absolute top-0 left-0 bottom-0 w-1 ${fb.status === 'done' ? 'bg-green-500' : 'bg-orange-500'}`}></div>
                                       
@@ -900,10 +900,10 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
                               const mainServicePrice = originalAmount - extrasTotal;
 
                               return (
-                                  <Box key={order.id} className="bg-white p-3 rounded-xl mb-3 border border-gray-200 shadow-sm relative animate-fade-in-up">
+                                  <Box key={order.id} className="bg-white p-3 rounded-xl mb-3 border border-gray-200 shadow-md relative animate-fade-in-up">
                                       
                                       {/* 👉 NÚT GỌI ĐIỆN THOẠI NHANH CHO KHÁCH */}
-                                      <a href={`tel:${order.userId}`} className="absolute top-12 right-3 w-9 h-9 rounded-full bg-green-100 border border-green-200 flex items-center justify-center cursor-pointer active:opacity-70 shadow-sm z-10">
+                                      <a href={`tel:${order.userId}`} className="absolute top-12 right-3 w-9 h-9 rounded-full bg-green-100 border border-green-200 flex items-center justify-center cursor-pointer active:opacity-70 shadow-md z-10">
                                           <Icon icon="zi-call" size={16} className="text-green-600" />
                                       </a>
 
@@ -1123,7 +1123,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
                   return monthlyOrders.map((order, idx) => {
                       const total = Number(order.totalAmount || order.totalPrice || order.total || 0);
                       return (
-                          <Box key={idx} className="bg-white p-3 rounded-xl mb-3 border border-gray-200 shadow-sm animate-fade-in-up">
+                          <Box key={idx} className="bg-white p-3 rounded-xl mb-3 border border-gray-200 shadow-md animate-fade-in-up">
                               <Box flex justifyContent="space-between" className="border-b border-gray-100 pb-2 mb-2">
                                   <Text size="small" bold className="text-blue-600">#{order.id.slice(0,6).toUpperCase()}</Text>
                                   <Text size="xSmall" className="text-gray-500">

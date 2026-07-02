@@ -817,7 +817,7 @@ useEffect(() => {
 
   if (userData.status === "pending") {
     return (
-      <Box className="m-4 p-6 bg-white rounded-xl flex flex-col items-center text-center shadow-sm border border-yellow-100">
+      <Box className="m-4 p-6 bg-white rounded-xl flex flex-col items-center text-center shadow-md border border-yellow-100">
         <Icon icon="zi-warning-solid" className="text-yellow-500 text-5xl mb-3" />
         <Text.Title size="small">Hồ sơ chờ phê duyệt</Text.Title>
         <Text size="small" className="text-gray-500 mt-2">Hồ sơ Nhà cung cấp của bạn đang được Admin xét duyệt. Chúng tôi sẽ thông báo khi tài khoản được kích hoạt.</Text>
@@ -830,7 +830,7 @@ useEffect(() => {
     <Box className="animate-fade-in">
       {/* 1. HEADER THÔNG TIN SHOP */}
       <Box 
-        className="bg-white p-4 m-4 rounded-xl flex items-center shadow-sm border border-gray-100 relative overflow-hidden active:opacity-80 cursor-pointer"
+        className="bg-white p-4 m-4 rounded-xl flex items-center shadow-md border border-gray-100 relative overflow-hidden active:opacity-80 cursor-pointer"
         onClick={() => setShowShopInfoModal(true)}
       >
         <Avatar src={userData.avatar} size={64} className="border-2 border-blue-500 shadow" />
@@ -842,12 +842,12 @@ useEffect(() => {
                <Box className="ml-auto flex items-center shrink-0">
                    {/* 👉 QUẢ CHUÔNG THÔNG BÁO VỚI HIỆU ỨNG CHẤM ĐỎ */}
                    <Box 
-                       className="relative mr-3 p-1 rounded-full bg-white/80 border border-gray-100 shadow-sm active:bg-gray-100"
+                       className="relative mr-3 p-1 rounded-full bg-white/80 border border-gray-100 shadow-md active:bg-gray-100"
                        onClick={(e) => { e.stopPropagation(); setShowNotifModal(true); }}
                    >
                        <Icon icon="zi-notif" size={20} className="text-gray-600"/>
                        {unreadCount > 0 && (
-                           <Box className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-4 h-4 flex justify-center items-center rounded-full font-bold border border-white shadow-sm animate-pulse">
+                           <Box className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-4 h-4 flex justify-center items-center rounded-full font-bold border border-white shadow-md animate-pulse">
                                {unreadCount > 9 ? '9+' : unreadCount}
                            </Box>
                        )}
@@ -855,7 +855,7 @@ useEffect(() => {
                    <Icon icon="zi-edit-text" className="text-gray-400" size={20}/>
                </Box>
            </Box>
-           <Box flex alignItems="center" className={`mt-1 mb-2 px-2 py-0.5 rounded-full w-fit ${shopRankInfo.color} border border-white/50 shadow-sm`}>
+           <Box flex alignItems="center" className={`mt-1 mb-2 px-2 py-0.5 rounded-full w-fit ${shopRankInfo.color} border border-white/50 shadow-md`}>
                <Icon icon={shopRankInfo.icon as any} size={12} className="mr-1"/>
                <Text size="xxxxSmall" className="font-bold uppercase tracking-wide">{shopRankInfo.name} Shop</Text>
            </Box>
@@ -865,7 +865,7 @@ useEffect(() => {
         <div className="absolute -right-6 -bottom-6 w-24 h-24 bg-blue-50/50 rounded-full"></div>
       </Box>
       {/* 👉 👉 👉 DÁN TOÀN BỘ KHỐI THỐNG KÊ DOANH THU VÀO ĐÂY 👈 👈 👈 */}
-      <Box className="m-4 bg-white rounded-2xl shadow-sm border border-gray-100 p-4 animate-fade-in-down">
+      <Box className="m-4 bg-white rounded-2xl shadow-md border border-gray-100 p-4 animate-fade-in-down">
       <Box flex flexDirection="column" mb={3}>
               <Box flex justifyContent="space-between" alignItems="center" mb={2}>
                   <Text bold size="normal" className="text-gray-800">Thống kê tổng quan</Text>
@@ -900,7 +900,7 @@ useEffect(() => {
           </Box>
 
           <Box flex style={{ gap: '12px' }}>
-          <Box className="flex-1 bg-gradient-to-br from-blue-500 to-indigo-600 p-3 rounded-xl text-white shadow-sm">
+          <Box className="flex-1 bg-gradient-to-br from-blue-500 to-indigo-600 p-3 rounded-xl text-white shadow-md">
                   <Box flex alignItems="center" mb={1} className="opacity-80">
                       <Icon icon="zi-poll" size={16} className="mr-1"/>
                       <Text size="xSmall" className="uppercase tracking-wider">Doanh thu tháng</Text>
@@ -909,7 +909,7 @@ useEffect(() => {
               </Box>
 
               <Box 
-      className="flex-1 bg-gradient-to-br from-blue-500 to-indigo-600 p-3 rounded-xl text-white shadow-sm cursor-pointer active:opacity-80 transition-opacity"
+      className="flex-1 bg-gradient-to-br from-blue-500 to-indigo-600 p-3 rounded-xl text-white shadow-md cursor-pointer active:opacity-80 transition-opacity"
       onClick={() => setShowCompletedModal(true)}
   >
                   <Box flex alignItems="center" mb={1} className="opacity-80">
@@ -926,7 +926,7 @@ useEffect(() => {
               onClick={() => setShowFeeModal(true)}
           >
               <Box flex alignItems="center">
-                  <Box className="w-8 h-8 rounded-full bg-white flex items-center justify-center mr-2 shadow-sm">
+                  <Box className="w-8 h-8 rounded-full bg-white flex items-center justify-center mr-2 shadow-md">
                       <Icon icon="zi-poll" className="text-red-500" size={16}/>
                   </Box>
                   <Text size="small" className="text-gray-700 font-medium">Chi phí nền tảng (Còn nợ):</Text>
@@ -939,7 +939,7 @@ useEffect(() => {
 
           <Box mt={3} p={3} className="bg-orange-50 rounded-xl border border-orange-100 flex justify-between items-center">
               <Box flex alignItems="center">
-                  <Box className="w-8 h-8 rounded-full bg-white flex items-center justify-center mr-2 shadow-sm">
+                  <Box className="w-8 h-8 rounded-full bg-white flex items-center justify-center mr-2 shadow-md">
                       <Icon icon="zi-memory" className="text-orange-600" size={16}/>
                   </Box>
                   <Text size="small" className="text-gray-700 font-medium">Tổng doanh thu lũy kế:</Text>
@@ -949,7 +949,7 @@ useEffect(() => {
       </Box>
       {/* 2. MENU QUẢN LÝ */}
       <Box className="mx-4 mb-4">
-          <Box className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-50 mb-4">
+          <Box className="bg-white rounded-xl overflow-hidden shadow-md border border-gray-50 mb-4">
               <Text.Title size="small" className="p-4 pb-2 text-gray-500 font-bold bg-gray-50">Dịch vụ & Bài đăng</Text.Title>
               <List>
               <Item 
@@ -967,7 +967,7 @@ useEffect(() => {
     suffix={
       <Box flex alignItems="center">
           {pendingCount > 0 && (
-              <Box className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full mr-2 shadow-sm animate-pulse">
+              <Box className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full mr-2 shadow-md animate-pulse">
                   {pendingCount} mới
               </Box>
           )}
@@ -979,7 +979,7 @@ useEffect(() => {
                   <Item title="Xem trang cửa hàng" subTitle="Xem giao diện khách hàng" prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-blue-50"><Icon icon="zi-list-1" className="text-blue-600" size={18}/></div>} suffix={<Icon icon="zi-chevron-right" className="text-gray-400"/>} onClick={goToShopDetail} />
               </List>
           </Box>
-          <Box className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-50 mb-4">
+          <Box className="bg-white rounded-xl overflow-hidden shadow-md border border-gray-50 mb-4">
               <Text.Title size="small" className="p-4 pb-2 text-gray-500 font-bold bg-gray-50">Quản lý & Hỗ trợ</Text.Title>
               <List>
                   <Item title="Danh sách khách hàng" subTitle="Người dùng do Shop giới thiệu" prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-orange-50"><Icon icon="zi-group" className="text-orange-600" size={18}/></div>} suffix={<Icon icon="zi-chevron-right" className="text-gray-400"/>} onClick={handleShowReferrals} />
@@ -1108,7 +1108,7 @@ useEffect(() => {
         <Box p={4} flex flexDirection="column" alignItems="center" className="text-center animate-fade-in">
             <Text size="small" className="text-gray-600 mb-4">Quét mã QR để vào thẳng trang Shop!</Text>
             
-            <Box className="flex flex-col items-center w-fit mx-auto border-2 border-blue-400 rounded-2xl p-4 mb-6 shadow-sm bg-white">
+            <Box className="flex flex-col items-center w-fit mx-auto border-2 border-blue-400 rounded-2xl p-4 mb-6 shadow-md bg-white">
                 {/* ĐÃ TRẢ LẠI LINK CHUẨN: Dùng link chính thức của Zalo để quét bằng mọi camera đều được */}
                 <img 
                     src={`https://quickchart.io/qr?size=200&margin=1&text=${encodeURIComponent(getShopDirectLink())}`} 
@@ -1171,7 +1171,7 @@ useEffect(() => {
                                   const dateObj = fb.createdAt?.toDate ? fb.createdAt.toDate() : (fb.createdAt?.seconds ? new Date(fb.createdAt.seconds * 1000) : null);
                                   
                                   return (
-                                  <Box key={idx} className="mb-4 p-3 bg-white rounded-xl border border-gray-200 shadow-sm relative overflow-hidden">
+                                  <Box key={idx} className="mb-4 p-3 bg-white rounded-xl border border-gray-200 shadow-md relative overflow-hidden">
                                       {/* Viền màu trạng thái bên trái */}
                                       <div className={`absolute top-0 left-0 bottom-0 w-1 ${fb.status === 'done' ? 'bg-green-500' : 'bg-orange-500'}`}></div>
                                       
@@ -1401,7 +1401,7 @@ useEffect(() => {
                               const discountAmount = Number(order.discountAmount || 0);
 
                               return (
-                                  <Box key={idx} className="bg-white p-3 rounded-xl mb-3 border border-gray-200 shadow-sm animate-fade-in-up">
+                                  <Box key={idx} className="bg-white p-3 rounded-xl mb-3 border border-gray-200 shadow-md animate-fade-in-up">
                                       <Box flex justifyContent="space-between" className="border-b border-gray-100 pb-2 mb-2">
                                           <Text size="small" bold className="text-blue-600">#{order.id.slice(0,6).toUpperCase()}</Text>
                                           <Text size="xSmall" bold className={order.status === 'pending' ? 'text-orange-500' : order.status === 'cancelled' ? 'text-red-500' : 'text-green-500'}>
@@ -1485,7 +1485,7 @@ useEffect(() => {
                       const fee = order.platformFee !== undefined ? Number(order.platformFee) : Math.floor(total * 10 / 100);
                       
                       return (
-                      <Box key={idx} className="bg-white p-3 rounded-xl mb-3 border border-gray-200 shadow-sm animate-fade-in-up">
+                      <Box key={idx} className="bg-white p-3 rounded-xl mb-3 border border-gray-200 shadow-md animate-fade-in-up">
                           <Box flex justifyContent="space-between" className="border-b border-gray-100 pb-2 mb-2">
                               <Text size="small" bold className="text-blue-600">#{order.id.slice(0,6).toUpperCase()}</Text>
                               <Text size="xSmall" className="text-gray-500">{order.createdAt?.toDate ? order.createdAt.toDate().toLocaleDateString('vi-VN') : ""}</Text>
@@ -1528,7 +1528,7 @@ useEffect(() => {
                       <Box 
                           key={notif.id} 
                           onClick={() => handleReadNotification(notif)}
-                          className={`p-3 rounded-xl mb-3 border shadow-sm transition-all cursor-pointer active:opacity-70 ${notif.isRead ? 'bg-white border-gray-200 opacity-70' : 'bg-blue-50 border-blue-200'}`}
+                          className={`p-3 rounded-xl mb-3 border shadow-md transition-all cursor-pointer active:opacity-70 ${notif.isRead ? 'bg-white border-gray-200 opacity-70' : 'bg-blue-50 border-blue-200'}`}
                       >
                           <Box flex justifyContent="space-between" alignItems="center" mb={1}>
                               <Box flex alignItems="center">
@@ -1573,7 +1573,7 @@ useEffect(() => {
               
               <Button 
                   fullWidth 
-                  className="bg-red-500 hover:bg-red-600 border-none mb-3 shadow-sm"
+                  className="bg-red-500 hover:bg-red-600 border-none mb-3 shadow-md"
                   onClick={() => {
                       setShowDebtAlert(false); // Tắt pop-up
                       setShowFeeModal(true);   // Mở thẳng bảng Đối soát phí
@@ -1623,7 +1623,7 @@ useEffect(() => {
                           <Box>
                               {/* KHỐI TỔNG KẾT VÀ THANH TOÁN (Chỉ hiện ở Tab Chưa thanh toán) */}
                               {feeTab === "unpaid" && unpaidOrders.length > 0 && (
-                                  <Box className="bg-white p-4 rounded-xl shadow-sm border border-red-100 mb-4 animate-fade-in-down">
+                                  <Box className="bg-white p-4 rounded-xl shadow-md border border-red-100 mb-4 animate-fade-in-down">
                                       <Text size="xSmall" className="text-gray-500 uppercase tracking-wider mb-1">Cần thanh toán cho Admin (Tất cả cơ sở)</Text>
                                       <Text bold size="xLarge" className="text-red-600 mb-3">{totalDisplayFee.toLocaleString()}đ</Text>
                                       
@@ -1645,7 +1645,7 @@ useEffect(() => {
                                                   <img 
                                                       src={adminBankQrLink} 
                                                       alt="Mã QR Chuyển khoản" 
-                                                      className="w-32 h-32 object-contain rounded-lg border border-gray-200 shadow-sm" 
+                                                      className="w-32 h-32 object-contain rounded-lg border border-gray-200 shadow-md" 
                                                   />
                                               </Box>
                                           )}
@@ -1717,7 +1717,7 @@ useEffect(() => {
                                       <Box 
                                           key={idx} 
                                           // 👉 Làm mờ 60% và đổi màu nền nếu đã báo cáo
-                                          className={`p-3 rounded-xl mb-3 border shadow-sm transition-all ${isReported ? 'bg-gray-50 border-gray-200 opacity-60' : 'bg-white border-gray-200'}`}
+                                          className={`p-3 rounded-xl mb-3 border shadow-md transition-all ${isReported ? 'bg-gray-50 border-gray-200 opacity-60' : 'bg-white border-gray-200'}`}
                                       >
                                           <Box flex justifyContent="space-between" alignItems="center" className="border-b border-gray-100 pb-2 mb-2">
                                               <Box flex alignItems="center">

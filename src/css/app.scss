@@ -35,8 +35,7 @@ body {
 }
 
 .zaui-btn-tertiary,
-.zaui-btn-tertiary.zaui-btn-highlight,
-.zaui-bottom-navigation-item-active {
+.zaui-btn-tertiary.zaui-btn-highlight {
   color: var(--zmp-primary-color);
 }
 
@@ -115,4 +114,43 @@ body {
       transform: scale(1.5);
     }
   }
+}
+
+/* Custom Bottom Navigation Oval Active State */
+.zaui-bottom-navigation-item-active {
+  background-color: var(--zmp-primary-color) !important;
+  color: #000000 !important;
+  border-radius: 9999px !important;
+  margin: 6px 12px !important;
+  padding: 2px 0 !important;
+  transition: all 0.3s ease;
+}
+
+.zaui-bottom-navigation-item-active .zaui-icon,
+.zaui-bottom-navigation-item-active svg,
+.zaui-bottom-navigation-item-active svg path {
+  color: #000000 !important;
+  fill: #000000 !important;
+}
+
+.zaui-bottom-navigation-item-active .zaui-bottom-navigation-item-label {
+  color: #000000 !important;
+  font-weight: 600 !important;
+}
+
+/* Global Green Theme for Page and Header */
+.zaui-page {
+  background-color: #f0fdf4 !important;
+}
+
+.zaui-header {
+  background-color: #14502e !important;
+  color: white !important;
+}
+
+.zaui-header-title, 
+.zaui-header-back-icon,
+.zaui-header-icon,
+.zaui-btn-icon {
+  color: white !important;
 }
