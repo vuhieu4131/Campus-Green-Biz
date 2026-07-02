@@ -1,3 +1,4 @@
+import CustomIcon from '../../components/custom-icon';
 import React, { FC, useState, useEffect } from "react";
 import { Box, Text, Avatar, Icon, useNavigate } from "zmp-ui";
 import { auth, db } from "../../firebase";
@@ -27,7 +28,7 @@ export const Welcome: FC = () => {
       <Box className="flex items-center space-x-2 cursor-pointer w-1/3" onClick={() => navigate('/profile')}>
         <Avatar src={userData?.avatar || "https://i.pravatar.cc/150?img=11"} size={36} className="border border-gray-200" />
         <Box className="bg-green-50 px-2 py-1.5 rounded-full flex items-center">
-          <Icon icon="zi-star-solid" className="text-[#14502e] text-xs mr-1" />
+          <CustomIcon icon="zi-star-solid" className="text-[#14502e] text-xs mr-1" />
           <Text size="xxxxSmall" className="font-bold text-[#14502e]">
             {userData?.points || 0}
           </Text>
@@ -41,12 +42,12 @@ export const Welcome: FC = () => {
 
       {/* Phải: Công cụ (Tìm kiếm & Thông báo) */}
       <Box className="flex justify-end items-center space-x-4 w-1/3 text-gray-700">
-        <Icon 
+        <CustomIcon 
           icon="zi-search" 
           className="text-2xl cursor-pointer hover:text-[#14502e]" 
           onClick={() => navigate('/search')}
         />
-        <Icon 
+        <CustomIcon 
           icon="zi-notif" 
           className="text-2xl cursor-pointer hover:text-[#14502e]" 
           onClick={() => navigate('/notification')}

@@ -1,3 +1,4 @@
+import CustomIcon from '../components/custom-icon';
 import React, { FC, useState } from "react";
 import { Box, Text, Input, Button, Switch, Avatar, Icon, useNavigate } from "zmp-ui"; 
 import { useRecoilValueLoadable } from "recoil";
@@ -133,7 +134,7 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
     <Box className="fixed inset-0 bg-white z-50 flex flex-col w-full h-full">
       <Box className="flex justify-end p-4">
         <div onClick={onClose} className="cursor-pointer p-2 bg-gray-100 rounded-full">
-          <Icon icon="zi-close" className="text-gray-600 text-2xl" />
+          <CustomIcon icon="zi-close" className="text-gray-600 text-2xl" />
         </div>
       </Box>
 

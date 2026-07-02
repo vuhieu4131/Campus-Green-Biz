@@ -1,3 +1,4 @@
+import CustomIcon from '../custom-icon';
 import React, { useState, useEffect } from "react";
 import { Page, Header, Box, Text, Icon, Button, Input, useSnackbar, Spinner, Modal } from "zmp-ui";
 import { useNavigate } from "react-router-dom";
@@ -102,7 +103,7 @@ const BranchOrdersPage: React.FC = () => {
           <Input
               placeholder="Tìm theo Tên khách hoặc SĐT..."
               clearable value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-              prefix={<Icon icon="zi-search" className="text-gray-400" />}
+              prefix={<CustomIcon icon="zi-search" className="text-gray-400" />}
           />
       </Box>
 
@@ -139,7 +140,7 @@ const BranchOrdersPage: React.FC = () => {
                   if (filtered.length === 0) {
                       return (
                           <Box flex flexDirection="column" alignItems="center" py={8}>
-                              <Icon icon="zi-note" size={40} className="text-gray-300 mb-2"/>
+                              <CustomIcon icon="zi-note" size={40} className="text-gray-300 mb-2"/>
                               <Text className="text-center text-gray-500">Chưa có đơn hàng nào.</Text>
                           </Box>
                       );
@@ -153,7 +154,7 @@ const BranchOrdersPage: React.FC = () => {
                       return (
                           <Box key={order.id} className="bg-white p-3 rounded-xl mb-4 border border-gray-200 shadow-md relative">
                               <a href={`tel:${order.userId}`} className="absolute top-3 right-3 w-8 h-8 rounded-full bg-green-100 flex items-center justify-center cursor-pointer active:opacity-70 z-10">
-                                  <Icon icon="zi-call" size={16} className="text-green-600" />
+                                  <CustomIcon icon="zi-call" size={16} className="text-green-600" />
                               </a>
 
                               <Box flex justifyContent="space-between" className="border-b border-gray-100 pb-2 mb-2 pr-10">
@@ -164,7 +165,7 @@ const BranchOrdersPage: React.FC = () => {
                               </Box>
                               
                               <Box flex alignItems="center" mb={3}>
-                                  <Icon icon="zi-user" size={16} className="text-blue-600 mr-2" />
+                                  <CustomIcon icon="zi-user" size={16} className="text-blue-600 mr-2" />
                                   <Box>
                                       <Text size="small" bold className="text-blue-800">{order.userName}</Text>
                                       <Text size="xSmall" className="text-gray-500">{order.userId}</Text>
@@ -173,7 +174,7 @@ const BranchOrdersPage: React.FC = () => {
                               {/* 👇 BỔ SUNG: Thông tin người nhận (Tên + SĐT để ship hàng) 👇 */}
                               {(order.receiverName || order.receiverPhone || order.shippingName || order.shippingPhone) && (
                                   <Box flex alignItems="flex-start" mb={2} className="bg-blue-50/40 p-2.5 rounded-lg border border-blue-100">
-                                      <Icon icon="zi-user-circle" size={16} className="text-blue-600 mr-2 mt-0.5 shrink-0" />
+                                      <CustomIcon icon="zi-user-circle" size={16} className="text-blue-600 mr-2 mt-0.5 shrink-0" />
                                       <Box>
                                           <Text size="xSmall" bold className="text-blue-800 mb-0.5">Thông tin người nhận:</Text>
                                           <Text size="xSmall" className="text-gray-700">
@@ -193,7 +194,7 @@ const BranchOrdersPage: React.FC = () => {
                               {/* 👇 BỔ SUNG: Thông tin địa chỉ nhận hàng của khách 👇 */}
                               {(order.address || order.deliveryAddress || order.shippingAddress) && (
                                   <Box flex alignItems="flex-start" mb={3} className="bg-orange-50/50 p-2.5 rounded-lg border border-orange-100">
-                                      <Icon icon="zi-location" size={16} className="text-orange-600 mr-2 mt-0.5 shrink-0" />
+                                      <CustomIcon icon="zi-location" size={16} className="text-orange-600 mr-2 mt-0.5 shrink-0" />
                                       <Box>
                                           <Text size="xSmall" bold className="text-orange-800 mb-0.5">Địa chỉ nhận hàng:</Text>
                                           <Text size="xSmall" className="text-gray-700 leading-relaxed">
@@ -227,7 +228,7 @@ const BranchOrdersPage: React.FC = () => {
                                                       </Text>
                                                       {item.options && Object.keys(item.options).length > 0 && (
                                                           <Text size="xxxxSmall" className="text-gray-500 flex items-center mt-1 italic">
-                                                              <Icon icon="zi-note" size={12} className="mr-1" />
+                                                              <CustomIcon icon="zi-note" size={12} className="mr-1" />
                                                               {Object.entries(item.options).map(([k, v]) => `${k}: ${v}`).join(' | ')}
                                                           </Text>
                                                       )}
@@ -252,7 +253,7 @@ const BranchOrdersPage: React.FC = () => {
                                               </Text>
                                               {order.selectedVariants && Object.keys(order.selectedVariants).length > 0 && (
                                                   <Text size="xSmall" className="text-gray-600 font-medium flex items-center bg-white border border-gray-200 w-fit px-2 py-0.5 rounded mt-1">
-                                                      <Icon icon="zi-note" size={12} className="mr-1 text-gray-500" />
+                                                      <CustomIcon icon="zi-note" size={12} className="mr-1 text-gray-500" />
                                                       {Object.entries(order.selectedVariants).map(([k, v]) => `${k}: ${v}`).join(' | ')}
                                                   </Text>
                                               )}

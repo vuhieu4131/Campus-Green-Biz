@@ -1,4 +1,6 @@
 import React, { FC, useState } from "react";
+import { useSetRecoilState } from "recoil";
+import { notificationsState } from "../state";
 import { Page, Box, Text, Icon, Avatar, Button, useSnackbar, useNavigate } from "zmp-ui";
 import { chooseImage } from "zmp-sdk";
 import { auth, db, storage } from "../firebase";
@@ -8,6 +10,7 @@ import { onAuthStateChanged, User } from "firebase/auth";
 
 const CreatePostPage: FC = () => {
   const navigate = useNavigate();
+  const setNotifications = useSetRecoilState(notificationsState);
   const { openSnackbar } = useSnackbar();
   const [content, setContent] = useState("");
   const [images, setImages] = useState<{url: string, file: File}[]>([]);

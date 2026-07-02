@@ -1,3 +1,4 @@
+import CustomIcon from "components/custom-icon";
 import React, { FC } from "react";
 import { Divider } from "components/divider";
 import { Header, Page } from "zmp-ui";
@@ -12,7 +13,7 @@ const CartPage: FC = () => {
 
   return (
     <Page className="flex flex-col">
-      <Header title="Giỏ hàng" showBackIcon={true} />
+      <Header title="Giỏ hàng" backIcon={<CustomIcon icon="zi-chevron-left" className="text-xl" />} />
       <CartItems />
       <Delivery />
       <Divider size={12} />

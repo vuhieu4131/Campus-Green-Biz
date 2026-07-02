@@ -1,3 +1,4 @@
+import CustomIcon from './custom-icon';
 import React, { FC, useState } from "react";
 import { Box, Text, Avatar, Icon, Sheet, Input, useSnackbar, useNavigate } from "zmp-ui";
 import { ImageGrid } from "./image-grid";
@@ -5,6 +6,7 @@ import { RawPost } from "../utils/edgeRanker";
 import { auth, db } from "../firebase";
 import { doc, updateDoc, increment, collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, deleteDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import { onAuthStateChanged, User } from "firebase/auth";
+import { AuthOverlay } from "../pages/auth";
 
 interface PostItemProps {
   data: RawPost;
@@ -41,6 +43,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
 
   // For post options
   const [showMenu, setShowMenu] = useState(false);
+  const [showAuth, setShowAuth] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState("");
   const [editPrivacy, setEditPrivacy] = useState("Công khai");
@@ -63,7 +66,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
 
   const handleLike = async () => {
     if (!currentUser) {
-      openSnackbar({ text: "Vui lòng đăng nhập để tương tác", type: "error" });
+      setShowAuth(true);
       return;
     }
     const newLiked = !liked;
@@ -213,17 +216,35 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
     <Box className="bg-white mx-3 mb-4 pt-4 pb-2 rounded-2xl shadow-sm border border-gray-100">
       {/* Header */}
       <Box className="flex items-center justify-between px-4 mb-2">
-        <Box 
-          className="flex items-center space-x-2 cursor-pointer active:opacity-70"
-          onClick={() => { if (!isDetailView) navigate(`/post-detail?id=${data.id}`) }}
-        >
-          <Avatar src={data.authorAvatar || "https://i.pravatar.cc/150?img=11"} size={40} className="border border-gray-100" />
-          <Box>
+        <Box className="flex items-center space-x-2">
+          <Avatar 
+            src={data.authorAvatar || "https://i.pravatar.cc/150?img=11"} 
+            size={40} 
+            className="border border-gray-100 cursor-pointer active:opacity-70"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (data.authorId) {
+                navigate(`/profile?id=${data.authorId}`);
+              }
+            }}
+          />
+          <Box 
+            className="cursor-pointer active:opacity-70"
+            onClick={() => { if (!isDetailView) navigate(`/post-detail?id=${data.id}`) }}
+          >
             <Box className="flex items-center space-x-1">
-              <Text.Title className="font-bold text-gray-800 text-[15px] leading-tight">
+              <Text.Title 
+                className="font-bold text-gray-800 text-[15px] leading-tight hover:underline"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (data.authorId) {
+                    navigate(`/profile?id=${data.authorId}`);
+                  }
+                }}
+              >
                 {data.authorName || "Người dùng"}
               </Text.Title>
-              {data.isPinned && <Icon icon="zi-star-solid" size={12} className="text-[#a68c4d]" />}
+              {data.isPinned && <CustomIcon icon="zi-star-solid" size={12} className="text-[#a68c4d]" />}
             </Box>
             {isEditing ? (
               <Box className="flex items-center mt-1 bg-gray-100 rounded-md px-2 py-0.5 border border-gray-200">
@@ -245,7 +266,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
           </Box>
         </Box>
         {!isEditing ? (
-          <Icon icon="zi-more-horiz" className="text-gray-400 cursor-pointer p-2" onClick={() => setShowMenu(true)} />
+          <CustomIcon icon="zi-more-horiz" className="text-gray-400 cursor-pointer p-2" onClick={() => setShowMenu(true)} />
         ) : (
           <Text className="text-[#14502e] font-bold text-[15px] cursor-pointer p-2" onClick={handleSaveEdit}>Lưu</Text>
         )}
@@ -299,7 +320,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
           </Box>
           <Text size="xxSmall">{likesCount}</Text>
         </Box>
-        <Box className="flex items-center space-x-3 cursor-pointer" onClick={() => setShowComments(true)}>
+        <Box className="flex items-center space-x-3 cursor-pointer" onClick={() => currentUser ? setShowComments(true) : setShowAuth(true)}>
           <Text size="xxSmall">{commentsCount} bình luận</Text>
           <Text size="xxSmall">{sharesCount} chia sẻ</Text>
         </Box>
@@ -307,16 +328,16 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
 
       {/* Actions */}
       <Box className="flex justify-around items-center px-2">
-        <Box className="flex flex-1 justify-center items-center space-x-2 py-2 rounded-lg cursor-pointer active:bg-gray-50" onClick={handleLike}>
+        <Box className="flex flex-1 justify-center items-center space-x-2 py-2 rounded-lg cursor-pointer active:bg-gray-50" onClick={() => currentUser ? handleLike() : setShowAuth(true)}>
           <Icon icon={liked ? "zi-heart-solid" : "zi-heart"} className={liked ? "text-red-500 text-xl" : "text-gray-500 text-xl"} />
           <Text size="small" className={`font-medium ${liked ? "text-red-500" : "text-gray-500"}`}>Thích</Text>
         </Box>
-        <Box className="flex flex-1 justify-center items-center space-x-2 py-2 rounded-lg cursor-pointer active:bg-gray-50" onClick={() => setShowComments(true)}>
-          <Icon icon="zi-chat" className="text-gray-500 text-xl" />
+        <Box className="flex flex-1 justify-center items-center space-x-2 py-2 rounded-lg cursor-pointer active:bg-gray-50" onClick={() => currentUser ? setShowComments(true) : setShowAuth(true)}>
+          <CustomIcon icon="zi-chat" className="text-gray-500 text-xl" />
           <Text size="small" className="font-medium text-gray-500">Bình luận</Text>
         </Box>
-        <Box className="flex flex-1 justify-center items-center space-x-2 py-2 rounded-lg cursor-pointer active:bg-gray-50" onClick={() => setShowShare(true)}>
-          <Icon icon="zi-share" className="text-gray-500 text-xl" />
+        <Box className="flex flex-1 justify-center items-center space-x-2 py-2 rounded-lg cursor-pointer active:bg-gray-50" onClick={() => currentUser ? setShowShare(true) : setShowAuth(true)}>
+          <CustomIcon icon="zi-share" className="text-gray-500 text-xl" />
           <Text size="small" className="font-medium text-gray-500">Chia sẻ</Text>
         </Box>
       </Box>
@@ -328,25 +349,25 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
           {showOverlay && (
             <>
               <Box className="absolute top-0 left-0 w-full p-4 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent">
-                <Box className="flex items-center space-x-2">
+                <Box className="flex items-center space-x-2 cursor-pointer" onClick={(e) => { e.stopPropagation(); setShowImageViewer(false); if (data.authorId) navigate(`/profile?id=${data.authorId}`); }}>
                   <Avatar src={data.authorAvatar || "https://i.pravatar.cc/150?img=11"} size={36} className="border border-white/30" />
                   <Box>
                     <Text className="text-white font-bold text-sm leading-tight">{data.authorName || "Người dùng"}</Text>
                     <Text className="text-white/70 text-xs">{timeString}</Text>
                   </Box>
                 </Box>
-                <Icon icon="zi-close" className="text-white text-3xl cursor-pointer p-2" onClick={(e) => { e.stopPropagation(); setShowImageViewer(false); }} />
+                <CustomIcon icon="zi-close" className="text-white text-3xl cursor-pointer p-2" onClick={(e) => { e.stopPropagation(); setShowImageViewer(false); }} />
               </Box>
               {data.images.length > 1 && (
                 <Box className="absolute top-1/2 left-0 w-full flex justify-between px-2 pointer-events-none -translate-y-1/2">
                   {activeImageIndex > 0 ? (
                     <Box className="bg-black/50 p-2 rounded-full pointer-events-auto cursor-pointer" onClick={(e) => { e.stopPropagation(); setActiveImageIndex(activeImageIndex - 1); }}>
-                      <Icon icon="zi-chevron-left" className="text-white" />
+                      <CustomIcon icon="zi-chevron-left" className="text-white" />
                     </Box>
                   ) : <div />}
                   {activeImageIndex < data.images.length - 1 ? (
                     <Box className="bg-black/50 p-2 rounded-full pointer-events-auto cursor-pointer" onClick={(e) => { e.stopPropagation(); setActiveImageIndex(activeImageIndex + 1); }}>
-                      <Icon icon="zi-chevron-right" className="text-white" />
+                      <CustomIcon icon="zi-chevron-right" className="text-white" />
                     </Box>
                   ) : <div />}
                 </Box>
@@ -361,22 +382,22 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
                       </Box>
                       <Text size="xxSmall" className="text-white">{likesCount}</Text>
                     </Box>
-                    <Box className="flex items-center space-x-3 cursor-pointer" onClick={(e) => { e.stopPropagation(); setShowComments(true); }}>
+                    <Box className="flex items-center space-x-3 cursor-pointer" onClick={(e) => { e.stopPropagation(); currentUser ? setShowComments(true) : setShowAuth(true); }}>
                       <Text size="xxSmall" className="text-white">{commentsCount} bình luận</Text>
                       <Text size="xxSmall" className="text-white">{sharesCount} chia sẻ</Text>
                     </Box>
                   </Box>
                   <Box className="flex justify-around items-center px-2 pb-2 border-t border-white/20 pt-2">
-                    <Box className="flex flex-1 justify-center items-center space-x-2 py-2 cursor-pointer active:bg-white/10 rounded-lg" onClick={(e) => { e.stopPropagation(); handleLike(); }}>
+                    <Box className="flex flex-1 justify-center items-center space-x-2 py-2 cursor-pointer active:bg-white/10 rounded-lg" onClick={(e) => { e.stopPropagation(); currentUser ? handleLike() : setShowAuth(true); }}>
                       <Icon icon={liked ? "zi-heart-solid" : "zi-heart"} className={liked ? "text-red-500 text-xl" : "text-white text-xl"} />
                       <Text size="small" className={`font-medium ${liked ? "text-red-500" : "text-white"}`}>Thích</Text>
                     </Box>
-                    <Box className="flex flex-1 justify-center items-center space-x-2 py-2 cursor-pointer active:bg-white/10 rounded-lg" onClick={(e) => { e.stopPropagation(); setShowComments(true); }}>
-                      <Icon icon="zi-chat" className="text-white text-xl" />
+                    <Box className="flex flex-1 justify-center items-center space-x-2 py-2 cursor-pointer active:bg-white/10 rounded-lg" onClick={(e) => { e.stopPropagation(); currentUser ? setShowComments(true) : setShowAuth(true); }}>
+                      <CustomIcon icon="zi-chat" className="text-white text-xl" />
                       <Text size="small" className="font-medium text-white">Bình luận</Text>
                     </Box>
-                    <Box className="flex flex-1 justify-center items-center space-x-2 py-2 cursor-pointer active:bg-white/10 rounded-lg" onClick={(e) => { e.stopPropagation(); setShowShare(true); }}>
-                      <Icon icon="zi-share" className="text-white text-xl" />
+                    <Box className="flex flex-1 justify-center items-center space-x-2 py-2 cursor-pointer active:bg-white/10 rounded-lg" onClick={(e) => { e.stopPropagation(); currentUser ? setShowShare(true) : setShowAuth(true); }}>
+                      <CustomIcon icon="zi-share" className="text-white text-xl" />
                       <Text size="small" className="font-medium text-white">Chia sẻ</Text>
                     </Box>
                   </Box>
@@ -428,7 +449,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
               placeholder="Viết bình luận..."
               onKeyDown={(e) => e.key === 'Enter' && handleSendComment()}
             />
-            <Icon icon="zi-send-solid" className={`text-xl ml-2 cursor-pointer ${commentText.trim() ? "text-[#14502e]" : "text-gray-300"}`} onClick={handleSendComment} />
+            <CustomIcon icon="zi-send-solid" className={`text-xl ml-2 cursor-pointer ${commentText.trim() ? "text-[#14502e]" : "text-gray-300"}`} onClick={handleSendComment} />
           </Box>
         </Box>
       </Sheet>
@@ -445,16 +466,16 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
             openSnackbar({ text: "Đã sao chép", type: "success" }); 
             setActiveCommentMenu(null); 
           }}>
-            <Icon icon="zi-copy" className="mr-3 text-2xl" />
+            <CustomIcon icon="zi-copy" className="mr-3 text-2xl" />
             <Text className="text-[16px] font-medium">Sao chép văn bản</Text>
           </Box>
           <Box className="flex items-center p-4 cursor-pointer active:bg-gray-100 rounded-xl text-gray-700" onClick={() => { openSnackbar({ text: "Đã báo cáo", type: "success" }); setActiveCommentMenu(null); }}>
-            <Icon icon="zi-warning" className="mr-3 text-2xl" />
+            <CustomIcon icon="zi-warning" className="mr-3 text-2xl" />
             <Text className="text-[16px] font-medium">Báo cáo vi phạm</Text>
           </Box>
           {(currentUser?.uid === activeCommentMenu?.authorId || currentUser?.uid === data.authorId) && (
             <Box className="flex items-center p-4 cursor-pointer active:bg-gray-100 rounded-xl text-red-500 border-t border-gray-100" onClick={() => handleDeleteComment(activeCommentMenu.id)}>
-              <Icon icon="zi-delete" className="mr-3 text-2xl" />
+              <CustomIcon icon="zi-delete" className="mr-3 text-2xl" />
               <Text className="text-[16px] font-medium">Xóa bình luận</Text>
             </Box>
           )}
@@ -466,7 +487,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
         <Box className="p-6 grid grid-cols-4 gap-4">
           {/* ... (keep existing share UI) ... */}
           <Box className="flex flex-col items-center cursor-pointer">
-            <Box className="w-14 h-14 bg-[#0068ff] rounded-full flex items-center justify-center mb-2 text-white shadow-md"><Icon icon="zi-chat" className="text-2xl" /></Box>
+            <Box className="w-14 h-14 bg-[#0068ff] rounded-full flex items-center justify-center mb-2 text-white shadow-md"><CustomIcon icon="zi-chat" className="text-2xl" /></Box>
             <Text size="xSmall" className="text-center font-medium text-gray-600">Gửi bạn bè</Text>
           </Box>
           <Box className="flex flex-col items-center cursor-pointer" onClick={async () => {
@@ -478,7 +499,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
               setSharesCount(prev => prev + 1);
             } catch (e) {}
           }}>
-            <Box className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mb-2 text-gray-700 shadow-md border border-gray-200"><Icon icon="zi-copy" className="text-2xl" /></Box>
+            <Box className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mb-2 text-gray-700 shadow-md border border-gray-200"><CustomIcon icon="zi-copy" className="text-2xl" /></Box>
             <Text size="xSmall" className="text-center font-medium text-gray-600">Sao chép link</Text>
           </Box>
         </Box>
@@ -493,7 +514,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
           <Box className="w-full bg-white rounded-t-2xl pb-safe z-10" style={{ animation: "slideUp 0.3s ease-out" }}>
             <Box className="p-4 border-b border-gray-100 flex justify-center items-center relative">
               <Text className="font-bold text-[17px]">Tùy chọn</Text>
-              <Icon icon="zi-close" className="absolute right-4 text-2xl cursor-pointer p-1" onClick={() => setShowMenu(false)} />
+              <CustomIcon icon="zi-close" className="absolute right-4 text-2xl cursor-pointer p-1" onClick={() => setShowMenu(false)} />
             </Box>
             <Box className="p-2 pb-6">
               {currentUser?.uid === data.authorId ? (
@@ -507,21 +528,21 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
                       setIsEditing(true);
                     }}
                   >
-                    <Icon icon="zi-edit" className="mr-3 text-2xl" />
+                    <CustomIcon icon="zi-edit" className="mr-3 text-2xl" />
                     <Text className="text-[16px] font-medium">Chỉnh sửa bài viết</Text>
                   </Box>
                   <Box 
                     className="flex items-center p-4 cursor-pointer active:bg-gray-100 rounded-xl text-gray-700 transition-colors" 
                     onClick={handleTogglePin}
                   >
-                    <Icon icon={data.isPinned ? "zi-star-solid" : "zi-star"} className={`mr-3 text-2xl ${data.isPinned ? "text-[#a68c4d]" : ""}`} />
+                    <CustomIcon icon={data.isPinned ? "zi-star-solid" : "zi-star"} className={`mr-3 text-2xl ${data.isPinned ? "text-[#a68c4d]" : ""}`} />
                     <Text className="text-[16px] font-medium">{data.isPinned ? "Bỏ ghim bài viết này" : "Ghim lên đầu trang cá nhân"}</Text>
                   </Box>
                   <Box 
                     className="flex items-center p-4 cursor-pointer active:bg-gray-100 rounded-xl text-red-500 transition-colors mt-2 border-t border-gray-100" 
                     onClick={handleDeletePost}
                   >
-                    <Icon icon="zi-delete" className="mr-3 text-2xl" />
+                    <CustomIcon icon="zi-delete" className="mr-3 text-2xl" />
                     <Text className="text-[16px] font-medium">Xóa bài viết này</Text>
                   </Box>
                 </>
@@ -533,7 +554,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
                     openSnackbar({ text: "Tính năng báo cáo đang phát triển", type: "info" });
                   }}
                 >
-                  <Icon icon="zi-warning" className="mr-3 text-2xl" />
+                  <CustomIcon icon="zi-warning" className="mr-3 text-2xl" />
                   <Text className="text-[16px] font-medium">Báo cáo vi phạm</Text>
                 </Box>
               )}
@@ -541,6 +562,8 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
           </Box>
         </Box>
       )}
+
+      <AuthOverlay visible={showAuth} onClose={() => setShowAuth(false)} />
     </Box>
   );
 };

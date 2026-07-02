@@ -1,3 +1,4 @@
+import CustomIcon from '../components/custom-icon';
 import React, { FC, useState, useEffect } from "react";
 import { Page, Header, Box, Text, List, Icon, useNavigate, Modal, Button, Input } from "zmp-ui";
 import { auth, db } from "../firebase";
@@ -17,13 +18,13 @@ const UserPersonalMenu: FC<UserPersonalMenuProps> = ({ onReferralClick, onShareC
   return (
     <SectionBox title="Cá nhân">
       <List>
-        <List.Item onClick={() => navigate('/account-info')} title="Thông tin tài khoản" prefix={<Icon icon="zi-user" className="text-gray-600" />} suffix={<Icon icon="zi-chevron-right" />} />
-        <List.Item onClick={() => navigate('/notification')} title="Thông báo" prefix={<Icon icon="zi-notif" className="text-blue-500" />} suffix={<Icon icon="zi-chevron-right" />} />
-        <List.Item onClick={() => navigate('/appointments')} title="Lịch sử đặt hẹn" prefix={<Icon icon="zi-clock-1" className="text-gray-700" />} suffix={<Box className="flex items-center"><span className="bg-red-400 text-white text-xs px-2 py-1 rounded-full mr-2">5 cuộc hẹn</span><Icon icon="zi-chevron-right" /></Box>} />
-        <List.Item onClick={onReferralClick} title="Người được giới thiệu" prefix={<Icon icon="zi-group" className="text-gray-700" />} suffix={<Icon icon="zi-chevron-right" />} />
-        <List.Item onClick={onShareClick} title="Chia sẻ ứng dụng" prefix={<Icon icon="zi-share" className="text-gray-700" />} suffix={<Icon icon="zi-chevron-right" />} />
-        <List.Item onClick={onChangePasswordClick} title="Đổi mật khẩu" prefix={<Icon icon="zi-lock" className="text-gray-700" />} suffix={<Icon icon="zi-chevron-right" />} />
-        <List.Item onClick={onSupportClick} title="Gửi phản hồi / Hỗ trợ" prefix={<Icon icon="zi-chat" className="text-gray-700" />} suffix={<Icon icon="zi-chevron-right" />} />
+        <List.Item onClick={() => navigate('/account-info')} title="Thông tin tài khoản" prefix={<CustomIcon icon="zi-user" className="text-gray-600" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
+        <List.Item onClick={() => navigate('/notification')} title="Thông báo" prefix={<CustomIcon icon="zi-notif" className="text-blue-500" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
+        <List.Item onClick={() => navigate('/appointments')} title="Lịch sử đặt hẹn" prefix={<CustomIcon icon="zi-clock-1" className="text-gray-700" />} suffix={<Box className="flex items-center"><span className="bg-red-400 text-white text-xs px-2 py-1 rounded-full mr-2">5 cuộc hẹn</span><CustomIcon icon="zi-chevron-right" /></Box>} />
+        <List.Item onClick={onReferralClick} title="Người được giới thiệu" prefix={<CustomIcon icon="zi-group" className="text-gray-700" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
+        <List.Item onClick={onShareClick} title="Chia sẻ ứng dụng" prefix={<CustomIcon icon="zi-share" className="text-gray-700" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
+        <List.Item onClick={onChangePasswordClick} title="Đổi mật khẩu" prefix={<CustomIcon icon="zi-lock" className="text-gray-700" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
+        <List.Item onClick={onSupportClick} title="Gửi phản hồi / Hỗ trợ" prefix={<CustomIcon icon="zi-chat" className="text-gray-700" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
       </List>
     </SectionBox>
   );
@@ -34,9 +35,9 @@ const UserUtilities: FC<{ onLogout: () => void }> = ({ onLogout }) => {
   return (
     <SectionBox title="Tiện ích khác">
       <List>
-        <List.Item onClick={() => navigate('/contact')} title="Liên hệ hỗ trợ" prefix={<Icon icon="zi-call" className="text-blue-500" />} suffix={<Icon icon="zi-chevron-right" />} />
-        <List.Item onClick={() => navigate('/terms')} title="Điều khoản sử dụng" prefix={<Icon icon="zi-note" className="text-gray-800" />} suffix={<Icon icon="zi-chevron-right" />} />
-        <List.Item title="Đăng xuất" prefix={<Icon icon="zi-leave" className="text-red-500" />} onClick={onLogout} className="text-red-500 font-medium" />
+        <List.Item onClick={() => navigate('/contact')} title="Liên hệ hỗ trợ" prefix={<CustomIcon icon="zi-call" className="text-blue-500" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
+        <List.Item onClick={() => navigate('/terms')} title="Điều khoản sử dụng" prefix={<CustomIcon icon="zi-note" className="text-gray-800" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
+        <List.Item title="Đăng xuất" prefix={<CustomIcon icon="zi-leave" className="text-red-500" />} onClick={onLogout} className="text-red-500 font-medium" />
       </List>
     </SectionBox>
   );

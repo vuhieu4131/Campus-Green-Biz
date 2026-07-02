@@ -1,3 +1,4 @@
+import CustomIcon from '../custom-icon';
 import React, { FC, useState } from "react";
 import {
   Box,
@@ -232,10 +233,10 @@ export const MemberView: FC<{ user: any; points: number }> = ({
       <Box className="mx-4 space-y-3">
           <Box className="bg-white flex justify-between items-center p-4 rounded-xl shadow-md" onClick={handleOpenHistory}>
               <Box flex alignItems="center">
-                  <Icon icon="zi-clock-2" className="mr-2 text-gray-500" />
+                  <CustomIcon icon="zi-clock-2" className="mr-2 text-gray-500" />
                   <Text size="small" bold>Lịch sử {activeWallet === 'main' ? "tích điểm" : "ưu đãi"}</Text>
               </Box>
-              <Icon icon="zi-chevron-right" className="text-gray-400" />
+              <CustomIcon icon="zi-chevron-right" className="text-gray-400" />
           </Box>
           <Icon icon="zi-chevron-right" className="text-gray-400" />
         </Box>
