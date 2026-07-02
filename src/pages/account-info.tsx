@@ -1,8 +1,9 @@
 import React, { FC, useState, useEffect } from "react";
 import { Page, Header, Box, Input, Button, useSnackbar, Text, Icon } from "zmp-ui";
-import { auth, db } from "../firebase";
+import { auth, db, storage } from "../firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const AccountInfoPage: FC = () => {
   const { openSnackbar } = useSnackbar();
@@ -12,6 +13,28 @@ const AccountInfoPage: FC = () => {
   const [phone, setPhone] = useState("");
   const [avatar, setAvatar] = useState("");
   const [role, setRole] = useState("Thành viên");
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0] && currentUser) {
+      const file = e.target.files[0];
+      setIsUploading(true);
+      try {
+        const filename = `avatars/${currentUser.uid}_${Date.now()}.jpg`;
+        const storageRef = ref(storage, filename);
+        await uploadBytes(storageRef, file);
+        const url = await getDownloadURL(storageRef);
+        setAvatar(url);
+        openSnackbar({ text: "Đã tải ảnh lên thành công!", type: "success" });
+      } catch (error) {
+        console.error("Lỗi tải ảnh:", error);
+        openSnackbar({ text: "Lỗi tải ảnh. Vui lòng thử lại.", type: "error" });
+      } finally {
+        setIsUploading(false);
+      }
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -70,7 +93,8 @@ const AccountInfoPage: FC = () => {
       
       await updateDoc(docRef, {
         fullName: name,
-        phone: phone
+        phone: phone,
+        avatar: avatar
       });
 
       openSnackbar({
@@ -94,17 +118,39 @@ const AccountInfoPage: FC = () => {
       
       {/* Display Section */}
       <Box className="flex flex-col items-center mt-6">
-        {avatar ? (
-          <img 
-            src={avatar} 
-            alt="Avatar" 
-            className="w-28 h-28 rounded-full object-cover mb-3" 
-          />
-        ) : (
-          <Box className="w-28 h-28 rounded-full bg-[#e4e6eb] flex items-center justify-center mb-3 overflow-hidden">
-            <Icon icon="zi-user-solid" className="text-white" style={{ fontSize: "100px", marginTop: "28px" }} />
+        <Box 
+          className="relative mb-3 cursor-pointer"
+          onClick={() => !isUploading && fileInputRef.current?.click()}
+        >
+          {avatar ? (
+            <img 
+              src={avatar} 
+              alt="Avatar" 
+              className={`w-28 h-28 rounded-full object-cover ${isUploading ? 'opacity-50' : ''}`} 
+            />
+          ) : (
+            <Box className={`w-28 h-28 rounded-full bg-[#e4e6eb] flex items-center justify-center overflow-hidden ${isUploading ? 'opacity-50' : ''}`}>
+              <Icon icon="zi-user-solid" className="text-white" style={{ fontSize: "100px", marginTop: "28px" }} />
+            </Box>
+          )}
+          
+          <Box className="absolute bottom-0 right-0 bg-[#14502e] text-white w-8 h-8 rounded-full flex items-center justify-center border-2 border-white shadow-md">
+            <Icon icon="zi-camera" size={16} />
           </Box>
-        )}
+          
+          {isUploading && (
+            <Box className="absolute inset-0 flex items-center justify-center">
+              <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
+            </Box>
+          )}
+        </Box>
+        <input 
+          type="file" 
+          accept="image/*" 
+          ref={fileInputRef} 
+          style={{ display: "none" }} 
+          onChange={handleAvatarChange} 
+        />
         <Text.Title className="text-xl font-bold mb-1">{name || "Người dùng"}</Text.Title>
         <Text className="text-gray-800 text-base mb-1">{phone || "Chưa có sđt"}</Text>
         <Text className="font-bold text-sm text-gray-800">{role}</Text>
