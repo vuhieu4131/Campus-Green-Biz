@@ -48,7 +48,7 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
       if (shopSnap.exists()) {
         alert("Chào mừng Nhà phân phối quay trở lại!");
         onClose(); 
-        navigate("/distributor"); 
+        navigate("/profile"); 
         return; 
       }
 
@@ -68,7 +68,7 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
       if (!shopByPhoneSnap.empty) {
         alert("Chào mừng Nhà phân phối quay trở lại!");
         onClose(); 
-        navigate("/distributor"); 
+        navigate("/profile"); 
         return;
       }
 
