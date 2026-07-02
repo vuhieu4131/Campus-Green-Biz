@@ -1,4 +1,6 @@
 import React, { FC, useState } from "react";
+import { useSetRecoilState } from "recoil";
+import { notificationsState } from "../state";
 import { Page, Box, Text, Icon, Avatar, Button, useSnackbar, useNavigate } from "zmp-ui";
 import { chooseImage } from "zmp-sdk";
 import { auth, db, storage } from "../firebase";
@@ -8,6 +10,7 @@ import { onAuthStateChanged, User } from "firebase/auth";
 
 const CreatePostPage: FC = () => {
   const navigate = useNavigate();
+  const setNotifications = useSetRecoilState(notificationsState);
   const { openSnackbar } = useSnackbar();
   const [content, setContent] = useState("");
   const [images, setImages] = useState<{url: string, file: File}[]>([]);
@@ -65,7 +68,21 @@ const CreatePostPage: FC = () => {
         commentsCount: 0
       });
 
-      openSnackbar({ text: "Đã đăng bài thành công!", type: "success" });
+      setNotifications((prev) => [
+        {
+          id: Date.now(),
+          image: "https://stc-zmp.zadn.vn/templates/zaui-coffee/dummy/logo.webp",
+          title: "Tạo bài đăng thành công",
+          content: "Bài viết của bạn đã được chia sẻ với cộng đồng.",
+        },
+        ...prev,
+      ]);
+
+      openSnackbar({ 
+        text: "Đã đăng bài thành công!", 
+        prefixIcon: <CustomIcon icon="zi-check-circle-2" className="text-green-500 mr-2" />, 
+        icon: false 
+      });
       navigate(-1);
     } catch (error) {
       console.error("Lỗi đăng bài:", error);

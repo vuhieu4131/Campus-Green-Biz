@@ -1,3 +1,4 @@
+import CustomIcon from '../custom-icon';
 import React, { FC, useState, useEffect } from "react";
 // 👉 Đã import thêm Avatar, Spinner để dùng cho danh sách khách hàng
 import { Box, Text, Icon, Button, List, Modal, Input, useSnackbar, Avatar, Spinner, Select } from "zmp-ui";
@@ -366,17 +367,17 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
                {branchInfo.branchName || "Chi nhánh trực thuộc"}
            </Text.Title>
            <Box flex alignItems="center" className="mt-1 text-gray-300">
-               <Icon icon={"zi-call" as any} size={14} className="mr-1" />
+               <CustomIcon icon={"zi-call" as any} size={14} className="mr-1" />
                <Text size="small" bold>{userData.phone}</Text>
            </Box>
            <Box flex alignItems="center" className="text-blue-50 mt-1">
-               <Icon icon={"zi-location-solid" as any} size={16} className="mt-0.5 mr-1" />
+               <CustomIcon icon={"zi-location-solid" as any} size={16} className="mt-0.5 mr-1" />
                <Text size="small" className="line-clamp-2 leading-tight">
                    {branchInfo.branchAddress || "Chưa cập nhật địa chỉ"}
                </Text>
            </Box>
         </Box>
-        <Icon icon={"zi-home" as any} className="absolute -bottom-6 -right-4 opacity-20 text-white" style={{ fontSize: 100 }} />
+        <CustomIcon icon={"zi-home" as any} className="absolute -bottom-6 -right-4 opacity-20 text-white" style={{ fontSize: 100 }} />
       </Box>
       
       {/* 👉 BƯỚC 3: THỐNG KÊ TỔNG QUAN & QUẢN LÝ ĐƠN */}
@@ -426,7 +427,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
           >
               <Box flex alignItems="center">
                   <Box className="w-12 h-12 rounded-full bg-orange-50 flex items-center justify-center mr-3 relative border border-orange-100">
-                      <Icon icon={"zi-note" as any} className="text-orange-600" size={24}/>
+                      <CustomIcon icon={"zi-note" as any} className="text-orange-600" size={24}/>
                       {actionableCount > 0 && (
                           <Box className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-white shadow-md">
                               {actionableCount}
@@ -439,7 +440,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
                   </Box>
               </Box>
               <Box className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center">
-                  <Icon icon="zi-chevron-right" className="text-gray-400" size={20} />
+                  <CustomIcon icon="zi-chevron-right" className="text-gray-400" size={20} />
               </Box>
           </Box>
       </Box>
@@ -453,7 +454,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
     <Box className="p-4 border-b border-gray-100 active:bg-gray-50 cursor-pointer transition" onClick={fetchHistory}>
       <Box flex alignItems="center" className="mb-2">
         <div className="w-10 h-10 rounded-full flex items-center justify-center bg-indigo-50 mr-3">
-          <Icon icon={"zi-user" as any} className="text-indigo-600" size={20}/>
+          <CustomIcon icon={"zi-user" as any} className="text-indigo-600" size={20}/>
         </div>
         <Box>
           <Text size="small" bold className="text-gray-700">Thông tin Quản lý</Text>
@@ -468,7 +469,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
         <Box className="flex-1 flex flex-col items-center justify-center px-2 cursor-pointer active:opacity-70" onClick={fetchHistory}>
           <Text size="xxSmall" className="text-gray-400 font-bold uppercase mb-1">Điểm & Hạng</Text>
           <Box flex alignItems="baseline">
-            <Icon icon="zi-star-solid" size={14} className="text-orange-500 mr-1" />
+            <CustomIcon icon="zi-star-solid" size={14} className="text-orange-500 mr-1" />
             <Text bold size="large" className="text-gray-800">
               {(userData.spendingPoints || 0).toLocaleString()}
             </Text>
@@ -480,7 +481,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
         <Box className="flex-1 flex flex-col items-center justify-center px-2 cursor-pointer active:opacity-70" onClick={() => { setReferralTab("month"); setShowReferralModal(true); }}>
           <Text size="xxSmall" className="text-gray-400 font-bold uppercase mb-1">Khách mới (Tháng)</Text>
           <Box flex alignItems="baseline">
-            <Icon icon="zi-user" size={14} className="text-blue-500 mr-1" />
+            <CustomIcon icon="zi-user" size={14} className="text-blue-500 mr-1" />
             <Text bold size="large" className="text-blue-600">{newMembersThisMonth.length}</Text>
           </Box>
           <Text size="xSmall" className="text-gray-500">Xem danh sách</Text>
@@ -507,7 +508,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
           </Box>
         ) : (
           <Box flex alignItems="center" className="py-1">
-            <Icon icon="zi-check-circle-solid" size={14} className="text-orange-500 mr-1" />
+            <CustomIcon icon="zi-check-circle-solid" size={14} className="text-orange-500 mr-1" />
             <Text size="xxSmall" className="text-orange-600 font-bold uppercase tracking-tight">
               Bạn đã đạt cấp bậc cao nhất (Vàng)
             </Text>
@@ -521,8 +522,8 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
       <Item 
         title="Danh sách khách hàng"
         subTitle="Người dùng do bạn giới thiệu"
-        prefix={<div className="w-10 h-10 rounded-full flex items-center justify-center bg-orange-100/50"><Icon icon={"zi-group" as any} className="text-orange-600" size={20}/></div>} 
-        suffix={<Icon icon={"zi-chevron-right" as any} className="text-gray-400"/>} 
+        prefix={<div className="w-10 h-10 rounded-full flex items-center justify-center bg-orange-100/50"><CustomIcon icon={"zi-group" as any} className="text-orange-600" size={20}/></div>} 
+        suffix={<CustomIcon icon={"zi-chevron-right" as any} className="text-gray-400"/>} 
         onClick={() => { setReferralTab("all"); setShowReferralModal(true); }} 
         className="p-3 m-1 rounded-xl cursor-pointer active:bg-gray-50 transition"
       />
@@ -530,23 +531,23 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
       <Item 
         title="Chia sẻ ứng dụng"
         subTitle="QR Code + Mã giới thiệu"
-        prefix={<div className="w-10 h-10 rounded-full flex items-center justify-center bg-pink-100/50"><Icon icon={"zi-share-external-1" as any} className="text-pink-600" size={20}/></div>} 
-        suffix={<Icon icon={"zi-chevron-right" as any} className="text-gray-400"/>} 
+        prefix={<div className="w-10 h-10 rounded-full flex items-center justify-center bg-pink-100/50"><CustomIcon icon={"zi-share-external-1" as any} className="text-pink-600" size={20}/></div>} 
+        suffix={<CustomIcon icon={"zi-chevron-right" as any} className="text-gray-400"/>} 
         onClick={() => setShowShareModal(true)} 
         className="p-3 m-1 rounded-xl cursor-pointer active:bg-gray-50 transition"
       />
 
       <Item 
         title="Đổi mật khẩu đăng nhập"
-        prefix={<div className="w-10 h-10 rounded-full flex items-center justify-center bg-red-100/50"><Icon icon="zi-lock" className="text-red-600" size={20}/></div>} 
-        suffix={<Icon icon={"zi-chevron-right" as any} className="text-gray-400"/>} 
+        prefix={<div className="w-10 h-10 rounded-full flex items-center justify-center bg-red-100/50"><CustomIcon icon="zi-lock" className="text-red-600" size={20}/></div>} 
+        suffix={<CustomIcon icon={"zi-chevron-right" as any} className="text-gray-400"/>} 
         onClick={() => setShowChangePassModal(true)} 
         className="p-3 m-1 rounded-xl cursor-pointer active:bg-gray-50 transition"
       />
 
 <Item 
     title="Gửi phản hồi / Yêu cầu hỗ trợ"
-    prefix={<div className="w-10 h-10 rounded-full flex items-center justify-center bg-teal-100/50"><Icon icon="zi-chat" className="text-teal-600" size={20}/></div>} 
+    prefix={<div className="w-10 h-10 rounded-full flex items-center justify-center bg-teal-100/50"><CustomIcon icon="zi-chat" className="text-teal-600" size={20}/></div>} 
     suffix={
         <Box flex alignItems="center">
             {unreadFeedbackCount > 0 && (
@@ -554,7 +555,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
                     {unreadFeedbackCount} mới
                 </Box>
             )}
-            <Icon icon={"zi-chevron-right" as any} className="text-gray-400"/>
+            <CustomIcon icon={"zi-chevron-right" as any} className="text-gray-400"/>
         </Box>
     } 
     onClick={() => { setShowFeedbackModal(true); fetchMyFeedbacks(); }} 
@@ -563,7 +564,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
 
       <Item 
         title="Đăng xuất"
-        prefix={<div className="w-10 h-10 rounded-full flex items-center justify-center bg-blue-100/50"><Icon icon="zi-leave" className="text-red-500" size={20}/></div>} 
+        prefix={<div className="w-10 h-10 rounded-full flex items-center justify-center bg-blue-100/50"><CustomIcon icon="zi-leave" className="text-red-500" size={20}/></div>} 
         onClick={onLogout} 
         className="p-3 m-1 rounded-xl cursor-pointer active:bg-gray-50 transition"
       />
@@ -594,7 +595,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
                       if (listToRender.length === 0) {
                           return (
                               <Box flex flexDirection="column" alignItems="center" py={5}>
-                                  <Icon icon="zi-group" size={40} className="text-gray-300 mb-2"/>
+                                  <CustomIcon icon="zi-group" size={40} className="text-gray-300 mb-2"/>
                                   <Text size="small" className="text-center text-gray-400">Chưa có khách hàng nào.</Text>
                               </Box>
                           );
@@ -640,8 +641,8 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
                 <Text size="xSmall" className="text-gray-500 mb-1 uppercase tracking-wider">Mã giới thiệu (SĐT của bạn)</Text>
                 <Text size="large" bold className="text-blue-600 tracking-wider">{userData.phone}</Text>
             </Box>
-            <Button fullWidth onClick={copyShareLink} prefixIcon={<Icon icon={"zi-copy" as any}/>} className="mb-3">Sao chép liên kết</Button>
-            <Button fullWidth variant="secondary" className="text-blue-600 bg-blue-50 border-none" onClick={handleSystemShare} prefixIcon={<Icon icon={"zi-chat" as any}/>}>Gửi qua Zalo</Button>
+            <Button fullWidth onClick={copyShareLink} prefixIcon={<CustomIcon icon={"zi-copy" as any}/>} className="mb-3">Sao chép liên kết</Button>
+            <Button fullWidth variant="secondary" className="text-blue-600 bg-blue-50 border-none" onClick={handleSystemShare} prefixIcon={<CustomIcon icon={"zi-chat" as any}/>}>Gửi qua Zalo</Button>
         </Box>
       </Modal>
 
@@ -683,7 +684,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
                           <Box mb={4}>
                               <Input.TextArea label="Nội dung" value={feedbackContent} onChange={(e) => setFeedbackContent(e.target.value)} rows={5} placeholder="Nhập chi tiết yêu cầu của bạn..." />
                           </Box>
-                          <Button fullWidth loading={feedbackLoading} onClick={handleSendFeedback} prefixIcon={<Icon icon="zi-send-solid" className="text-white"/>}>
+                          <Button fullWidth loading={feedbackLoading} onClick={handleSendFeedback} prefixIcon={<CustomIcon icon="zi-send-solid" className="text-white"/>}>
                               Gửi yêu cầu
                           </Button>
                       </Box>
@@ -693,7 +694,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
                               <Box flex justifyContent="center" py={5}><Spinner /></Box>
                           ) : feedbackList.length === 0 ? (
                               <Box flex flexDirection="column" alignItems="center" py={5}>
-                                  <Icon icon="zi-chat" size={40} className="text-gray-300 mb-2"/>
+                                  <CustomIcon icon="zi-chat" size={40} className="text-gray-300 mb-2"/>
                                   <Text className="text-center text-gray-500">Bạn chưa gửi yêu cầu nào.</Text>
                               </Box>
                           ) : (
@@ -724,7 +725,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
                                           <Box className="bg-blue-50/50 p-3 rounded-lg border border-blue-100 mt-3 ml-2 relative">
                                               <Box flex alignItems="center" mb={1}>
                                                   <Box className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center mr-1.5">
-                                                      <Icon icon="zi-user" size={12} className="text-white"/>
+                                                      <CustomIcon icon="zi-user" size={12} className="text-white"/>
                                                   </Box>
                                                   <Text size="xSmall" bold className="text-blue-800">Admin trả lời:</Text>
                                               </Box>
@@ -780,7 +781,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
                           <Text size="xSmall" bold={isCurrent} className={isCurrent ? "text-blue-600" : "text-gray-400"}>
                               {item.points} điểm
                           </Text>
-                          {isCurrent && <Icon icon="zi-check-circle-solid" size={16} className="text-green-500 ml-2" />}
+                          {isCurrent && <CustomIcon icon="zi-check-circle-solid" size={16} className="text-green-500 ml-2" />}
                       </Box>
                   </Box>
               );
@@ -790,7 +791,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
       {/* 2. QUYỀN LỢI HẠNG HIỆN TẠI */}
       <Box className="bg-blue-50 p-4 rounded-xl mb-5 border border-blue-100">
           <Text size="small" bold className="text-blue-800 flex alignItems-center">
-             <Icon icon="zi-info-circle-solid" size={16} className="mr-1"/> Quyền lợi {rank.name}:
+             <CustomIcon icon="zi-info-circle-solid" size={16} className="mr-1"/> Quyền lợi {rank.name}:
           </Text>
           <Text size="xSmall" className="text-blue-700 mt-2 leading-relaxed">
              • Tích lũy điểm thưởng từ đơn hàng giới thiệu.<br/>
@@ -844,7 +845,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
                       clearable
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      prefix={<Icon icon="zi-search" className="text-gray-400" />}
+                      prefix={<CustomIcon icon="zi-search" className="text-gray-400" />}
                   />
               </Box>
 
@@ -886,7 +887,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
                           if (filtered.length === 0) {
                               return (
                                   <Box flex flexDirection="column" alignItems="center" py={8}>
-                                      <Icon icon="zi-note" size={40} className="text-gray-300 mb-2"/>
+                                      <CustomIcon icon="zi-note" size={40} className="text-gray-300 mb-2"/>
                                       <Text className="text-center text-gray-500">Chưa có đơn hàng nào.</Text>
                                   </Box>
                               );
@@ -904,7 +905,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
                                       
                                       {/* 👉 NÚT GỌI ĐIỆN THOẠI NHANH CHO KHÁCH */}
                                       <a href={`tel:${order.userId}`} className="absolute top-12 right-3 w-9 h-9 rounded-full bg-green-100 border border-green-200 flex items-center justify-center cursor-pointer active:opacity-70 shadow-md z-10">
-                                          <Icon icon="zi-call" size={16} className="text-green-600" />
+                                          <CustomIcon icon="zi-call" size={16} className="text-green-600" />
                                       </a>
 
                                       {/* Dòng Mã đơn & Trạng thái */}
@@ -924,7 +925,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
                                       {/* Thông tin khách hàng */}
                                       <Box flex alignItems="center" mb={3}>
                                           <Box className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center mr-2 border border-blue-100">
-                                              <Icon icon="zi-user" size={16} className="text-blue-600" />
+                                              <CustomIcon icon="zi-user" size={16} className="text-blue-600" />
                                           </Box>
                                           <Box>
                                               <Text size="small" bold className="text-blue-800">{order.userName}</Text>
@@ -934,7 +935,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
                                       {/* 👉 BỔ SUNG: Thông tin người nhận (Tên + SĐT để ship hàng) */}
                                         {(order.receiverName || order.receiverPhone || order.shippingName || order.shippingPhone) && (
                                             <Box flex alignItems="flex-start" mb={2} className="bg-blue-50/40 p-2.5 rounded-lg border border-blue-100">
-                                                <Icon icon="zi-user-circle" size={16} className="text-blue-600 mr-2 mt-0.5 shrink-0" />
+                                                <CustomIcon icon="zi-user-circle" size={16} className="text-blue-600 mr-2 mt-0.5 shrink-0" />
                                                 <Box>
                                                     <Text size="xSmall" bold className="text-blue-800 mb-0.5">Thông tin người nhận:</Text>
                                                     <Text size="xSmall" className="text-gray-700">
@@ -955,7 +956,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
                                         {/* 👉 BỔ SUNG: Thông tin địa chỉ nhận hàng của khách (nếu có) */}
                                         {(order.address || order.deliveryAddress || order.shippingAddress) && (
                                             <Box flex alignItems="flex-start" mb={3} className="bg-orange-50/50 p-2.5 rounded-lg border border-orange-100">
-                                                <Icon icon="zi-location" size={16} className="text-orange-600 mr-2 mt-0.5 shrink-0" />
+                                                <CustomIcon icon="zi-location" size={16} className="text-orange-600 mr-2 mt-0.5 shrink-0" />
                                                 <Box>
                                                     <Text size="xSmall" bold className="text-orange-800 mb-0.5">Địa chỉ nhận hàng:</Text>
                                                     <Text size="xSmall" className="text-gray-700 leading-relaxed">
@@ -984,7 +985,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
                                                           </Box>
                                                           {item.options && Object.keys(item.options).length > 0 && (
                                                               <Text size="xxxxSmall" className="text-gray-500 flex items-center mt-0.5 italic">
-                                                                  <Icon icon="zi-note" size={12} className="mr-1" />
+                                                                  <CustomIcon icon="zi-note" size={12} className="mr-1" />
                                                                   {Object.entries(item.options).map(([k, v]) => `${k}: ${v}`).join(' | ')}
                                                               </Text>
                                                           )}
@@ -1002,12 +1003,12 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
 
                                                   {order.selectedVariants && Object.keys(order.selectedVariants).length > 0 ? (
                                                       <Text size="xSmall" className="text-gray-600 font-medium flex items-center bg-white border border-gray-200 w-fit px-2 py-0.5 rounded mt-1 mb-2">
-                                                          <Icon icon="zi-note" size={12} className="mr-1 text-gray-500" />
+                                                          <CustomIcon icon="zi-note" size={12} className="mr-1 text-gray-500" />
                                                           {Object.entries(order.selectedVariants).map(([k, v]) => `${k}: ${v}`).join(' | ')}
                                                       </Text>
                                                   ) : (order.bookingTime || order.bookingDate) ? (
                                                       <Box flex alignItems="center" className="mb-1">
-                                                          <Icon icon="zi-clock-1" size={12} className="text-orange-500 mr-1 mt-0.5" />
+                                                          <CustomIcon icon="zi-clock-1" size={12} className="text-orange-500 mr-1 mt-0.5" />
                                                           <Text size="xSmall" bold className="text-orange-600">
                                                               Hẹn: {order.bookingTime} {order.bookingDate ? `- ${order.bookingDate}` : ''}
                                                           </Text>
@@ -1075,7 +1076,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
                                             <Button size="small" variant="secondary" className="bg-red-50 text-red-600 border border-red-200 whitespace-nowrap" onClick={() => { setSelectedOrderToCancel(order); setShowCancelModal(true); }}>
                                                 Hủy đơn
                                             </Button>
-                                            <Button size="small" className="flex-1 bg-green-500 border-none" onClick={() => handleUpdateOrderStatus(order, 'completed')} prefixIcon={<Icon icon="zi-check-circle-solid" className="text-white"/>}>
+                                            <Button size="small" className="flex-1 bg-green-500 border-none" onClick={() => handleUpdateOrderStatus(order, 'completed')} prefixIcon={<CustomIcon icon="zi-check-circle-solid" className="text-white"/>}>
                                                 Đã phục vụ xong
                                             </Button>
                                         </Box>
@@ -1114,7 +1115,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
                   if (monthlyOrders.length === 0) {
                       return (
                           <Box flex flexDirection="column" alignItems="center" py={5}>
-                              <Icon icon="zi-note" size={40} className="text-gray-300 mb-2"/>
+                              <CustomIcon icon="zi-note" size={40} className="text-gray-300 mb-2"/>
                               <Text className="text-center text-gray-500">Chưa có doanh thu trong tháng này.</Text>
                           </Box>
                       );
@@ -1134,7 +1135,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
                               <Text size="small" bold className="text-gray-800 mb-1">{order.productName}</Text>
                               
                               <Box flex alignItems="center" mb={2}>
-                                  <Icon icon="zi-user" size={14} className="text-gray-400 mr-1" />
+                                  <CustomIcon icon="zi-user" size={14} className="text-gray-400 mr-1" />
                                   <Text size="xSmall" className="text-gray-600">{order.userName} - {order.userId}</Text>
                               </Box>
                               

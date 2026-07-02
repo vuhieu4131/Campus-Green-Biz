@@ -1,3 +1,4 @@
+import CustomIcon from '../components/custom-icon';
 import React, { FC } from "react";
 import { ListRenderer } from "components/list-renderer";
 import { Box, Header, Page, Text, Icon } from "zmp-ui";
@@ -50,7 +51,7 @@ const NotificationList: FC = () => {
         items={orderNotifications}
         renderLeft={(item) => (
           <Box className={`w-12 h-12 rounded-full flex items-center justify-center ${item.bgColor}`}>
-            <Icon icon={item.icon} className={item.iconColor} size={24} />
+            <CustomIcon icon={item.icon} className={item.iconColor} size={24} />
           </Box>
         )}
         renderRight={(item) => (

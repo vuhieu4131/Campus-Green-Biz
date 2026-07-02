@@ -80,18 +80,22 @@ export function isIdentical(
 }
 
 const pay = (amount: number, description?: string) =>
-  createOrder({
-    desc:
-      description ??
-      `Thanh toán cho ${getConfig((config) => config.app.title)}`,
-    item: [],
-    amount: amount,
-    success: (data) => {
-      console.log("Payment success: ", data);
-    },
-    fail: (err) => {
-      console.log("Payment error: ", err);
-    },
+  new Promise((resolve, reject) => {
+    createOrder({
+      desc:
+        description ??
+        `Thanh toán cho ${getConfig((config) => config.app.title)}`,
+      item: [],
+      amount: amount,
+      success: (data) => {
+        console.log("Payment success: ", data);
+        resolve(data);
+      },
+      fail: (err) => {
+        console.log("Payment error: ", err);
+        reject(err);
+      },
+    });
   });
 
 export default pay;
