@@ -69,9 +69,24 @@ export const MemberView: FC<{ user: any; points: number }> = ({ user, points }) 
             className={`p-3 rounded-xl transition-all w-5/12 ${activeWallet === 'main' ? 'bg-orange-50 border-2 border-orange-400' : 'bg-gray-50'}`}
             onClick={() => setActiveWallet('main')}
           >
-            <CustomIcon icon="zi-plus-circle" className={activeWallet === 'main' ? 'text-orange-600' : 'text-gray-400'} />
-            <Text size="xxSmall" bold className={`mt-1 ${activeWallet === 'main' ? 'text-orange-600' : 'text-gray-400'}`}>Ví Tích Điểm</Text>
-            <Text bold size="normal">{points.toLocaleString()}</Text>
+            <Icon
+              icon="zi-plus-circle"
+              className={
+                activeWallet === "main" ? "text-orange-600" : "text-gray-400"
+              }
+            />
+            <Text
+              size="xxSmall"
+              bold
+              className={`mt-1 ${
+                activeWallet === "main" ? "text-orange-600" : "text-gray-400"
+              }`}
+            >
+              Ví Tích Điểm
+            </Text>
+            <Text bold size="normal">
+              {points.toLocaleString()}
+            </Text>
           </Box>
 
           <Box 
@@ -79,9 +94,24 @@ export const MemberView: FC<{ user: any; points: number }> = ({ user, points }) 
             className={`p-3 rounded-xl transition-all w-5/12 ${activeWallet === 'promo' ? 'bg-blue-50 border-2 border-blue-400' : 'bg-gray-50'}`}
             onClick={() => setActiveWallet('promo')}
           >
-            <CustomIcon icon="zi-star" className={activeWallet === 'promo' ? 'text-blue-600' : 'text-gray-400'} />
-            <Text size="xxSmall" bold className={`mt-1 ${activeWallet === 'promo' ? 'text-blue-600' : 'text-gray-400'}`}>Ví Ưu Đãi</Text>
-            <Text bold size="normal">0</Text> 
+            <Icon
+              icon="zi-star"
+              className={
+                activeWallet === "promo" ? "text-blue-600" : "text-gray-400"
+              }
+            />
+            <Text
+              size="xxSmall"
+              bold
+              className={`mt-1 ${
+                activeWallet === "promo" ? "text-blue-600" : "text-gray-400"
+              }`}
+            >
+              Ví Ưu Đãi
+            </Text>
+            <Text bold size="normal">
+              0
+            </Text>
           </Box>
         </Box>
       </Box>
@@ -92,8 +122,14 @@ export const MemberView: FC<{ user: any; points: number }> = ({ user, points }) 
           <Box>
             <Text size="small" className="opacity-80 uppercase">{activeWallet === 'main' ? "Member Rank" : "Promo Status"}</Text>
             <Box flex alignItems="center" className="mt-1">
-                <CustomIcon icon={calculateMemberRankInfo(points).icon as any} size={24} className="mr-2" />
-                <Text bold size="xLarge">{calculateMemberRankInfo(points).name}</Text>
+              <Icon
+                icon={calculateMemberRankInfo(points).icon as any}
+                size={24}
+                className="mr-2"
+              />
+              <Text bold size="xLarge">
+                {calculateMemberRankInfo(points).name}
+              </Text>
             </Box>
           </Box>
           <Box className="text-right">
@@ -107,8 +143,10 @@ export const MemberView: FC<{ user: any; points: number }> = ({ user, points }) 
       {/* SECTION 3: CHIA SẺ ỨNG DỤNG & MÃ GIỚI THIỆU (MỚI BỔ SUNG) */}
       <Box className="m-4 p-4 bg-white rounded-xl shadow-md border border-orange-100">
         <Box flex alignItems="center" className="mb-3">
-            <CustomIcon icon="zi-share-external-1" className="text-orange-500 mr-2" />
-            <Text bold size="small">Chia sẻ & Nhận quà</Text>
+          <Icon icon="zi-share-external-1" className="text-orange-500 mr-2" />
+          <Text bold size="small">
+            Chia sẻ & Nhận quà
+          </Text>
         </Box>
         <Box className="bg-orange-50 p-3 rounded-lg border border-dashed border-orange-300 flex justify-between items-center">
             <Box>

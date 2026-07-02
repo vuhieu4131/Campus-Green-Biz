@@ -940,7 +940,7 @@ useEffect(() => {
                       suffix={<CustomIcon icon="zi-chevron-right" className="text-gray-400"/>} 
                       onClick={() => setShowLocationsModal(true)} 
                   />
-                  <Item title="Đăng dịch vụ mới" prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-green-50"><CustomIcon icon="zi-plus-circle" className="text-green-600" size={18}/></div>} suffix={<CustomIcon icon="zi-chevron-right" className="text-gray-400"/>} onClick={() => navigate("/post-service")} />
+                  <Item title="Đăng Sản phẩm/Dịch vụ mới" prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-green-50"><Icon icon="zi-plus-circle" className="text-green-600" size={18}/></div>} suffix={<Icon icon="zi-chevron-right" className="text-gray-400"/>} onClick={() => navigate("/post-service")} />
                   <Item 
     title="Quản lý đơn hàng" 
     subTitle="Theo dõi tất cả đơn đặt lịch" 
@@ -967,20 +967,26 @@ useEffect(() => {
                   <Item title="Chia sẻ ứng dụng" subTitle="QR Code + Mã giới thiệu" prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-purple-50"><CustomIcon icon="zi-share-external-1" className="text-purple-600" size={18}/></div>} suffix={<CustomIcon icon="zi-chevron-right" className="text-gray-400"/>} onClick={() => setShowShareModal(true)} />
                   <Item title="Đổi mật khẩu" prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-red-50"><CustomIcon icon="zi-lock" className="text-red-600" size={18}/></div>} suffix={<CustomIcon icon="zi-chevron-right" className="text-gray-400"/>} onClick={() => setShowChangePassModal(true)} />
                   <Item 
-    title="Gửi phản hồi" 
-    prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-teal-50"><CustomIcon icon="zi-chat" className="text-teal-600" size={18}/></div>} 
-    suffix={
-        <Box flex alignItems="center">
-            {unreadFeedbackCount > 0 && (
-                <Box className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full mr-2 shadow-md animate-pulse">
-                    {unreadFeedbackCount} mới
-                </Box>
-            )}
-            <CustomIcon icon="zi-chevron-right" className="text-gray-400"/>
-        </Box>
-    } 
-    onClick={() => { setShowFeedbackModal(true); fetchMyFeedbacks(); }} 
-/>
+                        title="Gửi phản hồi" 
+                        prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-teal-50"><Icon icon="zi-chat" className="text-teal-600" size={18}/></div>} 
+                        suffix={
+                            <Box flex alignItems="center">
+                                {unreadFeedbackCount > 0 && (
+                                    <Box className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full mr-2 shadow-sm animate-pulse">
+                                        {unreadFeedbackCount} mới
+                                    </Box>
+                                )}
+                                <Icon icon="zi-chevron-right" className="text-gray-400"/>
+                            </Box>
+                        } 
+                        onClick={() => { setShowFeedbackModal(true); fetchMyFeedbacks(); }} 
+                         />
+                  <Item 
+                      title="Đăng xuất tài khoản" 
+                      prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100"><Icon icon="zi-leave" className="text-red-500" size={18}/></div>} 
+                      suffix={<Icon icon="zi-chevron-right" className="text-gray-400"/>}
+                      onClick={onLogout} 
+                        />
               </List>
           </Box>
       </Box>

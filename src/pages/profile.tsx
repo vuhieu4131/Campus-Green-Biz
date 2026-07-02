@@ -11,15 +11,17 @@ import {
   Tabs,
   Sheet,
   useSnackbar,
+  Modal,
 } from "zmp-ui";
 import { useLocation } from "react-router-dom";
 import subscriptionDecor from "static/subscription-decor.svg";
 import { AuthOverlay } from "./auth";
 
 // IMPORT CÔNG CỤ FIREBASE
-import { auth, db } from "../firebase";
+import { auth, db, storage } from "../firebase";
 import { onAuthStateChanged, signOut, User } from "firebase/auth";
 import { doc, getDoc, collection, query, where, getDocs, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { PostItem } from "../components/post-item";
 import { RawPost } from "../utils/edgeRanker";
 import { ProviderView } from "../components/profile-modules/provider-view";
@@ -103,7 +105,8 @@ const NewMemberView: FC<{
   followers?: string[];
   currentUserId?: string;
   onFollowToggle?: () => void;
-}> = ({ user, points, role, isOtherProfile, followers = [], currentUserId, onFollowToggle }) => {
+  onUpdateImage?: (field: "avatar" | "cover", file: File) => void;
+}> = ({ user, points, role, isOtherProfile, followers = [], currentUserId, onFollowToggle, onUpdateImage }) => {
   const navigate = useNavigate();
   const { openSnackbar } = useSnackbar();
   const [activeTab, setActiveTab] = useState<'posts' | 'saved' | 'tagged'>('posts');
@@ -116,6 +119,23 @@ const NewMemberView: FC<{
 
   const [posts, setPosts] = useState<RawPost[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
+
+  // States for Image Actions
+  const [actionSheetVisible, setActionSheetVisible] = useState(false);
+  const [actionSheetTarget, setActionSheetTarget] = useState<'avatar' | 'cover' | null>(null);
+  const [viewImage, setViewImage] = useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleImageAction = (target: 'avatar' | 'cover') => {
+    setActionSheetTarget(target);
+    setActionSheetVisible(true);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0] && actionSheetTarget && onUpdateImage) {
+      onUpdateImage(actionSheetTarget, e.target.files[0]);
+    }
+  };
 
   useEffect(() => {
     const fetchPosts = async () => {
@@ -164,17 +184,26 @@ const NewMemberView: FC<{
 
       {/* 2. Ảnh Bìa (Cover Image) */}
       <Box
-        className="w-full h-56 bg-cover bg-center"
+        className="w-full h-56 bg-cover bg-center cursor-pointer"
         style={{
-          backgroundImage: `url('https://images.unsplash.com/photo-1466611653911-95081537e5b7?w=800&fit=crop')`,
+          backgroundImage: `url('${user.cover || 'https://images.unsplash.com/photo-1466611653911-95081537e5b7?w=800&fit=crop'}')`,
         }}
+        onClick={() => !isOtherProfile ? handleImageAction('cover') : setViewImage(user.cover || 'https://images.unsplash.com/photo-1466611653911-95081537e5b7?w=800&fit=crop')}
       />
 
       {/* 3. Thông tin User & Avatar */}
       <Box className="px-4 relative mb-2 flex justify-between items-end">
         <Box>
-          <Box className="absolute -top-12 left-4 rounded-full border-4 border-white">
+          <Box 
+            className="absolute -top-12 left-4 rounded-full border-4 border-white cursor-pointer"
+            onClick={() => !isOtherProfile ? handleImageAction('avatar') : setViewImage(user.avatar)}
+          >
             <Avatar src={user.avatar} size={80} />
+            {!isOtherProfile && (
+              <Box className="absolute bottom-0 right-0 bg-[#14502e] text-white w-6 h-6 rounded-full flex items-center justify-center border border-white">
+                <Icon icon="zi-camera" size={12} />
+              </Box>
+            )}
           </Box>
           <Box className="pt-12">
             <Text.Title className="text-xl font-bold">{user.name}</Text.Title>
@@ -369,11 +398,59 @@ const NewMemberView: FC<{
             if (onFollowToggle) onFollowToggle();
             setShowFollowingOptions(false);
           }}>
-            <span className="mr-3 inline-flex text-2xl"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg></span>
+            <span className="mr-3 inline-flex text-2xl"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5c-1.1 0-2 .9-2 2v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="23" y1="11" x2="17" y2="11"></line></svg></span>
             <Text className="text-[16px] font-medium">Hủy theo dõi</Text>
           </Box>
         </Box>
       </Sheet>
+
+      {/* Image Actions Sheet */}
+      <Sheet visible={actionSheetVisible} onClose={() => setActionSheetVisible(false)} autoHeight>
+        <Box className="p-4 pb-8 flex flex-col space-y-4">
+          <Button 
+            variant="secondary"
+            fullWidth 
+            onClick={() => {
+              setViewImage(actionSheetTarget === 'avatar' ? user.avatar : (user.cover || 'https://images.unsplash.com/photo-1466611653911-95081537e5b7?w=800&fit=crop'));
+              setActionSheetVisible(false);
+            }}
+          >
+            Xem ảnh
+          </Button>
+          <Button 
+            fullWidth
+            style={{ backgroundColor: "#14502e", color: "white" }}
+            onClick={() => {
+              fileInputRef.current?.click();
+              setActionSheetVisible(false);
+            }}
+          >
+            Đổi ảnh mới
+          </Button>
+        </Box>
+      </Sheet>
+
+      {/* Hidden File Input */}
+      <input 
+        type="file" 
+        accept="image/*" 
+        ref={fileInputRef} 
+        style={{ display: "none" }} 
+        onChange={handleFileChange} 
+      />
+
+      {/* Image Viewer Modal */}
+      {viewImage && (
+        <Box 
+          className="fixed inset-0 z-50 bg-black flex items-center justify-center flex-col"
+          onClick={() => setViewImage(null)}
+        >
+          <Box className="absolute top-4 right-4 p-2 bg-black/50 rounded-full cursor-pointer z-50" onClick={() => setViewImage(null)}>
+            <Icon icon="zi-close" className="text-white text-2xl" />
+          </Box>
+          <img src={viewImage} className="w-full h-auto max-h-screen object-contain" alt="Viewer" />
+        </Box>
+      )}
     </Box>
   );
 };
@@ -382,18 +459,41 @@ const NewMemberView: FC<{
 const ProfilePage: FC = () => {
   const [authVisible, setAuthVisible] = useState(false);
   const navigate = useNavigate(); // Công cụ chuyển trang
-  const location = useLocation();
-  const profileId = new URLSearchParams(location.search).get("id");
 
   // Trạng thái quản lý User
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<any>(null);
-  
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const { openSnackbar } = useSnackbar();
+
   const [targetUserData, setTargetUserData] = useState<any>(null);
   const [loadingTarget, setLoadingTarget] = useState(false);
 
+  const handleUpdateImage = async (field: "avatar" | "cover", file: File) => {
+    if (!currentUser || !userData) return;
+    setIsUploadingImage(true);
+    try {
+      const filename = `${field}s/${currentUser.uid}_${Date.now()}.jpg`;
+      const storageRef = ref(storage, filename);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      
+      const docRef = doc(db, userData.role === "provider" ? "shops" : "users", currentUser.uid);
+      await updateDoc(docRef, { [field]: url });
+      
+      setUserData((prev: any) => ({ ...prev, [field]: url }));
+      openSnackbar({ text: `Cập nhật ${field === 'avatar' ? 'ảnh đại diện' : 'ảnh bìa'} thành công!`, type: "success" });
+    } catch (error) {
+      console.error(error);
+      openSnackbar({ text: "Lỗi cập nhật ảnh. Vui lòng thử lại.", type: "error" });
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
   // Lấy data của user mục tiêu nếu có profileId
   useEffect(() => {
+    const profileId = new URLSearchParams(window.location.search).get("id");
     if (profileId) {
       setLoadingTarget(true);
       const fetchTarget = async () => {
@@ -538,6 +638,14 @@ const ProfilePage: FC = () => {
           )
         ) : currentUser ? (
           <>
+            {isUploadingImage && (
+              <Box className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center">
+                <Box className="bg-white p-4 rounded-xl flex flex-col items-center">
+                  <div className="w-8 h-8 border-4 border-[#14502e] border-t-transparent rounded-full animate-spin mb-2"></div>
+                  <Text className="font-medium text-gray-800">Đang tải ảnh lên...</Text>
+                </Box>
+              </Box>
+            )}
             {userData?.role === "admin" && <AdminView userData={userData} onLogout={handleLogout} />}
             {userData?.role === "provider" && <ProviderView userData={userData} onLogout={handleLogout} />}
             {userData?.role === "member" && userData.branchInfo && <BranchView userData={userData} onLogout={handleLogout} />}
@@ -554,12 +662,11 @@ const ProfilePage: FC = () => {
                     currentUser.email?.replace("@campus.com", "") ||
                     "Thành viên Campus",
                   avatar: userData?.avatar || "https://i.pravatar.cc/150?img=11",
+                  cover: userData?.cover
                 }}
                 points={userData?.points || 0}
                 role={userData?.role}
-                isOtherProfile={false}
-                followers={userData?.followers || []}
-                currentUserId={currentUser.uid}
+                onUpdateImage={handleUpdateImage}
               />
             )}
           </>
