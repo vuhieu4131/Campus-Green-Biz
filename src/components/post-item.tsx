@@ -316,7 +316,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
       <Box className="flex justify-between items-center px-4 mb-3 text-gray-500 border-b border-gray-100 pb-2">
         <Box className="flex items-center space-x-1">
           <Box className="bg-red-500 rounded-full p-[2px] flex items-center justify-center">
-            <CustomIcon icon="zi-heart-solid" className="text-white text-[10px]" />
+            <Icon icon="zi-heart-solid" className="text-white text-[10px]" />
           </Box>
           <Text size="xxSmall">{likesCount}</Text>
         </Box>
@@ -329,7 +329,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
       {/* Actions */}
       <Box className="flex justify-around items-center px-2">
         <Box className="flex flex-1 justify-center items-center space-x-2 py-2 rounded-lg cursor-pointer active:bg-gray-50" onClick={() => currentUser ? handleLike() : setShowAuth(true)}>
-          <CustomIcon icon={liked ? "zi-heart-solid" : "zi-heart"} className={liked ? "text-red-500 text-xl" : "text-gray-500 text-xl"} />
+          <Icon icon={liked ? "zi-heart-solid" : "zi-heart"} className={liked ? "text-red-500 text-xl" : "text-gray-500 text-xl"} />
           <Text size="small" className={`font-medium ${liked ? "text-red-500" : "text-gray-500"}`}>Thích</Text>
         </Box>
         <Box className="flex flex-1 justify-center items-center space-x-2 py-2 rounded-lg cursor-pointer active:bg-gray-50" onClick={() => currentUser ? setShowComments(true) : setShowAuth(true)}>
@@ -378,7 +378,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
                   <Box className="flex justify-between items-center px-4 mb-2 text-white/90">
                     <Box className="flex items-center space-x-1">
                       <Box className="bg-red-500 rounded-full p-[2px] flex items-center justify-center">
-                        <CustomIcon icon="zi-heart-solid" className="text-white text-[10px]" />
+                        <Icon icon="zi-heart-solid" className="text-white text-[10px]" />
                       </Box>
                       <Text size="xxSmall" className="text-white">{likesCount}</Text>
                     </Box>
@@ -389,7 +389,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
                   </Box>
                   <Box className="flex justify-around items-center px-2 pb-2 border-t border-white/20 pt-2">
                     <Box className="flex flex-1 justify-center items-center space-x-2 py-2 cursor-pointer active:bg-white/10 rounded-lg" onClick={(e) => { e.stopPropagation(); currentUser ? handleLike() : setShowAuth(true); }}>
-                      <CustomIcon icon={liked ? "zi-heart-solid" : "zi-heart"} className={liked ? "text-red-500 text-xl" : "text-white text-xl"} />
+                      <Icon icon={liked ? "zi-heart-solid" : "zi-heart"} className={liked ? "text-red-500 text-xl" : "text-white text-xl"} />
                       <Text size="small" className={`font-medium ${liked ? "text-red-500" : "text-white"}`}>Thích</Text>
                     </Box>
                     <Box className="flex flex-1 justify-center items-center space-x-2 py-2 cursor-pointer active:bg-white/10 rounded-lg" onClick={(e) => { e.stopPropagation(); currentUser ? setShowComments(true) : setShowAuth(true); }}>
@@ -431,7 +431,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
                     <Text className="text-[14px] text-gray-800">{cmt.content}</Text>
                   </Box>
                   <Box className="flex flex-col items-center justify-center pl-2 pr-1 cursor-pointer" onClick={(e) => handleLikeComment(cmt, e)}>
-                    <CustomIcon icon={cmt.likedBy?.includes(currentUser?.uid) ? "zi-heart-solid" : "zi-heart"} className={cmt.likedBy?.includes(currentUser?.uid) ? "text-red-500" : "text-gray-400"} size={16} />
+                    <Icon icon={cmt.likedBy?.includes(currentUser?.uid) ? "zi-heart-solid" : "zi-heart"} className={cmt.likedBy?.includes(currentUser?.uid) ? "text-red-500" : "text-gray-400"} size={16} />
                     {cmt.likesCount > 0 && <Text size="xxSmall" className="text-gray-400 mt-0.5">{cmt.likesCount}</Text>}
                   </Box>
                 </Box>
@@ -458,7 +458,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
       <Sheet visible={!!activeCommentMenu} onClose={() => setActiveCommentMenu(null)} autoHeight title="Tùy chọn bình luận">
         <Box className="p-2 pb-6">
           <Box className="flex items-center p-4 cursor-pointer active:bg-gray-100 rounded-xl text-gray-700" onClick={() => { handleLikeComment(activeCommentMenu); setActiveCommentMenu(null); }}>
-            <CustomIcon icon="zi-heart" className="mr-3 text-2xl text-red-500" />
+            <Icon icon="zi-heart" className="mr-3 text-2xl text-red-500" />
             <Text className="text-[16px] font-medium">{activeCommentMenu?.likedBy?.includes(currentUser?.uid) ? "Bỏ thả tim" : "Thả tim"}</Text>
           </Box>
           <Box className="flex items-center p-4 cursor-pointer active:bg-gray-100 rounded-xl text-gray-700" onClick={() => { 
