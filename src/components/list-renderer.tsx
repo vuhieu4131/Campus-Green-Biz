@@ -1,3 +1,4 @@
+import CustomIcon from './custom-icon';
 import React, { ReactNode, useMemo, useState } from "react";
 import { Box, Button, Icon, Text } from "zmp-ui";
 
@@ -52,7 +53,7 @@ export function ListRenderer<T>({
           <Button
             onClick={() => setIsCollapsed(false)}
             fullWidth
-            suffixIcon={<Icon icon="zi-chevron-down" />}
+            suffixIcon={<CustomIcon icon="zi-chevron-down" />}
             variant="tertiary"
             type="neutral"
           >

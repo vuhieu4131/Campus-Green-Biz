@@ -1,3 +1,4 @@
+import CustomIcon from '../../components/custom-icon';
 import { ElasticTextarea } from "components/elastic-textarea";
 import { ListRenderer } from "components/list-renderer";
 import React, { FC, Suspense } from "react";
@@ -17,7 +18,7 @@ export const Delivery: FC = () => {
       <ListRenderer
         items={[
           {
-            left: <Icon icon="zi-location" className="my-auto" />,
+            left: <CustomIcon icon="zi-location" className="my-auto" />,
             right: (
               <Suspense fallback={<RequestStorePickerLocation />}>
                 <StorePicker />
@@ -25,7 +26,7 @@ export const Delivery: FC = () => {
             ),
           },
           {
-            left: <Icon icon="zi-clock-1" className="my-auto" />,
+            left: <CustomIcon icon="zi-clock-1" className="my-auto" />,
             right: (
               <Box flex className="space-x-2">
                 <Box className="flex-1 space-y-[2px]">
@@ -34,16 +35,16 @@ export const Delivery: FC = () => {
                     Thời gian nhận hàng
                   </Text>
                 </Box>
-                <Icon icon="zi-chevron-right" />
+                <CustomIcon icon="zi-chevron-right" />
               </Box>
             ),
           },
           {
-            left: <Icon icon="zi-user" className="my-auto" />,
+            left: <CustomIcon icon="zi-user" className="my-auto" />,
             right: <RequestPersonPickerPhone />,
           },
           {
-            left: <Icon icon="zi-note" className="my-auto" />,
+            left: <CustomIcon icon="zi-note" className="my-auto" />,
             right: (
               <Box flex>
                 <ElasticTextarea

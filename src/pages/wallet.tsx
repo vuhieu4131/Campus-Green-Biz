@@ -1,3 +1,4 @@
+import CustomIcon from '../components/custom-icon';
 import React, { FC, useState, useEffect } from "react";
 import { Page, Header, Box, Text, Icon, Modal, Spinner } from "zmp-ui";
 import { auth, db } from "../firebase";
@@ -78,14 +79,14 @@ const WalletPage: FC = () => {
           onClick={() => setActiveTab('rank')}
           className={`flex-1 flex flex-col items-center p-3 rounded-xl border ${activeTab === 'rank' ? 'bg-orange-50 border-orange-300' : 'bg-white border-green-100'} transition-all shadow-md`}
         >
-          <Icon icon="zi-poll" className={activeTab === 'rank' ? 'text-orange-600' : 'text-gray-600'} />
+          <CustomIcon icon="zi-poll" className={activeTab === 'rank' ? 'text-orange-600' : 'text-gray-600'} />
           <Text size="small" bold className={`mt-1 ${activeTab === 'rank' ? 'text-orange-600' : 'text-gray-600'}`}>Ví Tính Hạng</Text>
         </Box>
         <Box 
           onClick={() => setActiveTab('promo')}
           className={`flex-1 flex flex-col items-center p-3 rounded-xl border ${activeTab === 'promo' ? 'bg-blue-50 border-blue-300' : 'bg-white border-green-100'} transition-all shadow-md`}
         >
-          <Icon icon="zi-star-solid" className={activeTab === 'promo' ? 'text-blue-600' : 'text-gray-600'} />
+          <CustomIcon icon="zi-star-solid" className={activeTab === 'promo' ? 'text-blue-600' : 'text-gray-600'} />
           <Text size="small" bold className={`mt-1 ${activeTab === 'promo' ? 'text-blue-600' : 'text-gray-600'}`}>Ví Ưu Đãi</Text>
         </Box>
       </Box>
@@ -98,7 +99,7 @@ const WalletPage: FC = () => {
               <Box>
                 <Text size="xSmall" className="uppercase opacity-80 mb-1 tracking-wider">HẠNG THÀNH VIÊN</Text>
                 <Box className="flex items-center">
-                  <Icon icon="zi-user" className="mr-2" />
+                  <CustomIcon icon="zi-user" className="mr-2" />
                   <Text.Title className="font-bold">{rankInfo.name}</Text.Title>
                 </Box>
               </Box>
@@ -116,7 +117,7 @@ const WalletPage: FC = () => {
 
             <Box className="border-t border-white/20 pt-3 text-center" onClick={handleOpenHistory}>
               <Text size="small" className="flex items-center justify-center cursor-pointer opacity-90 hover:opacity-100">
-                <Icon icon="zi-clock-2" className="mr-1" /> Xem lịch sử giao dịch
+                <CustomIcon icon="zi-clock-2" className="mr-1" /> Xem lịch sử giao dịch
               </Text>
             </Box>
           </Box>
@@ -137,7 +138,7 @@ const WalletPage: FC = () => {
 
             <Box className="border-t border-white/20 pt-3 text-center" onClick={handleOpenHistory}>
               <Text size="small" className="flex items-center justify-center cursor-pointer opacity-90 hover:opacity-100">
-                <Icon icon="zi-clock-2" className="mr-1" /> Xem lịch sử giao dịch
+                <CustomIcon icon="zi-clock-2" className="mr-1" /> Xem lịch sử giao dịch
               </Text>
             </Box>
           </Box>

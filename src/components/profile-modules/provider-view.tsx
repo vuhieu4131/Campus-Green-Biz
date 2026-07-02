@@ -1,58 +1,40 @@
+import CustomIcon from '../custom-icon';
 import React, { FC, useState, useEffect } from "react";
 import { Box, Text, Icon, Button, Avatar, List, Modal, Input, Spinner, useSnackbar, Progress, Select } from "zmp-ui";
 import { useNavigate } from "react-router-dom";
 import { collection, query, where, getDocs, doc, updateDoc, addDoc, setDoc, serverTimestamp, orderBy, limit, getDoc, onSnapshot } from "firebase/firestore";
-import { db } from "../../firebase"; 
+import { db } from "../../services/firebase"; 
 import { openShareSheet } from "zmp-sdk/apis";
 
 const { Item } = List;
 const { TextArea } = Input;
 const { Option } = Select;
 // 👉 Placeholder cho App ID của bạn
-const YOUR_APP_ID = "3525851935148341014"; 
+const YOUR_APP_ID = "2196212719506893777"; 
 
 // 👉 1. HÀM TÍNH RANK SHOP & LOGIC LÊN HẠNG (CẬP NHẬT)
 const calculateShopRankInfo = (points: number) => {
   const p = points || 0;
-  
+  // Cấu trúc trả về: { Rank hiện tại, Rank kế tiếp, Mục tiêu điểm }
   if (p < 300) return { 
-    name: "Khởi Nghiệp Nhí", 
-    color: "bg-gray-100 text-gray-600", 
-    icon: "zi-star", 
-    nextRank: "Cửa Tiệm Xanh", 
-    target: 300 
+      name: "Thạch Anh", color: "bg-gray-100 text-gray-600", icon: "zi-star", 
+      nextRank: "Ngọc Bích", target: 300 
   };
-  
   if (p < 1000) return { 
-    name: "Cửa Tiệm Xanh", 
-    color: "bg-green-100 text-green-700", 
-    icon: "zi-home-solid", 
-    nextRank: "Đối Tác Uy Tín", 
-    target: 1000 
+      name: "Ngọc Bích", color: "bg-green-100 text-green-700", icon: "zi-shield-solid", 
+      nextRank: "Hồng Ngọc", target: 1000 
   };
-  
   if (p < 2000) return { 
-    name: "Đối Tác Uy Tín", 
-    color: "bg-red-100 text-red-600", 
-    icon: "zi-shield-solid", 
-    nextRank: "Thương Gia Bền Vững", 
-    target: 2000 
+      name: "Hồng Ngọc", color: "bg-red-100 text-red-600", icon: "zi-heart-solid", 
+      nextRank: "Lam Ngọc", target: 2000 
   };
-  
   if (p < 5000) return { 
-    name: "Thương Gia Bền Vững", 
-    color: "bg-blue-100 text-blue-600", 
-    icon: "zi-heart-solid", 
-    nextRank: "Thủ Lĩnh Thương Mại", 
-    target: 5000 
+      name: "Lam Ngọc", color: "bg-blue-100 text-blue-600", icon: "zi-diamond", 
+      nextRank: "Kim Cương", target: 5000 
   };
-  
   return { 
-    name: "Thủ Lĩnh Thương Mại", 
-    color: "bg-purple-100 text-purple-600", 
-    icon: "zi-crown", // Hoặc giữ nguyên "zi-diamond-solid" nếu thư viện không có icon vương miện
-    nextRank: "Max Level", 
-    target: 0 
+      name: "Kim Cương", color: "bg-purple-100 text-purple-600", icon: "zi-diamond-solid", 
+      nextRank: "Max Level", target: 0 
   };
 };
 
@@ -65,10 +47,9 @@ const formatDate = (timestamp) => {
 
 interface ProviderProps {
   userData: any;
-  onLogout: () => void;
 }
 
-export const ProviderView: FC<ProviderProps> = ({ userData, onLogout}) => {
+export const ProviderView: FC<ProviderProps> = ({ userData }) => {
   const navigate = useNavigate();
   const { openSnackbar } = useSnackbar();
 
@@ -530,7 +511,7 @@ useEffect(() => {
       if (oldPass !== userData.password) return openSnackbar({ text: "Mật khẩu cũ sai", type: "error" });
       setPassLoading(true);
       try {
-          await updateDoc(doc(db, "shops", userData.id), { password: newPass });
+          await updateDoc(doc(db, "users", userData.phone), { password: newPass });
           openSnackbar({ text: "Đổi mật khẩu thành công!", type: "success" });
           setShowChangePassModal(false); setOldPass(""); setNewPass(""); setConfirmPass("");
       } catch (error) { openSnackbar({ text: "Lỗi hệ thống", type: "error" }); } finally { setPassLoading(false); }
@@ -586,7 +567,7 @@ useEffect(() => {
       if (!editName.trim()) return openSnackbar({ text: "Tên Shop không được để trống", type: "warning" });
       setUpdatingInfo(true);
       try {
-        await updateDoc(doc(db, "shops", userData.id), { name: editName, address: editAddress, managerName: editManager, description: editDescription, avatar: editAvatar, cover: editCover });
+          await updateDoc(doc(db, "users", userData.phone), { name: editName, address: editAddress, managerName: editManager, description: editDescription, avatar: editAvatar, cover: editCover });
           openSnackbar({ text: "Cập nhật thành công!", type: "success" });
           setShowShopInfoModal(false);
           window.dispatchEvent(new Event("authStateChanged"));
@@ -777,7 +758,7 @@ useEffect(() => {
     setSavingLocations(true);
     try {
       // 1. Lưu danh sách cơ sở vào data của Shop chính
-      await updateDoc(doc(db, "shops", userData.id), { locations: locations });
+      await updateDoc(doc(db, "users", userData.phone), { locations: locations });
 
       // 2. Tự động tạo tài khoản mặc định cho các Quản lý (nếu họ chưa có tài khoản)
       for (const loc of locations) {
@@ -818,7 +799,7 @@ useEffect(() => {
   if (userData.status === "pending") {
     return (
       <Box className="m-4 p-6 bg-white rounded-xl flex flex-col items-center text-center shadow-md border border-yellow-100">
-        <Icon icon="zi-warning-solid" className="text-yellow-500 text-5xl mb-3" />
+        <CustomIcon icon="zi-warning-solid" className="text-yellow-500 text-5xl mb-3" />
         <Text.Title size="small">Hồ sơ chờ phê duyệt</Text.Title>
         <Text size="small" className="text-gray-500 mt-2">Hồ sơ Nhà cung cấp của bạn đang được Admin xét duyệt. Chúng tôi sẽ thông báo khi tài khoản được kích hoạt.</Text>
       </Box>
@@ -837,7 +818,7 @@ useEffect(() => {
         <Box ml={4} className="flex-1 z-10">
         <Box flex alignItems="center">
                <Text.Title size="normal" className="line-clamp-1 flex-1">{userData.name}</Text.Title>
-               <Icon icon="zi-check-circle-solid" className="text-green-500 mx-1.5 shrink-0" size={18} />
+               <CustomIcon icon="zi-check-circle-solid" className="text-green-500 mx-1.5 shrink-0" size={18} />
                
                <Box className="ml-auto flex items-center shrink-0">
                    {/* 👉 QUẢ CHUÔNG THÔNG BÁO VỚI HIỆU ỨNG CHẤM ĐỎ */}
@@ -845,18 +826,18 @@ useEffect(() => {
                        className="relative mr-3 p-1 rounded-full bg-white/80 border border-gray-100 shadow-md active:bg-gray-100"
                        onClick={(e) => { e.stopPropagation(); setShowNotifModal(true); }}
                    >
-                       <Icon icon="zi-notif" size={20} className="text-gray-600"/>
+                       <CustomIcon icon="zi-notif" size={20} className="text-gray-600"/>
                        {unreadCount > 0 && (
                            <Box className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-4 h-4 flex justify-center items-center rounded-full font-bold border border-white shadow-md animate-pulse">
                                {unreadCount > 9 ? '9+' : unreadCount}
                            </Box>
                        )}
                    </Box>
-                   <Icon icon="zi-edit-text" className="text-gray-400" size={20}/>
+                   <CustomIcon icon="zi-edit-text" className="text-gray-400" size={20}/>
                </Box>
            </Box>
            <Box flex alignItems="center" className={`mt-1 mb-2 px-2 py-0.5 rounded-full w-fit ${shopRankInfo.color} border border-white/50 shadow-md`}>
-               <Icon icon={shopRankInfo.icon as any} size={12} className="mr-1"/>
+               <CustomIcon icon={shopRankInfo.icon as any} size={12} className="mr-1"/>
                <Text size="xxxxSmall" className="font-bold uppercase tracking-wide">{shopRankInfo.name} Shop</Text>
            </Box>
            <Text size="xxSmall" className="text-gray-500 mb-1 line-clamp-1">{userData.address || "Chạm để cập nhật địa chỉ"}</Text>
@@ -886,7 +867,7 @@ useEffect(() => {
               {/* 👉 BƯỚC 2: BỘ LỌC CƠ SỞ */}
               {locations.length > 0 && (
                   <Box flex alignItems="center" className="bg-blue-50/50 p-2 rounded-lg border border-blue-100">
-                      <Icon icon="zi-location" size={16} className="text-blue-500 mr-2" />
+                      <CustomIcon icon="zi-location" size={16} className="text-blue-500 mr-2" />
                       <Box className="flex-1">
                           <Select value={filterLocation} onChange={(val) => setFilterLocation(val as string)} closeOnSelect>
                               <Option value="all" title="Tất cả cơ sở" />
@@ -902,7 +883,7 @@ useEffect(() => {
           <Box flex style={{ gap: '12px' }}>
           <Box className="flex-1 bg-gradient-to-br from-blue-500 to-indigo-600 p-3 rounded-xl text-white shadow-md">
                   <Box flex alignItems="center" mb={1} className="opacity-80">
-                      <Icon icon="zi-poll" size={16} className="mr-1"/>
+                      <CustomIcon icon="zi-poll" size={16} className="mr-1"/>
                       <Text size="xSmall" className="uppercase tracking-wider">Doanh thu tháng</Text>
                   </Box>
                   <Text bold size="large">{stats.monthlyRevenue.toLocaleString()}đ</Text>
@@ -913,7 +894,7 @@ useEffect(() => {
       onClick={() => setShowCompletedModal(true)}
   >
                   <Box flex alignItems="center" mb={1} className="opacity-80">
-                      <Icon icon="zi-check-circle" size={16} className="mr-1"/>
+                      <CustomIcon icon="zi-check-circle" size={16} className="mr-1"/>
                       <Text size="xSmall" className="uppercase tracking-wider">Đã phục vụ</Text>
                   </Box>
                   <Text bold size="large">{stats.completedCount} đơn</Text>
@@ -927,20 +908,20 @@ useEffect(() => {
           >
               <Box flex alignItems="center">
                   <Box className="w-8 h-8 rounded-full bg-white flex items-center justify-center mr-2 shadow-md">
-                      <Icon icon="zi-poll" className="text-red-500" size={16}/>
+                      <CustomIcon icon="zi-poll" className="text-red-500" size={16}/>
                   </Box>
                   <Text size="small" className="text-gray-700 font-medium">Chi phí nền tảng (Còn nợ):</Text>
               </Box>
               <Box flex alignItems="center">
                   <Text bold size="normal" className="text-red-500 mr-2">-{stats.monthlyFee.toLocaleString()}đ</Text>
-                  <Icon icon="zi-chevron-right" className="text-red-400" size={16}/>
+                  <CustomIcon icon="zi-chevron-right" className="text-red-400" size={16}/>
               </Box>
           </Box>
 
           <Box mt={3} p={3} className="bg-orange-50 rounded-xl border border-orange-100 flex justify-between items-center">
               <Box flex alignItems="center">
                   <Box className="w-8 h-8 rounded-full bg-white flex items-center justify-center mr-2 shadow-md">
-                      <Icon icon="zi-memory" className="text-orange-600" size={16}/>
+                      <CustomIcon icon="zi-memory" className="text-orange-600" size={16}/>
                   </Box>
                   <Text size="small" className="text-gray-700 font-medium">Tổng doanh thu lũy kế:</Text>
               </Box>
@@ -955,15 +936,15 @@ useEffect(() => {
               <Item 
                       title="Quản lý hệ thống cơ sở" 
                       subTitle={`${locations.length} cơ sở trực thuộc`} 
-                      prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-indigo-50"><Icon icon="zi-location" className="text-indigo-600" size={18}/></div>} 
-                      suffix={<Icon icon="zi-chevron-right" className="text-gray-400"/>} 
+                      prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-indigo-50"><CustomIcon icon="zi-location" className="text-indigo-600" size={18}/></div>} 
+                      suffix={<CustomIcon icon="zi-chevron-right" className="text-gray-400"/>} 
                       onClick={() => setShowLocationsModal(true)} 
                   />
-                  <Item title="Đăng Sản phẩm/Dịch vụ mới" prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-green-50"><Icon icon="zi-plus-circle" className="text-green-600" size={18}/></div>} suffix={<Icon icon="zi-chevron-right" className="text-gray-400"/>} onClick={() => navigate("/post-service")} />
+                  <Item title="Đăng dịch vụ mới" prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-green-50"><CustomIcon icon="zi-plus-circle" className="text-green-600" size={18}/></div>} suffix={<CustomIcon icon="zi-chevron-right" className="text-gray-400"/>} onClick={() => navigate("/post-service")} />
                   <Item 
     title="Quản lý đơn hàng" 
     subTitle="Theo dõi tất cả đơn đặt lịch" 
-    prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-blue-50"><Icon icon="zi-note" className="text-blue-600" size={18}/></div>} 
+    prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-blue-50"><CustomIcon icon="zi-note" className="text-blue-600" size={18}/></div>} 
     suffix={
       <Box flex alignItems="center">
           {pendingCount > 0 && (
@@ -971,41 +952,35 @@ useEffect(() => {
                   {pendingCount} mới
               </Box>
           )}
-          <Icon icon="zi-chevron-right" className="text-gray-400"/>
+          <CustomIcon icon="zi-chevron-right" className="text-gray-400"/>
       </Box>
   } 
   onClick={fetchShopOrders} 
 />
-                  <Item title="Xem trang cửa hàng" subTitle="Xem giao diện khách hàng" prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-blue-50"><Icon icon="zi-list-1" className="text-blue-600" size={18}/></div>} suffix={<Icon icon="zi-chevron-right" className="text-gray-400"/>} onClick={goToShopDetail} />
+                  <Item title="Xem trang cửa hàng" subTitle="Xem giao diện khách hàng" prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-blue-50"><CustomIcon icon="zi-list-1" className="text-blue-600" size={18}/></div>} suffix={<CustomIcon icon="zi-chevron-right" className="text-gray-400"/>} onClick={goToShopDetail} />
               </List>
           </Box>
           <Box className="bg-white rounded-xl overflow-hidden shadow-md border border-gray-50 mb-4">
               <Text.Title size="small" className="p-4 pb-2 text-gray-500 font-bold bg-gray-50">Quản lý & Hỗ trợ</Text.Title>
               <List>
-                  <Item title="Danh sách khách hàng" subTitle="Người dùng do Shop giới thiệu" prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-orange-50"><Icon icon="zi-group" className="text-orange-600" size={18}/></div>} suffix={<Icon icon="zi-chevron-right" className="text-gray-400"/>} onClick={handleShowReferrals} />
-                  <Item title="Chia sẻ ứng dụng" subTitle="QR Code + Mã giới thiệu" prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-purple-50"><Icon icon="zi-share-external-1" className="text-purple-600" size={18}/></div>} suffix={<Icon icon="zi-chevron-right" className="text-gray-400"/>} onClick={() => setShowShareModal(true)} />
-                  <Item title="Đổi mật khẩu" prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-red-50"><Icon icon="zi-lock" className="text-red-600" size={18}/></div>} suffix={<Icon icon="zi-chevron-right" className="text-gray-400"/>} onClick={() => setShowChangePassModal(true)} />
+                  <Item title="Danh sách khách hàng" subTitle="Người dùng do Shop giới thiệu" prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-orange-50"><CustomIcon icon="zi-group" className="text-orange-600" size={18}/></div>} suffix={<CustomIcon icon="zi-chevron-right" className="text-gray-400"/>} onClick={handleShowReferrals} />
+                  <Item title="Chia sẻ ứng dụng" subTitle="QR Code + Mã giới thiệu" prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-purple-50"><CustomIcon icon="zi-share-external-1" className="text-purple-600" size={18}/></div>} suffix={<CustomIcon icon="zi-chevron-right" className="text-gray-400"/>} onClick={() => setShowShareModal(true)} />
+                  <Item title="Đổi mật khẩu" prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-red-50"><CustomIcon icon="zi-lock" className="text-red-600" size={18}/></div>} suffix={<CustomIcon icon="zi-chevron-right" className="text-gray-400"/>} onClick={() => setShowChangePassModal(true)} />
                   <Item 
-                        title="Gửi phản hồi" 
-                        prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-teal-50"><Icon icon="zi-chat" className="text-teal-600" size={18}/></div>} 
-                        suffix={
-                            <Box flex alignItems="center">
-                                {unreadFeedbackCount > 0 && (
-                                    <Box className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full mr-2 shadow-sm animate-pulse">
-                                        {unreadFeedbackCount} mới
-                                    </Box>
-                                )}
-                                <Icon icon="zi-chevron-right" className="text-gray-400"/>
-                            </Box>
-                        } 
-                        onClick={() => { setShowFeedbackModal(true); fetchMyFeedbacks(); }} 
-                         />
-                  <Item 
-                      title="Đăng xuất tài khoản" 
-                      prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100"><Icon icon="zi-leave" className="text-red-500" size={18}/></div>} 
-                      suffix={<Icon icon="zi-chevron-right" className="text-gray-400"/>}
-                      onClick={onLogout} 
-                        />
+    title="Gửi phản hồi" 
+    prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-teal-50"><CustomIcon icon="zi-chat" className="text-teal-600" size={18}/></div>} 
+    suffix={
+        <Box flex alignItems="center">
+            {unreadFeedbackCount > 0 && (
+                <Box className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full mr-2 shadow-md animate-pulse">
+                    {unreadFeedbackCount} mới
+                </Box>
+            )}
+            <CustomIcon icon="zi-chevron-right" className="text-gray-400"/>
+        </Box>
+    } 
+    onClick={() => { setShowFeedbackModal(true); fetchMyFeedbacks(); }} 
+/>
               </List>
           </Box>
       </Box>
@@ -1023,7 +998,7 @@ useEffect(() => {
                     
                     onClick={() => setShowRankDetailModal(true)}
                   >
-                      <Icon icon="zi-poll-solid" className="text-green-600 mb-1" size={24}/>
+                      <CustomIcon icon="zi-poll-solid" className="text-green-600 mb-1" size={24}/>
                       <Text size="xSmall" className="text-gray-600">Tổng tích lũy</Text>
                       <Text size="large" bold className="text-green-700">{(userData.rankPoints || 0).toLocaleString()}</Text>
                       <Text size="xxxxSmall" className="text-green-600 italic mt-1 font-bold">Chạm để xem hạng và quyền lợi</Text>
@@ -1052,7 +1027,7 @@ useEffect(() => {
       {/* 👉 MODAL CHI TIẾT RANK (MỚI) */}
       <Modal visible={showRankDetailModal} title="Tiến trình lên hạng" onClose={() => setShowRankDetailModal(false)} actions={[{ text: "Đóng", onClick: () => setShowRankDetailModal(false) }]}>
           <Box p={4} flex flexDirection="column" alignItems="center">
-              <Box className={`p-4 rounded-full mb-4 ${shopRankInfo.color}`}><Icon icon={shopRankInfo.icon as any} size={40} /></Box>
+              <Box className={`p-4 rounded-full mb-4 ${shopRankInfo.color}`}><CustomIcon icon={shopRankInfo.icon as any} size={40} /></Box>
               <Text.Title size="large" className="text-center">{shopRankInfo.name}</Text.Title>
               <Text size="small" className="text-gray-500 mb-6 text-center">Hạng hiện tại của Shop</Text>
 
@@ -1090,7 +1065,7 @@ useEffect(() => {
                   ))
               ) : (
                   <Box flex flexDirection="column" alignItems="center" py={4}>
-                      <Icon icon="zi-clock-2" className="text-gray-300 mb-2" size={40}/>
+                      <CustomIcon icon="zi-clock-2" className="text-gray-300 mb-2" size={40}/>
                       <Text size="small" className="text-gray-400">Chưa có lịch sử trừ điểm nào.</Text>
                   </Box>
               )}
@@ -1122,8 +1097,8 @@ useEffect(() => {
                 <Text size="large" bold className="text-blue-600 tracking-wider">{userData.phone}</Text>
             </Box>
             
-            <Button fullWidth onClick={copyShareLink} prefixIcon={<Icon icon="zi-copy"/>}>Sao chép liên kết</Button>
-            <Button fullWidth variant="tertiary" className="mt-2 text-gray-500" onClick={handleSystemShare} prefixIcon={<Icon icon="zi-chat"/>}>Chia sẻ qua Zalo</Button>
+            <Button fullWidth onClick={copyShareLink} prefixIcon={<CustomIcon icon="zi-copy"/>}>Sao chép liên kết</Button>
+            <Button fullWidth variant="tertiary" className="mt-2 text-gray-500" onClick={handleSystemShare} prefixIcon={<CustomIcon icon="zi-chat"/>}>Chia sẻ qua Zalo</Button>
         </Box>
       </Modal>
 
@@ -1152,7 +1127,7 @@ useEffect(() => {
                           <Box mb={4}>
                               <Input.TextArea label="Nội dung" value={feedbackContent} onChange={(e) => setFeedbackContent(e.target.value)} rows={5} placeholder="Nhập chi tiết yêu cầu của bạn..." />
                           </Box>
-                          <Button fullWidth loading={feedbackLoading} onClick={handleSendFeedback} prefixIcon={<Icon icon="zi-send-solid" className="text-white"/>}>
+                          <Button fullWidth loading={feedbackLoading} onClick={handleSendFeedback} prefixIcon={<CustomIcon icon="zi-send-solid" className="text-white"/>}>
                               Gửi yêu cầu
                           </Button>
                       </Box>
@@ -1162,7 +1137,7 @@ useEffect(() => {
                               <Box flex justifyContent="center" py={5}><Spinner /></Box>
                           ) : feedbackList.length === 0 ? (
                               <Box flex flexDirection="column" alignItems="center" py={5}>
-                                  <Icon icon="zi-chat" size={40} className="text-gray-300 mb-2"/>
+                                  <CustomIcon icon="zi-chat" size={40} className="text-gray-300 mb-2"/>
                                   <Text className="text-center text-gray-500">Bạn chưa gửi yêu cầu nào.</Text>
                               </Box>
                           ) : (
@@ -1193,7 +1168,7 @@ useEffect(() => {
                                           <Box className="bg-blue-50/50 p-3 rounded-lg border border-blue-100 mt-3 ml-2 relative">
                                               <Box flex alignItems="center" mb={1}>
                                                   <Box className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center mr-1.5">
-                                                      <Icon icon="zi-user" size={12} className="text-white"/>
+                                                      <CustomIcon icon="zi-user" size={12} className="text-white"/>
                                                   </Box>
                                                   <Text size="xSmall" bold className="text-blue-800">Admin trả lời:</Text>
                                               </Box>
@@ -1241,13 +1216,13 @@ useEffect(() => {
                                     className="cursor-pointer active:opacity-50" 
                                     onClick={() => handleOpenEditLocation(idx)}
                                   >
-                                      <Icon icon="zi-edit" className="text-blue-500" />
+                                      <CustomIcon icon="zi-edit" className="text-blue-500" />
                                   </div>
                                   <div 
                                     className="cursor-pointer active:opacity-50" 
                                     onClick={() => handleRemoveLocation(idx)}
                                   >
-                                      <Icon icon="zi-close-circle" className="text-red-400" />
+                                      <CustomIcon icon="zi-close-circle" className="text-red-400" />
                                   </div>
                               </Box>
                           </Box>
@@ -1330,7 +1305,7 @@ useEffect(() => {
                       />
                   </Box>
 
-                  <Button variant="secondary" fullWidth onClick={handleAddLocation} prefixIcon={<Icon icon="zi-plus"/>}>
+                  <Button variant="secondary" fullWidth onClick={handleAddLocation} prefixIcon={<CustomIcon icon="zi-plus"/>}>
                       Thêm vào danh sách
                   </Button>
               </Box>
@@ -1393,7 +1368,7 @@ useEffect(() => {
                           else if (orderTab === 'confirmed') filtered = filtered.filter(o => o.status === 'confirmed');
                           else filtered = filtered.filter(o => o.status === 'completed' || o.status === 'cancelled');
 
-                          if (filtered.length === 0) return (<Box flex flexDirection="column" alignItems="center" py={8}><Icon icon="zi-note" size={40} className="text-gray-300 mb-2"/><Text className="text-center text-gray-500">Trống.</Text></Box>);
+                          if (filtered.length === 0) return (<Box flex flexDirection="column" alignItems="center" py={8}><CustomIcon icon="zi-note" size={40} className="text-gray-300 mb-2"/><Text className="text-center text-gray-500">Trống.</Text></Box>);
 
                           return filtered.map((order, idx) => {
                               const total = Number(order.totalAmount || order.totalPrice || order.total || 0);
@@ -1429,7 +1404,7 @@ useEffect(() => {
                                                       {/* In ra phân loại của từng món trong giỏ */}
                                                       {item.options && Object.keys(item.options).length > 0 && (
                                                           <Text size="xxxxSmall" className="text-gray-500 flex items-center mt-0.5 italic">
-                                                              <Icon icon="zi-note" size={12} className="mr-1" />
+                                                              <CustomIcon icon="zi-note" size={12} className="mr-1" />
                                                               {Object.entries(item.options).map(([k, v]) => `${k}: ${v}`).join(' | ')}
                                                           </Text>
                                                       )}
@@ -1443,7 +1418,7 @@ useEffect(() => {
                                               
                                               {order.selectedVariants && Object.keys(order.selectedVariants).length > 0 ? (
                                                   <Text size="xSmall" className="text-gray-600 font-medium flex items-center bg-gray-100 w-fit px-2 py-0.5 rounded">
-                                                      <Icon icon="zi-note" size={12} className="mr-1 text-gray-500" />
+                                                      <CustomIcon icon="zi-note" size={12} className="mr-1 text-gray-500" />
                                                       {Object.entries(order.selectedVariants).map(([k, v]) => `${k}: ${v}`).join(' | ')}
                                                   </Text>
                                               ) : (order.bookingTime || order.bookingDate) ? (
@@ -1453,8 +1428,8 @@ useEffect(() => {
                                       )}
 
                                       <Box className="bg-gray-50 p-2 rounded border border-gray-100 mb-2 flex flex-col gap-1">
-                                          <Box flex alignItems="center"><Icon icon="zi-user" size={14} className="text-blue-600 mr-1" /><Text size="xSmall" bold>{order.userName}</Text></Box>
-                                          <Box flex alignItems="center"><Icon icon="zi-location" size={14} className="text-red-500 mr-1" /><Text size="xSmall" className="text-gray-600 line-clamp-1">{order.location?.name || "Chưa rõ"}</Text></Box>
+                                          <Box flex alignItems="center"><CustomIcon icon="zi-user" size={14} className="text-blue-600 mr-1" /><Text size="xSmall" bold>{order.userName}</Text></Box>
+                                          <Box flex alignItems="center"><CustomIcon icon="zi-location" size={14} className="text-red-500 mr-1" /><Text size="xSmall" className="text-gray-600 line-clamp-1">{order.location?.name || "Chưa rõ"}</Text></Box>
                                       </Box>
 
                                       <Box flex flexDirection="column" alignItems="flex-end" pt={2} className="border-t border-gray-100">
@@ -1509,7 +1484,7 @@ useEffect(() => {
                   })
               ) : (
                   <Box flex flexDirection="column" alignItems="center" py={8}>
-                      <Icon icon="zi-check-circle" size={40} className="text-gray-300 mb-2"/>
+                      <CustomIcon icon="zi-check-circle" size={40} className="text-gray-300 mb-2"/>
                       <Text className="text-center text-gray-500">Chưa có đơn hoàn thành.</Text>
                   </Box>
               )}
@@ -1520,7 +1495,7 @@ useEffect(() => {
           <Box p={3} className="bg-gray-50 hide-scroll" style={{ maxHeight: '75vh', overflowY: 'auto' }}>
               {notifications.length === 0 ? (
                   <Box flex flexDirection="column" alignItems="center" py={8}>
-                      <Icon icon="zi-notif" size={40} className="text-gray-300 mb-2"/>
+                      <CustomIcon icon="zi-notif" size={40} className="text-gray-300 mb-2"/>
                       <Text className="text-center text-gray-500">Chưa có thông báo nào.</Text>
                   </Box>
               ) : (
@@ -1533,9 +1508,9 @@ useEffect(() => {
                           <Box flex justifyContent="space-between" alignItems="center" mb={1}>
                               <Box flex alignItems="center">
                                   {notif.type === 'fee_reminder' ? (
-                                      <Icon icon="zi-warning" className={notif.isRead ? "text-gray-500" : "text-red-500"} size={16} />
+                                      <CustomIcon icon="zi-warning" className={notif.isRead ? "text-gray-500" : "text-red-500"} size={16} />
                                   ) : (
-                                      <Icon icon="zi-info-circle" className={notif.isRead ? "text-gray-500" : "text-blue-500"} size={16} />
+                                      <CustomIcon icon="zi-info-circle" className={notif.isRead ? "text-gray-500" : "text-blue-500"} size={16} />
                                   )}
                                   <Text size="small" bold className={`ml-1.5 line-clamp-1 ${notif.isRead ? 'text-gray-600' : 'text-blue-800'}`}>
                                       {notif.title || "Thông báo hệ thống"}
@@ -1564,7 +1539,7 @@ useEffect(() => {
           onClose={() => setShowDebtAlert(false)}
       >
           <Box p={4} flex flexDirection="column" alignItems="center" className="text-center animate-fade-in">
-              <Icon icon="zi-warning-solid" className="text-red-500 mb-3 animate-pulse" size={56} />
+              <CustomIcon icon="zi-warning-solid" className="text-red-500 mb-3 animate-pulse" size={56} />
               <Text bold size="xLarge" className="text-red-600 mb-2">Bạn có khoản phí cần thanh toán!</Text>
               
               <Text size="small" className="text-gray-600 mb-6 leading-relaxed">
@@ -1578,7 +1553,7 @@ useEffect(() => {
                       setShowDebtAlert(false); // Tắt pop-up
                       setShowFeeModal(true);   // Mở thẳng bảng Đối soát phí
                   }}
-                  prefixIcon={<Icon icon="zi-warning" className="text-white"/>}
+                  prefixIcon={<CustomIcon icon="zi-warning" className="text-white"/>}
               >
                   Kiểm tra và thanh toán ngay
               </Button>
@@ -1667,7 +1642,7 @@ useEffect(() => {
                                                   <Button 
                                                       fullWidth 
                                                       className="bg-orange-500 border-none pointer-events-none" 
-                                                      prefixIcon={<Icon icon="zi-clock-1" className="text-white"/>}
+                                                      prefixIcon={<CustomIcon icon="zi-clock-1" className="text-white"/>}
                                                   >
                                                       Đã báo cáo - Đang chờ Admin duyệt
                                                   </Button>
@@ -1700,7 +1675,7 @@ useEffect(() => {
                               
                               {displayOrders.length === 0 ? (
                                   <Box flex flexDirection="column" alignItems="center" py={6}>
-                                      <Icon icon="zi-check-circle" size={40} className="text-gray-300 mb-2"/>
+                                      <CustomIcon icon="zi-check-circle" size={40} className="text-gray-300 mb-2"/>
                                       <Text className="text-center text-gray-500">
                                           {feeTab === "unpaid" ? "Tuyệt vời! Bạn không nợ phí nền tảng nào." : "Chưa có đơn hàng nào được ghi nhận đã thanh toán."}
                                       </Text>

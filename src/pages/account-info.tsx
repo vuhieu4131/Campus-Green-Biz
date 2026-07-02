@@ -1,3 +1,4 @@
+import CustomIcon from '../components/custom-icon';
 import React, { FC, useState, useEffect } from "react";
 import { Page, Header, Box, Input, Button, useSnackbar, Text, Icon } from "zmp-ui";
 import { auth, db, storage } from "../firebase";
