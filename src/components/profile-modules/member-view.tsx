@@ -238,8 +238,6 @@ export const MemberView: FC<{ user: any; points: number }> = ({
               </Box>
               <CustomIcon icon="zi-chevron-right" className="text-gray-400" />
           </Box>
-          <Icon icon="zi-chevron-right" className="text-gray-400" />
-        </Box>
       </Box>
 
       {/* MODAL LỊCH SỬ */}
