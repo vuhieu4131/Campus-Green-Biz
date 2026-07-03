@@ -491,9 +491,10 @@ const ProfilePage: FC = () => {
     }
   };
 
+  const profileId = new URLSearchParams(window.location.search).get("id");
+
   // Lấy data của user mục tiêu nếu có profileId
   useEffect(() => {
-    const profileId = new URLSearchParams(window.location.search).get("id");
     if (profileId) {
       setLoadingTarget(true);
       const fetchTarget = async () => {
