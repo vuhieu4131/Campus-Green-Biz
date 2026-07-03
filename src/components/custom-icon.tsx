@@ -4,7 +4,7 @@ import {
   MapPin, Clock, PlusCircle, Star, ExternalLink, ChevronRight,
   AlertTriangle, Bell, Edit, BarChart, Cpu, Copy, Edit2, XCircle,
   Plus, Bookmark, Camera, Settings, ChevronDown, BellOff, ArrowLeft,
-  Lock, Users, Heart, Shield, ShoppingBag, ShoppingCart, CheckCircle2
+  Lock, Users, Heart, Shield, ShoppingBag, ShoppingCart, CheckCircle2, ChevronLeft
 } from 'lucide-react';
 
 interface CustomIconProps extends React.HTMLAttributes<HTMLSpanElement> {
@@ -34,6 +34,7 @@ const CustomIcon: React.FC<CustomIconProps> = ({ icon, className, size = 24, sty
     'zi-share-external-1': <ExternalLink size={size} />,
     'zi-clock-2': <Clock size={size} />,
     'zi-chevron-right': <ChevronRight size={size} />,
+    'zi-chevron-left': <ChevronLeft size={size} />,
     'zi-warning-solid': <AlertTriangle size={size} fill="currentColor" />,
     'zi-notif': <Bell size={size} />,
     'zi-edit-text': <Edit size={size} />,

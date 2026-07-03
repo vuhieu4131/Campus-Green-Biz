@@ -361,12 +361,12 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
               {data.images.length > 1 && (
                 <Box className="absolute top-1/2 left-0 w-full flex justify-between px-2 pointer-events-none -translate-y-1/2">
                   {activeImageIndex > 0 ? (
-                    <Box className="bg-black/50 p-2 rounded-full pointer-events-auto cursor-pointer" onClick={(e) => { e.stopPropagation(); setActiveImageIndex(activeImageIndex - 1); }}>
+                    <Box className="bg-black/50 w-10 h-10 flex items-center justify-center rounded-full pointer-events-auto cursor-pointer" onClick={(e) => { e.stopPropagation(); setActiveImageIndex(activeImageIndex - 1); }}>
                       <CustomIcon icon="zi-chevron-left" className="text-white" />
                     </Box>
                   ) : <div />}
                   {activeImageIndex < data.images.length - 1 ? (
-                    <Box className="bg-black/50 p-2 rounded-full pointer-events-auto cursor-pointer" onClick={(e) => { e.stopPropagation(); setActiveImageIndex(activeImageIndex + 1); }}>
+                    <Box className="bg-black/50 w-10 h-10 flex items-center justify-center rounded-full pointer-events-auto cursor-pointer" onClick={(e) => { e.stopPropagation(); setActiveImageIndex(activeImageIndex + 1); }}>
                       <CustomIcon icon="zi-chevron-right" className="text-white" />
                     </Box>
                   ) : <div />}
