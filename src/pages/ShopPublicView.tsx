@@ -2,7 +2,8 @@ import React, { FC, useEffect, useState } from "react";
 import { Page, Header, Box, Text, Avatar, Button, Icon, Tabs, useSnackbar, Spinner, Modal } from "zmp-ui";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
-import { db } from "../firebase";
+import { db, auth } from "../firebase";
+import { onAuthStateChanged } from "firebase/auth";
 import { openPhone, openChat } from "zmp-sdk/apis";
 
 const ShopPublicView: FC = () => {
@@ -25,6 +26,22 @@ const ShopPublicView: FC = () => {
   const [activeTab, setActiveTab] = useState("services");
   // 👇 STATE QUẢN LÝ ẨN/HIỆN GIÁ TIỀN 👇
   const [showPrice, setShowPrice] = useState(false);
+  const [currentUserPhone, setCurrentUserPhone] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        const phoneFromEmail = user.email ? user.email.replace("@campus.com", "") : "";
+        const localPhone = localStorage.getItem("user_phone");
+        setCurrentUserPhone(phoneFromEmail || localPhone || user.uid);
+      } else {
+        setCurrentUserPhone(null);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const isOwner = currentUserPhone && (currentUserPhone === shop.id || currentUserPhone === shop.phone || currentUserPhone === id);
 
   // 2. STATE QUẢN LÝ MODAL LIÊN HỆ (GỌI / CHAT)
   const [contactModal, setContactModal] = useState<{visible: boolean, type: 'call' | 'chat'}>({
@@ -39,40 +56,59 @@ const ShopPublicView: FC = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // 👇 1. TẢI CẤU HÌNH ADMIN (LẤY TRẠNG THÁI CÔNG TẮC GIÁ) 👇
-        const configSnap = await getDoc(doc(db, "system_config", "admin_settings"));
-        if (configSnap.exists() && configSnap.data().showPrice !== undefined) {
-            setShowPrice(configSnap.data().showPrice);
+        try {
+          const configSnap = await getDoc(doc(db, "system_config", "admin_settings"));
+          if (configSnap.exists() && configSnap.data().showPrice !== undefined) {
+              setShowPrice(configSnap.data().showPrice);
+          }
+        } catch (e) {
+          console.warn("Could not load admin config", e);
         }
         let currentShopData: any = null;
         let actualShopId = id; 
 
         // =========================================================
-        // BƯỚC 1: LẤY THÔNG TIN CỬA HÀNG TỪ BẢNG 'users'
+        // BƯỚC 1: LẤY THÔNG TIN CỬA HÀNG TỪ BẢNG 'users' VÀ 'shops'
         // =========================================================
-        const shopDoc = await getDoc(doc(db, "users", id));
+        let shopDoc = await getDoc(doc(db, "users", id));
+        if (!shopDoc.exists()) {
+           shopDoc = await getDoc(doc(db, "shops", id));
+        }
         
         if (shopDoc.exists()) {
           // Trường hợp 1: ID trên URL chính là Document ID (VD: Số điện thoại)
           currentShopData = shopDoc.data();
         } else {
-          // Trường hợp 2: ID trên URL là zaloId / providerId (Dãy số 33686...)
+          // Trường hợp 2: ID trên URL là zaloId / providerId
           const usersRef = collection(db, "users");
+          const shopsRef = collection(db, "shops");
           
-          // Tìm user có zaloId khớp với dãy số này (Dựa theo logic detail.tsx của bạn)
-          const qZalo = query(usersRef, where("zaloId", "==", id));
-          const snapZalo = await getDocs(qZalo);
+          let qZalo = query(usersRef, where("zaloId", "==", id));
+          let snapZalo = await getDocs(qZalo);
 
           if (!snapZalo.empty) {
              currentShopData = snapZalo.docs[0].data();
-             actualShopId = snapZalo.docs[0].id; // Lấy ID thật (SĐT) để dùng dự phòng
+             actualShopId = snapZalo.docs[0].id;
           } else {
-             // Tìm user có providerId khớp với dãy số này
-             const qProvider = query(usersRef, where("providerId", "==", id));
-             const snapProvider = await getDocs(qProvider);
-             if (!snapProvider.empty) {
-                 currentShopData = snapProvider.docs[0].data();
-                 actualShopId = snapProvider.docs[0].id;
+             qZalo = query(shopsRef, where("zaloId", "==", id));
+             snapZalo = await getDocs(qZalo);
+             if (!snapZalo.empty) {
+                currentShopData = snapZalo.docs[0].data();
+                actualShopId = snapZalo.docs[0].id;
+             } else {
+                 let qProvider = query(usersRef, where("providerId", "==", id));
+                 let snapProvider = await getDocs(qProvider);
+                 if (!snapProvider.empty) {
+                     currentShopData = snapProvider.docs[0].data();
+                     actualShopId = snapProvider.docs[0].id;
+                 } else {
+                     qProvider = query(shopsRef, where("providerId", "==", id));
+                     snapProvider = await getDocs(qProvider);
+                     if (!snapProvider.empty) {
+                         currentShopData = snapProvider.docs[0].data();
+                         actualShopId = snapProvider.docs[0].id;
+                     }
+                 }
              }
           }
         }
@@ -220,13 +256,23 @@ const ShopPublicView: FC = () => {
           {activeTab === "services" ? (
               // TAB 1: DANH SÁCH DỊCH VỤ
               loading ? <Box flex justifyContent="center" py={10}><Spinner /></Box> :
-              services.length > 0 ? (
+              (services.length > 0 || isOwner) ? (
                 <Box className="grid grid-cols-2 gap-3">
+                    {/* 👇 BỔ SUNG NÚT THÊM SẢN PHẨM Ở ĐÂY NẾU LÀ CHỦ SHOP 👇 */}
+                    {isOwner && (
+                        <Box
+                           onClick={() => navigate("/post-service")}
+                           className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl overflow-hidden active:opacity-70 flex flex-col justify-center items-center cursor-pointer min-h-[220px]"
+                        >
+                            <Icon icon="zi-plus-circle" size={40} className="text-gray-400 mb-2" />
+                            <Text className="text-gray-500 font-medium">Thêm Mặt hàng</Text>
+                        </Box>
+                    )}
                     {services.map((item) => (
                         <Box
                           key={item.id}
                           onClick={() => navigate(`/detail/${item.id}`, { state: { product: item } })}
-                          className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100 active:opacity-70 flex flex-col"
+                          className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100 active:opacity-70 flex flex-col cursor-pointer"
                         >
                             <Box className="relative pt-[100%]">
                                 <img src={item.image || "https://via.placeholder.com/150"} className="absolute inset-0 w-full h-full object-cover" alt="Product" />

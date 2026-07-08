@@ -67,9 +67,10 @@ const formatDate = (timestamp) => {
 interface ProviderProps {
   userData: any;
   onLogout: () => void;
+  onBackToProfile?: () => void;
 }
 
-export const ProviderView: FC<ProviderProps> = ({ userData, onLogout}) => {
+export const ProviderView: FC<ProviderProps> = ({ userData, onLogout, onBackToProfile}) => {
   const navigate = useNavigate();
   const { openSnackbar } = useSnackbar();
 
@@ -828,7 +829,15 @@ useEffect(() => {
 
   // --- GIAO DIỆN CHÍNH ---
   return (
-    <Box className="animate-fade-in">
+    <Box className="animate-fade-in pb-10">
+      {/* 0. NÚT QUAY LẠI */}
+      {onBackToProfile && (
+        <Box className="px-4 pt-4 flex items-center cursor-pointer active:opacity-70" onClick={onBackToProfile}>
+          <Icon icon="zi-arrow-left" className="text-gray-800 text-2xl mr-2" />
+          <Text.Title size="large" className="font-bold text-gray-800">Quản lý Cửa Hàng</Text.Title>
+        </Box>
+      )}
+
       {/* 1. HEADER THÔNG TIN SHOP */}
       <Box 
         className="bg-white p-4 m-4 rounded-xl flex items-center shadow-md border border-gray-100 relative overflow-hidden active:opacity-80 cursor-pointer"
@@ -978,6 +987,14 @@ useEffect(() => {
   onClick={fetchShopOrders} 
 />
                   <Item title="Xem trang cửa hàng" subTitle="Xem giao diện khách hàng" prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-blue-50"><CustomIcon icon="zi-list-1" className="text-blue-600" size={18}/></div>} suffix={<CustomIcon icon="zi-chevron-right" className="text-gray-400"/>} onClick={goToShopDetail} />
+                  <Item title="Trang cá nhân (Bài đăng)" subTitle="Xem hồ sơ và bài đăng của Shop" prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-teal-50"><CustomIcon icon="zi-user" className="text-teal-600" size={18}/></div>} suffix={<CustomIcon icon="zi-chevron-right" className="text-gray-400"/>} onClick={() => {
+                      if (onBackToProfile) {
+                          onBackToProfile();
+                      } else {
+                          const shopId = userData?.id || userData?.phone;
+                          if (shopId) navigate(`/profile?id=${shopId}`);
+                      }
+                  }} />
               </List>
           </Box>
           <Box className="bg-white rounded-xl overflow-hidden shadow-md border border-gray-50 mb-4">

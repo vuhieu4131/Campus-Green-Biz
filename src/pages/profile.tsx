@@ -106,7 +106,8 @@ const NewMemberView: FC<{
   currentUserId?: string;
   onFollowToggle?: () => void;
   onUpdateImage?: (field: "avatar" | "cover", file: File) => void;
-}> = ({ user, points, role, isOtherProfile, followers = [], currentUserId, onFollowToggle, onUpdateImage }) => {
+  onOpenProviderDashboard?: () => void;
+}> = ({ user, points, role, isOtherProfile, followers = [], currentUserId, onFollowToggle, onUpdateImage, onOpenProviderDashboard }) => {
   const navigate = useNavigate();
   const { openSnackbar } = useSnackbar();
   const [activeTab, setActiveTab] = useState<'posts' | 'saved' | 'tagged'>('posts');
@@ -175,7 +176,15 @@ const NewMemberView: FC<{
           </Box>
         ) : <div />}
         {!isOtherProfile && (
-          <Box className="flex items-center space-x-3 bg-black/20 px-3 py-1.5 rounded-full backdrop-blur-sm cursor-pointer" onClick={() => navigate('/settings')}>
+          <Box className="flex items-center space-x-3 bg-black/20 px-3 py-1.5 rounded-full backdrop-blur-sm cursor-pointer" onClick={() => {
+            if (role === "distributor") {
+              navigate("/admin-dashboard");
+            } else if (role === "provider") {
+              if (onOpenProviderDashboard) onOpenProviderDashboard();
+            } else {
+              navigate('/settings');
+            }
+          }}>
             <span className="text-white inline-flex"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></span>
             <Avatar src={user.avatar} size={32} className="border border-white/50" />
           </Box>
@@ -235,39 +244,7 @@ const NewMemberView: FC<{
         )}
       </Box>
 
-      {/* 4. Thẻ Membership */}
-      {!isOtherProfile && (
-        <Box
-          className="mx-4 mt-4 bg-[#f8f6ec] rounded-xl p-4 border border-[#e8e4d3] flex items-center shadow-md cursor-pointer"
-          onClick={() => navigate("/wallet")}
-        >
-          <span className="text-[#a68c4d] mr-3 inline-flex"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg></span>
-          <Box>
-            <Text.Title className="font-bold uppercase text-gray-800">
-              {rankInfo.name}
-            </Text.Title>
-            <Text
-              size="xSmall"
-              className="text-gray-500 uppercase tracking-widest mt-1"
-            >
-              {rankInfo.sub}
-            </Text>
-          </Box>
-        </Box>
-      )}
 
-      {/* Nút Quản Lý Dành Cho Admin/Distributor */}
-      {!isOtherProfile && role === "distributor" && (
-        <Box className="px-4 mt-4">
-          <Button
-            fullWidth
-            className="bg-[#14502e] text-white font-bold rounded-xl shadow-md"
-            onClick={() => navigate("/admin-dashboard")}
-          >
-            <span className="mr-2 inline-flex"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></span> Quản lý Cửa Hàng
-          </Button>
-        </Box>
-      )}
 
       {/* 5. Thống kê */}
       <Box className="flex justify-around mt-6 mb-4 px-4">
@@ -467,6 +444,7 @@ const ProfilePage: FC = () => {
   const { openSnackbar } = useSnackbar();
 
   const [targetUserData, setTargetUserData] = useState<any>(null);
+  const [showProviderDashboard, setShowProviderDashboard] = useState(false);
   const [loadingTarget, setLoadingTarget] = useState(false);
 
   const handleUpdateImage = async (field: "avatar" | "cover", file: File) => {
@@ -559,7 +537,7 @@ const ProfilePage: FC = () => {
           } else if (data.branchInfo) {
               setUserData({ id: docSnap.id, ...data, role: "member" });
           } else {
-              setUserData({ id: docSnap.id, ...data, role: "user" });
+              setUserData({ id: docSnap.id, ...data, role: data.role || "user" });
           }
         }
       } else {
@@ -622,8 +600,9 @@ const ProfilePage: FC = () => {
               user={{
                 id: targetUserData.id,
                 username: targetUserData.phone || "user_name",
-                name: targetUserData.fullName || targetUserData.phone || "Thành viên Campus",
-                avatar: targetUserData.avatar || "https://i.pravatar.cc/150?img=11",
+                name: targetUserData.fullName || targetUserData.name || targetUserData.shopName || targetUserData.phone || "Thành viên Campus",
+                avatar: targetUserData.avatar || targetUserData.shopAvatar || "https://i.pravatar.cc/150?img=11",
+                cover: targetUserData.cover
               }}
               points={targetUserData.points || 0}
               role={targetUserData.role}
@@ -648,10 +627,10 @@ const ProfilePage: FC = () => {
               </Box>
             )}
             {userData?.role === "admin" && <AdminView userData={userData} onLogout={handleLogout} />}
-            {userData?.role === "provider" && <ProviderView userData={userData} onLogout={handleLogout} />}
+            {userData?.role === "provider" && showProviderDashboard && <ProviderView userData={userData} onLogout={handleLogout} onBackToProfile={() => setShowProviderDashboard(false)} />}
             {userData?.role === "member" && userData.branchInfo && <BranchView userData={userData} onLogout={handleLogout} />}
             
-            {(!userData?.role || userData?.role === "user" || (userData?.role === "member" && !userData.branchInfo)) && (
+            {(!userData?.role || userData?.role === "user" || userData?.role === "distributor" || (userData?.role === "provider" && !showProviderDashboard) || (userData?.role === "member" && !userData.branchInfo)) && (
               <NewMemberView
                 user={{
                   id: currentUser.uid,
@@ -668,6 +647,7 @@ const ProfilePage: FC = () => {
                 points={userData?.points || 0}
                 role={userData?.role}
                 onUpdateImage={handleUpdateImage}
+                onOpenProviderDashboard={() => setShowProviderDashboard(true)}
               />
             )}
           </>
