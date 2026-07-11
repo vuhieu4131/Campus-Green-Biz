@@ -3,7 +3,7 @@ import { Box, Text, Spinner } from "zmp-ui";
 import { PostItem } from "../../components/post-item";
 import { RawPost, sortPostsOnEdge } from "../../utils/edgeRanker";
 import { db } from "../../firebase";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, getDocs, orderBy, limit } from "firebase/firestore";
 
 export const FeedList: FC = () => {
   const [posts, setPosts] = useState<RawPost[]>([]);
@@ -14,11 +14,8 @@ export const FeedList: FC = () => {
       setLoading(true);
       const postsRef = collection(db, "posts");
       
-      // Tính mốc thời gian 7 ngày trước
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-      const q = query(postsRef, where("createdAt", ">=", sevenDaysAgo));
+      // Lấy 50 bài viết mới nhất thay vì chỉ giới hạn 7 ngày
+      const q = query(postsRef, orderBy("createdAt", "desc"), limit(50));
       
       const querySnapshot = await getDocs(q);
       const rawData = querySnapshot.docs.map(doc => ({
