@@ -125,44 +125,26 @@ setCategories(['Tất cả', ...extractedCategories as string[]]);
     }
   };
 
-  // 👉 THÊM MỚI: Hàm xử lý khi khách bấm chọn 1 cơ sở trong Pop-up
-  const handleContactSelect = (contact: any) => {
-    if (contactModal.type === 'call') {
-      // Xử lý GỌI ĐIỆN
-      if (contact.phone) {
-        openPhone({ phoneNumber: contact.phone });
-      } else {
-        openSnackbar({ text: "Cơ sở này chưa cập nhật số điện thoại", type: "warning" });
-      }
+  const handleChatDirect = () => {
+    const targetId = shop.phone || shop.id || id; 
+    if (targetId) {
+      openChat({
+        type: "user",
+        id: targetId, 
+        message: `Xin chào ${shop.name}, tôi cần tư vấn.`
+      });
     } else {
-      // Xử lý CHAT ZALO
-      // Ưu tiên dùng số điện thoại của cơ sở đó làm ID chat (giống logic lưu dữ liệu của bạn)
-      const targetId = contact.phone || shop.id; 
-      if (targetId) {
-        openChat({
-          type: "user",
-          id: targetId, 
-          message: `Xin chào ${contact.name}, tôi cần tư vấn.`
-        });
-      } else {
-        openSnackbar({ text: "Cơ sở này chưa có thông tin liên hệ Zalo", type: "warning" });
-      }
+      openSnackbar({ text: "Cửa hàng chưa có thông tin liên hệ Zalo", type: "warning" });
     }
-    // Chọn xong thì đóng Pop-up lại
-    setContactModal({ ...contactModal, visible: false });
   };
 
-  // 👉 THÊM MỚI: Gộp Trung tâm chính và các Cơ sở con thành 1 danh sách
-  const contactList = [
-    { isMain: true, name: `${shop.name} (Trung tâm chính)`, phone: shop.phone, address: shop.address },
-    // Dấu ... giúp rải đều các cơ sở con vào mảng
-    ...(shop.locations || []).map((loc: any, idx: number) => ({
-      isMain: false,
-      name: loc.name || `Cơ sở ${idx + 1}`,
-      phone: loc.phone,
-      address: loc.address
-    }))
-  ];
+  const handleCallDirect = () => {
+    if (shop.phone) {
+      openPhone({ phoneNumber: shop.phone });
+    } else {
+      openSnackbar({ text: "Cửa hàng chưa cập nhật số điện thoại", type: "warning" });
+    }
+  };
   // 👇 Sửa .category thành .productCategory 👇
 const filteredServices = selectedCategory === 'Tất cả' 
 ? services 
@@ -188,12 +170,12 @@ const filteredServices = selectedCategory === 'Tất cả'
               <Box className="flex gap-2 mb-1">
                   <Button 
                     size="small" variant="secondary" prefix={<Icon icon="zi-chat" /> as any} 
-                    onClick={() => setContactModal({ visible: true, type: 'chat' })}>
+                    onClick={handleChatDirect}>
                     Chat
                   </Button>
                   <Button 
                     size="small" prefix={<Icon icon="zi-call" /> as any} 
-                    onClick={() => setContactModal({ visible: true, type: 'call' })}>
+                    onClick={handleCallDirect}>
                     Gọi
                   </Button>
               </Box>
@@ -332,73 +314,20 @@ const filteredServices = selectedCategory === 'Tất cả'
                   <Box className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
                       <Box flex alignItems="center" className="mb-3">
                           <Icon icon="zi-location" className="text-red-500 mr-2" />
-                          <Text bold className="text-gray-800">Hệ thống cơ sở</Text>
+                          <Text bold className="text-gray-800">Địa chỉ cửa hàng</Text>
                       </Box>
-
-                      {shop.locations && shop.locations.length > 0 ? (
-                          <Box className="flex flex-col gap-3">
-                              {shop.locations.map((loc: any, index: number) => (
-                                  <Box key={index} className="pb-3 border-b border-gray-50 last:border-0 last:pb-0">
-                                      <Text size="small" bold className="text-gray-700 mb-1">
-                                          {loc.name || `Cơ sở ${index + 1}`}
-                                      </Text>
-                                      <Text size="small" className="text-gray-600 flex items-start">
-                                          <Icon icon="zi-location-solid" size={14} className="mt-0.5 mr-1 text-gray-400" />
-                                          <span className="flex-1">{loc.address}</span>
-                                      </Text>
-                                      {loc.phone && (
-                                          <Text size="small" className="text-blue-600 mt-1 flex items-center">
-                                              <Icon icon="zi-call" size={14} className="mr-1" />
-                                              {loc.phone}
-                                          </Text>
-                                      )}
-                                  </Box>
-                              ))}
-                          </Box>
-                      ) : (
-                          <Box className="flex items-start">
-                              <Icon icon="zi-location-solid" size={14} className="mt-0.5 mr-1 text-gray-400" />
-                              <Text size="small" className="text-gray-600">
-                                  {shop.address || "Chưa cập nhật địa chỉ chi tiết."}
-                              </Text>
-                          </Box>
-                      )}
+                      <Box className="flex items-start">
+                          <Icon icon="zi-location-solid" size={14} className="mt-0.5 mr-1 text-gray-400" />
+                          <Text size="small" className="text-gray-600">
+                              {shop.address || "Chưa cập nhật địa chỉ chi tiết."}
+                          </Text>
+                      </Box>
                   </Box>
               </Box>
           )}
       </Box>
 
-      {/* 👉 THÊM MỚI: Giao diện Modal Pop-up Liên hệ */}
-      <Modal
-          visible={contactModal.visible}
-          title={contactModal.type === 'call' ? "Chọn cơ sở để gọi điện" : "Chọn cơ sở để nhắn tin Zalo"}
-          onClose={() => setContactModal({ ...contactModal, visible: false })}
-      >
-          <Box className="max-h-[60vh] overflow-y-auto flex flex-col gap-3 p-2">
-              {contactList.map((contact, index) => (
-                  <Box
-                      key={index}
-                      onClick={() => handleContactSelect(contact)}
-                      className="p-3 bg-gray-50 rounded-xl border border-gray-200 active:bg-blue-50 cursor-pointer flex items-center justify-between"
-                  >
-                      <Box className="flex-1 pr-3">
-                          <Text size="small" bold className="text-gray-800 mb-1">{contact.name}</Text>
-                          {contact.phone && (
-                              <Text size="xSmall" className="text-blue-600 font-bold mb-1 flex items-center">
-                                  <Icon icon="zi-call" size={12} className="mr-1 text-gray-400" /> {contact.phone}
-                              </Text>
-                          )}
-                          <Text size="xSmall" className="text-gray-500 line-clamp-2">{contact.address}</Text>
-                      </Box>
-                      
-                      {/* Cột icon bên phải (Hiển thị icon Gọi hoặc Chat tùy theo type) */}
-                      <Box className={`w-10 h-10 min-w-[40px] rounded-full flex items-center justify-center ${contactModal.type === 'call' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
-                          <Icon icon={contactModal.type === 'call' ? 'zi-call' : 'zi-chat'} size={20} />
-                      </Box>
-                  </Box>
-              ))}
-          </Box>
-      </Modal>
+
 
     </Page>
   );

@@ -20,7 +20,6 @@ const UserPersonalMenu: FC<UserPersonalMenuProps> = ({ onReferralClick, onShareC
       <List>
         <List.Item onClick={() => navigate('/account-info')} title="Thông tin tài khoản" prefix={<CustomIcon icon="zi-user" className="text-gray-600" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
         <List.Item onClick={() => navigate('/notification')} title="Thông báo" prefix={<CustomIcon icon="zi-notif" className="text-blue-500" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
-        <List.Item onClick={() => navigate('/appointments')} title="Lịch sử đặt hẹn" prefix={<CustomIcon icon="zi-clock-1" className="text-gray-700" />} suffix={<Box className="flex items-center"><span className="bg-red-400 text-white text-xs px-2 py-1 rounded-full mr-2">5 cuộc hẹn</span><CustomIcon icon="zi-chevron-right" /></Box>} />
         <List.Item onClick={onReferralClick} title="Người được giới thiệu" prefix={<CustomIcon icon="zi-group" className="text-gray-700" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
         <List.Item onClick={onShareClick} title="Chia sẻ ứng dụng" prefix={<CustomIcon icon="zi-share" className="text-gray-700" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
         <List.Item onClick={onChangePasswordClick} title="Đổi mật khẩu" prefix={<CustomIcon icon="zi-lock" className="text-gray-700" />} suffix={<CustomIcon icon="zi-chevron-right" />} />

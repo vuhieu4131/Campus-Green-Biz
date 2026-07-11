@@ -159,38 +159,26 @@ const ShopPublicView: FC = () => {
     fetchData();
   }, [id]);
 
-  // 4. LOGIC CHỌN CHI NHÁNH ĐỂ GỌI HOẶC CHAT ZALO
-  const handleContactSelect = (contact: any) => {
-    if (contactModal.type === 'call') {
-      if (contact.phone) {
-        openPhone({ phoneNumber: contact.phone });
-      } else {
-        openSnackbar({ text: "Cơ sở này chưa cập nhật số điện thoại", type: "warning" });
-      }
+  const handleChatDirect = () => {
+    const targetId = shop.phone || shop.id || id;
+    if (targetId) {
+      openChat({
+        type: "user",
+        id: targetId,
+        message: `Xin chào ${shop.name}, tôi cần tư vấn.`
+      });
     } else {
-      const targetId = contact.phone || shop.id || id;
-      if (targetId) {
-        openChat({
-          type: "user",
-          id: targetId,
-          message: `Xin chào ${contact.name}, tôi cần tư vấn.`
-        });
-      } else {
-        openSnackbar({ text: "Cơ sở này chưa có thông tin liên hệ Zalo", type: "warning" });
-      }
+      openSnackbar({ text: "Cửa hàng chưa có thông tin liên hệ Zalo", type: "warning" });
     }
-    setContactModal({ ...contactModal, visible: false });
   };
 
-  const contactList = [
-    { isMain: true, name: `${shop.name} (Trung tâm chính)`, phone: shop.phone || id, address: shop.address },
-    ...(shop.locations || []).map((loc: any, idx: number) => ({
-      isMain: false,
-      name: loc.name || `Cơ sở ${idx + 1}`,
-      phone: loc.phone || loc.managerPhone,
-      address: loc.address
-    }))
-  ];
+  const handleCallDirect = () => {
+    if (shop.phone || id) {
+      openPhone({ phoneNumber: shop.phone || id });
+    } else {
+      openSnackbar({ text: "Cửa hàng chưa cập nhật số điện thoại", type: "warning" });
+    }
+  };
 
   // 5. RENDER GIAO DIỆN
   return (
@@ -215,14 +203,14 @@ const ShopPublicView: FC = () => {
                   {/* ĐÃ SỬA LỖI TS: Thêm 'as any' */}
                   <Button
                     size="small" variant="secondary" prefix={<Icon icon="zi-chat" /> as any}
-                    onClick={() => setContactModal({ visible: true, type: 'chat' })}
+                    onClick={handleChatDirect}
                     className="bg-white text-blue-600 border border-blue-600"
                   >
                     Chat
                   </Button>
                   <Button
                     size="small" prefix={<Icon icon="zi-call" /> as any}
-                    onClick={() => setContactModal({ visible: true, type: 'call' })}
+                    onClick={handleCallDirect}
                   >
                     Gọi
                   </Button>
@@ -347,72 +335,20 @@ const ShopPublicView: FC = () => {
                   <Box className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
                       <Box flex alignItems="center" className="mb-3">
                           <Icon icon="zi-location" className="text-red-500 mr-2" />
-                          <Text className="font-bold text-gray-800">Hệ thống cơ sở</Text>
+                          <Text className="font-bold text-gray-800">Địa chỉ cửa hàng</Text>
                       </Box>
-
-                      {shop.locations && shop.locations.length > 0 ? (
-                          <Box className="flex flex-col gap-3">
-                              {shop.locations.map((loc: any, index: number) => (
-                                  <Box key={index} className="pb-3 border-b border-gray-50 last:border-0 last:pb-0">
-                                      <Text size="small" className="font-bold text-gray-700 mb-1">
-                                          {loc.name || `Cơ sở ${index + 1}`}
-                                      </Text>
-                                      <Text size="small" className="text-gray-600 flex items-start">
-                                          <Icon icon="zi-location-solid" size={14} className="mt-0.5 mr-1 text-gray-400" />
-                                          <span className="flex-1">{loc.address}</span>
-                                      </Text>
-                                      {(loc.phone || loc.managerPhone) && (
-                                          <Text size="small" className="text-blue-600 mt-1 flex items-center">
-                                              <Icon icon="zi-call" size={14} className="mr-1" />
-                                              {loc.phone || loc.managerPhone}
-                                          </Text>
-                                      )}
-                                  </Box>
-                              ))}
-                          </Box>
-                      ) : (
-                          <Box className="flex items-start">
-                              <Icon icon="zi-location-solid" size={14} className="mt-0.5 mr-1 text-gray-400" />
-                              <Text size="small" className="text-gray-600">
-                                  {shop.address || "Chưa cập nhật địa chỉ chi tiết."}
-                              </Text>
-                          </Box>
-                      )}
+                      <Box className="flex items-start">
+                          <Icon icon="zi-location-solid" size={14} className="mt-0.5 mr-1 text-gray-400" />
+                          <Text size="small" className="text-gray-600">
+                              {shop.address || "Chưa cập nhật địa chỉ chi tiết."}
+                          </Text>
+                      </Box>
                   </Box>
               </Box>
           )}
       </Box>
 
-      {/* --- MODAL CHỌN CHI NHÁNH ĐỂ GỌI / CHAT --- */}
-      <Modal
-          visible={contactModal.visible}
-          title={contactModal.type === 'call' ? "Chọn cơ sở để gọi điện" : "Chọn cơ sở để nhắn tin Zalo"}
-          onClose={() => setContactModal({ ...contactModal, visible: false })}
-      >
-          <Box className="max-h-[60vh] overflow-y-auto flex flex-col gap-3 p-2">
-              {contactList.map((contact, index) => (
-                  <Box
-                      key={index}
-                      onClick={() => handleContactSelect(contact)}
-                      className="p-3 bg-gray-50 rounded-xl border border-gray-200 active:bg-blue-50 cursor-pointer flex items-center justify-between"
-                  >
-                      <Box className="flex-1 pr-3">
-                          <Text size="small" className="font-bold text-gray-800 mb-1">{contact.name}</Text>
-                          {contact.phone && (
-                              <Text size="xSmall" className="text-blue-600 font-bold mb-1 flex items-center">
-                                  <Icon icon="zi-call" size={12} className="mr-1 text-gray-400" /> {contact.phone}
-                              </Text>
-                          )}
-                          <Text size="xSmall" className="text-gray-500 line-clamp-2">{contact.address}</Text>
-                      </Box>
 
-                      <Box className={`w-10 h-10 min-w-[40px] rounded-full flex items-center justify-center ${contactModal.type === 'call' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
-                          <Icon icon={contactModal.type === 'call' ? 'zi-call' : 'zi-chat'} size={20} />
-                      </Box>
-                  </Box>
-              ))}
-          </Box>
-      </Modal>
     </Page>
   );
 };

@@ -342,7 +342,7 @@ const handleSelectVoucher = (voucher: any) => {
         }));
     }
       openSnackbar({ text: isProductFlow ? "Đặt hẹn thành công!" : "Đặt lịch thành công!", type: "success", position: "top" });
-      navigate("/history"); 
+      navigate("/profile"); 
     } catch (e) {
       openSnackbar({ text: "Có lỗi xảy ra, thử lại sau", type: "error", position: "top" });
     } finally {

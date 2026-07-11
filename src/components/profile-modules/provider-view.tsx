@@ -962,13 +962,6 @@ useEffect(() => {
           <Box className="bg-white rounded-xl overflow-hidden shadow-md border border-gray-50 mb-4">
               <Text.Title size="small" className="p-4 pb-2 text-gray-500 font-bold bg-gray-50">Dịch vụ & Bài đăng</Text.Title>
               <List>
-              <Item 
-                      title="Quản lý hệ thống cơ sở" 
-                      subTitle={`${locations.length} cơ sở trực thuộc`} 
-                      prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-indigo-50"><CustomIcon icon="zi-location" className="text-indigo-600" size={18}/></div>} 
-                      suffix={<CustomIcon icon="zi-chevron-right" className="text-gray-400"/>} 
-                      onClick={() => setShowLocationsModal(true)} 
-                  />
                   <Item title="Đăng Sản phẩm/Dịch vụ mới" prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-green-50"><Icon icon="zi-plus-circle" className="text-green-600" size={18}/></div>} suffix={<Icon icon="zi-chevron-right" className="text-gray-400"/>} onClick={() => navigate("/post-service")} />
                   <Item 
     title="Quản lý đơn hàng" 

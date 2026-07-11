@@ -22,6 +22,8 @@ const PostPage: React.FunctionComponent = () => {
   
   const [myLocations, setMyLocations] = useState<any[]>([]);
   const [fetchingUser, setFetchingUser] = useState(true);
+  const [userRole, setUserRole] = useState<string>("");
+  const [shopAddress, setShopAddress] = useState<string>("");
 
   // 👉 BƯỚC 2: Thêm State lưu tỷ lệ điểm của Admin (Mặc định 10%)
   const [minRewardRate, setMinRewardRate] = useState(10);
@@ -79,21 +81,35 @@ const PostPage: React.FunctionComponent = () => {
           const userPhone = localStorage.getItem("user_phone");
           if (!userPhone) return;
 
-          const q = query(collection(db, "users"), where("phone", "==", userPhone));
-          const snap = await getDocs(q);
-          
-          if (!snap.empty) {
-              const userData = snap.docs[0].data();
-              setForm(prev => ({ ...prev, shopName: userData.name })); 
-              
-              // 👉 BƯỚC 1: KIỂM TRA CƠ SỞ (Tách biệt hoàn toàn với Địa chỉ Shop)
-              if (userData.locations && Array.isArray(userData.locations) && userData.locations.length > 0) {
-                setMyLocations(userData.locations);
-                setForm(prev => ({ ...prev, selectedLocation: "Toàn hệ thống" }));
-            } else {
-                // Bắt buộc phải để trống để ép Shop đi tạo Cơ sở
-                setForm(prev => ({ ...prev, selectedLocation: "" }));
-            }
+          let userData: any = null;
+          let isDistributor = false;
+
+          // 1. Dò tìm trong bảng "users" (Chủ Shop / provider)
+          const qUser = query(collection(db, "users"), where("phone", "==", userPhone));
+          const snapUser = await getDocs(qUser);
+          if (!snapUser.empty) {
+              userData = snapUser.docs[0].data();
+              isDistributor = userData.role === "distributor";
+          } else {
+              // 2. Dò tìm trong bảng "shops" (Nhà phân phối / distributor)
+              const qShop = query(collection(db, "shops"), where("phone", "==", userPhone));
+              const snapShop = await getDocs(qShop);
+              if (!snapShop.empty) {
+                  userData = snapShop.docs[0].data();
+                  isDistributor = true;
+              }
+          }
+
+          if (userData) {
+              const nameToUse = userData.fullName || userData.name || "";
+              setForm(prev => ({ 
+                ...prev, 
+                shopName: nameToUse,
+                // Mặc định chọn địa điểm là địa chỉ của Shop/Distributor nếu không có hệ thống cơ sở
+                selectedLocation: userData.address || "Toàn hệ thống"
+              }));
+              setUserRole(isDistributor ? "distributor" : (userData.role || "provider"));
+              setShopAddress(userData.address || "");
           }
       } catch (e) { console.error(e); }
       finally { setFetchingUser(false); }
@@ -242,8 +258,8 @@ const handleRemoveVideo = () => {
         return;
     }
 
-    // 👉 CHỐT CHẶN: Bắt buộc phải có địa điểm
-    if (!form.selectedLocation || form.selectedLocation.trim() === "") {
+    // 👉 CHỐT CHẶN: Bắt buộc phải có địa điểm (Bỏ điều kiện này cho Distributor và Shop/Provider)
+    if (userRole !== "distributor" && userRole !== "provider" && (!form.selectedLocation || form.selectedLocation.trim() === "")) {
       openSnackbar({ text: "Bạn chưa có Địa điểm áp dụng. Vui lòng cập nhật trong Hồ sơ!", type: "error", position: "top" });
       return;
   }
@@ -270,7 +286,7 @@ const handleRemoveVideo = () => {
         image: form.images[0] || "",
         gallery: form.images,
         videoUrl: form.videoUrl,
-        locationAddress: form.selectedLocation, 
+        locationAddress: (userRole === "distributor" || userRole === "provider") ? (shopAddress || "Toàn hệ thống") : form.selectedLocation, 
         category: form.category,
         productCategory: form.productCategory || "Khác", // 👇 THÊM MỚI: Nếu shop quên nhập, mặc định là "Khác"
         providerId: userPhone, 
@@ -322,8 +338,8 @@ const handleRemoveVideo = () => {
   
   // Hợp lệ khi: Chưa nhập giá (0đ) HOẶC điểm nhập vào lớn hơn/bằng điểm tối thiểu
   const isPointsValid = numericPrice === 0 || enteredPoints >= requiredMinPoints;
-  // 👉 KIỂM TRA ĐỊA CHỈ: Có địa chỉ hay chưa?
-  const hasValidLocation = form.selectedLocation.trim().length > 0;
+  // 👉 KIỂM TRA ĐỊA CHỈ: Có địa chỉ hay chưa? (Distributor và Shop mặc định là hợp lệ vì phân phối trực tiếp)
+  const hasValidLocation = userRole === "distributor" || userRole === "provider" || form.selectedLocation.trim().length > 0;
 
     if (fetchingUser) return <Page className="bg-white flex justify-center items-center"><Spinner /></Page>;
 
@@ -499,31 +515,34 @@ const handleRemoveVideo = () => {
                 )}
             </Box>
         )}
-        <Box mb={4}>
-            <Text size="small" className="mb-1 font-medium ml-1">Địa điểm áp dụng <span className="text-red-500">*</span></Text>
-            {myLocations.length > 0 ? (
-                <Select
-                    placeholder="Chọn cơ sở thực hiện"
-                    value={form.selectedLocation}
-                    onChange={(val) => handleChange("selectedLocation", val as string)}
-                    closeOnSelect
-                >
-                    <Option value="Toàn hệ thống" title="Toàn hệ thống (Tất cả chi nhánh)" />
-                    {myLocations.map((loc, idx) => {
-                        const addressStr = typeof loc === 'object' ? loc.address : loc;
-                        return <Option key={idx} value={addressStr} title={addressStr} />;
-                    })}
-                </Select>
-            ) : (
-                // 👉 CẢNH BÁO GẮT KHI CHƯA KHAI BÁO CƠ SỞ
-                <Box className="bg-red-50 p-3 rounded-lg border border-red-200 flex items-start">
-                    <Icon icon="zi-warning-solid" className="text-red-500 mr-2 shrink-0" size={20}/>
-                    <Text size="xSmall" className="text-red-600">
-                        Bạn chưa thiết lập <b>Cơ sở thực hiện dịch vụ</b>. Vui lòng quay lại màn hình chính, chọn <b>"Quản lý hệ thống cơ sở"</b> để thêm chi nhánh trước khi đăng bài nhé!
-                    </Text>
-                </Box>
-            )}
-        </Box>
+        {/* Chỉ hiện chọn Địa điểm áp dụng nếu không phải là Distributor và Shop (Chỉ dành cho các vai trò cần chi nhánh khác) */}
+        {userRole !== "distributor" && userRole !== "provider" && (
+            <Box mb={4}>
+                <Text size="small" className="mb-1 font-medium ml-1">Địa điểm áp dụng <span className="text-red-500">*</span></Text>
+                {myLocations.length > 0 ? (
+                    <Select
+                        placeholder="Chọn cơ sở thực hiện"
+                        value={form.selectedLocation}
+                        onChange={(val) => handleChange("selectedLocation", val as string)}
+                        closeOnSelect
+                    >
+                        <Option value="Toàn hệ thống" title="Toàn hệ thống (Tất cả chi nhánh)" />
+                        {myLocations.map((loc, idx) => {
+                            const addressStr = typeof loc === 'object' ? loc.address : loc;
+                            return <Option key={idx} value={addressStr} title={addressStr} />;
+                        })}
+                    </Select>
+                ) : (
+                    // 👉 CẢNH BÁO GẮT KHI CHƯA KHAI BÁO CƠ SỞ
+                    <Box className="bg-red-50 p-3 rounded-lg border border-red-200 flex items-start">
+                        <Icon icon="zi-warning-solid" className="text-red-500 mr-2 shrink-0" size={20}/>
+                        <Text size="xSmall" className="text-red-600">
+                            Bạn chưa thiết lập <b>Cơ sở thực hiện dịch vụ</b>. Vui lòng quay lại màn hình chính, chọn <b>"Quản lý hệ thống cơ sở"</b> để thêm chi nhánh trước khi đăng bài nhé!
+                        </Text>
+                    </Box>
+                )}
+            </Box>
+        )}
 
         {/* 👉 GIAO DIỆN NHẬP GIÁ MỚI */}
         <Box mb={3}>
