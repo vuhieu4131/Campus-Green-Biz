@@ -1,8 +1,9 @@
 import CustomIcon from '../custom-icon';
 import React, { FC, useState, useEffect } from "react";
-import { Box, Text, Icon, Modal, Avatar, Button, Input, useSnackbar, Spinner, Select, Switch } from "zmp-ui";
+import { Box, Text, Icon, Modal, Avatar, Button, Input, useSnackbar, Spinner, Select, Switch, useNavigate } from "zmp-ui";
 import { collection, query, where, getDocs, doc, updateDoc, deleteDoc, orderBy, addDoc, serverTimestamp, getDoc, setDoc, onSnapshot } from "firebase/firestore";
-import { db } from "../../firebase";
+import { db, auth } from "../../firebase";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 const { Option } = Select;
 // Hàm format ngày giờ
 const formatDate = (timestamp) => {
@@ -20,7 +21,8 @@ interface AdminProps {
 const MENU_ITEMS = [
   { id: "members", label: "Thành viên", icon: "zi-group", color: "text-blue-500" },
   { id: "providers", label: "Nhà cung cấp", icon: "zi-user-settings", color: "text-orange-500" },
-  { id: "posts", label: "Duyệt Bài đăng", icon: "zi-list-1", color: "text-green-500" }, 
+  { id: "posts", label: "Duyệt SP/Dịch vụ", icon: "zi-list-1", color: "text-green-500" }, 
+  { id: "community_posts", label: "Duyệt Bài viết MXH", icon: "zi-note-copy", color: "text-teal-600" },
   { id: "banners", label: "Banner", icon: "zi-photo", color: "text-purple-500" },
   { id: "feedbacks", label: "Phản hồi", icon: "zi-chat", color: "text-teal-500" },
   { id: "vouchers", label: "Mở đợt Voucher", icon: "zi-star", color: "text-red-500" }, 
@@ -38,7 +40,7 @@ export const AdminView: FC<AdminProps> = ({ userData, onLogout }) => {
 
   // 👉 BƯỚC 1: Bổ sung biến đếm fee_reconciliation
   const [pendingCounts, setPendingCounts] = useState({
-    providers: 0, posts: 0, feedbacks: 0, requests: 0, members: 0, banners: 0, create_admin: 0, fee_reconciliation: 0
+    providers: 0, posts: 0, community_posts: 0, feedbacks: 0, requests: 0, members: 0, banners: 0, create_admin: 0, fee_reconciliation: 0
   });
 
   const [bannerInput, setBannerInput] = useState("");      
@@ -250,6 +252,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
   useEffect(() => {
     const unsubProviders = onSnapshot(query(collection(db, "users"), where("role", "==", "provider"), where("status", "==", "pending")), (snap) => setPendingCounts(prev => ({ ...prev, providers: snap.size })));
     const unsubPosts = onSnapshot(query(collection(db, "services"), where("status", "==", "pending")), (snap) => setPendingCounts(prev => ({ ...prev, posts: snap.size })));
+    const unsubCommunityPosts = onSnapshot(query(collection(db, "posts"), where("status", "==", "pending")), (snap) => setPendingCounts(prev => ({ ...prev, community_posts: snap.size })));
     const unsubFeedbacks = onSnapshot(query(collection(db, "feedbacks"), where("status", "!=", "done")), (snap) => setPendingCounts(prev => ({ ...prev, feedbacks: snap.size })));
     const unsubRequests = onSnapshot(query(collection(db, "support_requests")), (snap) => setPendingCounts(prev => ({ ...prev, requests: snap.size })));
     
@@ -266,7 +269,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
         }
     );
 
-    return () => { unsubProviders(); unsubPosts(); unsubFeedbacks(); unsubRequests(); unsubFees(); };
+    return () => { unsubProviders(); unsubPosts(); unsubCommunityPosts(); unsubFeedbacks(); unsubRequests(); unsubFees(); };
   }, []);
 
   // 👉 BƯỚC 2: STATE CHO TÍNH NĂNG ĐỐI SOÁT & CẤU HÌNH NGÂN HÀNG ADMIN
@@ -286,6 +289,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
         case "members": q = query(collection(db, "users"), where("role", "==", "member")); break;
         case "providers": q = query(collection(db, "users"), where("role", "==", "provider")); break;
         case "posts": q = query(collection(db, "services"), orderBy("createdAt", "desc")); break;
+        case "community_posts": q = query(collection(db, "posts"), orderBy("createdAt", "desc")); break;
         case "banners": q = query(collection(db, "banners"), orderBy("createdAt", "desc")); break;
         case "feedbacks": q = query(collection(db, "feedbacks"), orderBy("createdAt", "desc")); break;
         case "requests": q = query(collection(db, "support_requests"), orderBy("createdAt", "desc")); break;
@@ -395,9 +399,10 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
   const handleApprovePost = async (post: any) => {
     try {
       const newStatus = post.status === "approved" ? "pending" : "approved";
-      await updateDoc(doc(db, "services", post.id), { status: newStatus });
+      const colName = selectedFeature === "community_posts" ? "posts" : "services";
+      await updateDoc(doc(db, colName, post.id), { status: newStatus });
       openSnackbar({ text: "Đã cập nhật trạng thái!", type: "success" });
-      fetchData("posts"); 
+      fetchData(selectedFeature!); 
     } catch (error) { openSnackbar({ text: "Lỗi", type: "error" }); }
   };
   // 👉 BƯỚC 2: HÀM GỬI THÔNG BÁO TÙY CHỈNH CHO USER/SHOP
@@ -588,7 +593,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
     );
 
     if (loading) return <Box flex justifyContent="center" p={4}><Spinner /></Box>;
-    if (dataList.length === 0 && !["banners", "posts", "providers", "settings", "vouchers"].includes(selectedFeature || "")) return <Box p={4}><Text className="text-center text-gray">Không có dữ liệu.</Text></Box>;
+    if (dataList.length === 0 && !["banners", "posts", "community_posts", "providers", "settings", "vouchers"].includes(selectedFeature || "")) return <Box p={4}><Text className="text-center text-gray">Không có dữ liệu.</Text></Box>;
 
     switch (selectedFeature) {
       case "members": {
@@ -796,6 +801,8 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
         );
       }
         case "posts": 
+        case "community_posts": {
+        const colName = selectedFeature === "community_posts" ? "posts" : "services";
         const poPending = dataList.filter(p => p.status === 'pending');
         const poApproved = dataList.filter(p => p.status === 'approved');
         const poDisplay = postTab === 'pending' ? poPending : poApproved;
@@ -806,9 +813,36 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                 <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${postTab==="approved"?"border-green-600 text-green-600 font-bold":"border-transparent text-gray-500"}`} onClick={()=>setPostTab("approved")}>Đã duyệt ({poApproved.length})</Box>
             </Box>
             {poDisplay.length===0 && <Text size="small" className="text-center text-gray mt-4">Trống.</Text>}
-            {poDisplay.map((p) => (<Box key={p.id} className="mb-3 p-3 border rounded-lg bg-white shadow-md"><Box flex className="mb-2"><img src={p.image||"https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png"} className="w-16 h-16 rounded object-cover mr-3 bg-gray-200"/><Box className="flex-1"><Text bold size="small" className="line-clamp-2">{p.title}</Text><Text size="xxSmall" className="text-gray">{p.shopName}</Text><Text size="xxSmall" className="text-gray">{formatDate(p.createdAt)}</Text></Box></Box><Box flex justifyContent="space-between" alignItems="center"><Text size="xxSmall" className="text-red-500 cursor-pointer" onClick={() => handleDeleteItem("services", p.id)}><CustomIcon icon="zi-delete"/> Xóa</Text><Button size="small" variant={p.status==="approved"?"secondary":"primary"} onClick={() => handleApprovePost(p)}>{p.status==="approved"?"Ẩn":"Duyệt"}</Button></Box></Box>))}
+            {poDisplay.map((p) => {
+              const displayImage = selectedFeature === "community_posts" 
+                ? (p.images && p.images[0] ? p.images[0] : "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png")
+                : (p.image || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png");
+              const displayTitle = selectedFeature === "community_posts" ? p.content : p.title;
+              const displaySubtitle = selectedFeature === "community_posts" ? (p.authorName || "Người dùng") : p.shopName;
+              return (
+                <Box key={p.id} className="mb-3 p-3 border rounded-lg bg-white shadow-md">
+                  <Box flex className="mb-2">
+                    <img src={displayImage} className="w-16 h-16 rounded object-cover mr-3 bg-gray-200"/>
+                    <Box className="flex-1">
+                      <Text bold size="small" className="line-clamp-2">{displayTitle}</Text>
+                      <Text size="xxSmall" className="text-gray">{displaySubtitle}</Text>
+                      <Text size="xxSmall" className="text-gray">{formatDate(p.createdAt)}</Text>
+                    </Box>
+                  </Box>
+                  <Box flex justifyContent="space-between" alignItems="center">
+                    <Text size="xxSmall" className="text-red-500 cursor-pointer" onClick={() => handleDeleteItem(colName, p.id)}>
+                      <CustomIcon icon="zi-delete"/> Xóa
+                    </Text>
+                    <Button size="small" variant={p.status==="approved"?"secondary":"primary"} onClick={() => handleApprovePost(p)}>
+                      {p.status==="approved"?"Ẩn":"Duyệt"}
+                    </Button>
+                  </Box>
+                </Box>
+              );
+            })}
           </Box>
         );
+      }
       case "banners": return (
           <Box>
              <Box className="bg-gray-50 p-3 rounded-lg mb-6 border border-gray-200"><Text size="small" bold className="mb-2">Thêm Banner</Text><Box mb={2}><Input placeholder="Link ảnh" value={bannerInput} onChange={(e)=>setBannerInput(e.target.value)}/></Box><Box mb={2}><Input placeholder="Link điều hướng" value={bannerLinkInput} onChange={(e)=>setBannerLinkInput(e.target.value)}/></Box><Button fullWidth onClick={handleAddBanner}>Đăng</Button></Box>
@@ -1700,6 +1734,68 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                 </Box>
             </Box>
         </Modal>
+    </Box>
+  );
+};
+
+export const AdminDashboardPage: FC = () => {
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [userData, setUserData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  const { openSnackbar } = useSnackbar();
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        setCurrentUser(user);
+        try {
+          const docRef = doc(db, "users", user.uid);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data.role === "admin") {
+              setUserData(data);
+            } else {
+              openSnackbar({ text: "Bạn không có quyền truy cập trang này!", type: "error" });
+              navigate("/");
+            }
+          } else {
+            navigate("/");
+          }
+        } catch (e) {
+          console.error(e);
+          navigate("/");
+        }
+      } else {
+        openSnackbar({ text: "Vui lòng đăng nhập tài khoản Admin!", type: "warning" });
+        navigate("/");
+      }
+      setLoading(false);
+    });
+    return unsub;
+  }, [navigate]);
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    navigate("/");
+  };
+
+  if (loading) {
+    return (
+      <Box className="flex justify-center items-center h-screen bg-gray-50">
+        <Spinner />
+      </Box>
+    );
+  }
+
+  if (!userData) {
+    return null;
+  }
+
+  return (
+    <Box className="h-screen overflow-hidden">
+      <AdminView userData={userData} onLogout={handleLogout} />
     </Box>
   );
 };

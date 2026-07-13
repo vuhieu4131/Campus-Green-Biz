@@ -1,3 +1,4 @@
+import CustomIcon from './custom-icon';
 import React, { FC, MouseEventHandler, ReactNode } from "react";
 import { Box, Icon, Text } from "zmp-ui";
 
@@ -18,7 +19,7 @@ export const ListItem: FC<ListItemProps> = ({ title, subtitle, onClick }) => {
           {subtitle}
         </Text>
       </Box>
-      <Icon icon="zi-chevron-right" />
+      <CustomIcon icon="zi-chevron-right" />
     </Box>
   );
 };

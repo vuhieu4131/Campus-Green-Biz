@@ -1,4 +1,4 @@
-import { atom, selector, selectorFamily } from "recoil";
+import { atom, selector, selectorFamily, AtomEffect } from "recoil";
 import { getLocation, getPhoneNumber, getUserInfo } from "zmp-sdk";
 import logo from "static/logo.png";
 import { Category } from "types/category";
@@ -68,9 +68,33 @@ export const productsByCategoryState = selectorFamily<Product[], string>({
     },
 });
 
+const localStorageEffect =
+  <T>(key: string): AtomEffect<T> =>
+  ({ setSelf, onSet }) => {
+    try {
+      const savedValue = localStorage.getItem(key);
+      if (savedValue != null) {
+        setSelf(JSON.parse(savedValue));
+      }
+    } catch (e) {
+      console.warn("Could not load from localStorage", e);
+    }
+
+    onSet((newValue, _, isReset) => {
+      try {
+        isReset
+          ? localStorage.removeItem(key)
+          : localStorage.setItem(key, JSON.stringify(newValue));
+      } catch (e) {
+        console.warn("Could not save to localStorage", e);
+      }
+    });
+  };
+
 export const cartState = atom<Cart>({
   key: "cart",
   default: [],
+  effects_UNSTABLE: [localStorageEffect<Cart>("cart")],
 });
 
 export const totalQuantityState = selector({
@@ -110,6 +134,7 @@ export const notificationsState = atom<Notification[]>({
       content: "Nhập WELCOME để được giảm 50% giá trị đơn hàng đầu tiên order",
     },
   ],
+  effects_UNSTABLE: [localStorageEffect<Notification[]>("notifications")],
 });
 
 export const keywordState = atom({
