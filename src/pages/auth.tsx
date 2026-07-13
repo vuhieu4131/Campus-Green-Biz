@@ -19,8 +19,8 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
   const userInfo = userInfoLoadable.state === "hasValue" ? userInfoLoadable.contents : null;
 
   const [formType, setFormType] = useState<"login" | "register">("login");
-  const [phone, setPhone] = useState("");
-  const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("0000869131");
+  const [password, setPassword] = useState("123456");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [referralCode, setReferralCode] = useState("");
@@ -31,9 +31,49 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
   const handleLoginSubmit = async () => {
     // Luồng cho Admin cứng
     if (phone === "0000869131" && password === "123456") {
-      onClose(); 
-      navigate("/admin");
-      return;
+      try {
+        const email = "0000869131@campus.com";
+        let userCredential;
+        try {
+          userCredential = await signInWithEmailAndPassword(auth, email, password);
+        } catch (signInErr: any) {
+          // Thử tạo mới nếu chưa tồn tại
+          try {
+            userCredential = await createUserWithEmailAndPassword(auth, email, password);
+          } catch (createErr: any) {
+            if (createErr.code === "auth/email-already-in-use") {
+              userCredential = await signInWithEmailAndPassword(auth, email, password);
+            } else {
+              throw createErr;
+            }
+          }
+        }
+
+        const uid = userCredential.user.uid;
+        // Đảm bảo document của admin tồn tại trong Firestore users collection với role: admin
+        const adminRef = doc(db, "users", uid);
+        const adminSnap = await getDoc(adminRef);
+        if (!adminSnap.exists()) {
+          await setDoc(adminRef, {
+            phone: "0000869131",
+            fullName: "Admin Hệ thống",
+            role: "admin",
+            avatar: "https://img.icons8.com/color/48/administrator-male.png",
+            createdAt: new Date().toISOString()
+          });
+        } else if (adminSnap.data().role !== "admin") {
+          await setDoc(adminRef, { role: "admin" }, { merge: true });
+        }
+
+        localStorage.setItem("isAdminBypass", "true");
+        onClose(); 
+        navigate("/admin-dashboard");
+        return;
+      } catch (error: any) {
+        console.error("Lỗi xác thực admin cứng:", error);
+        alert("Đăng nhập Admin thất bại. Lỗi: " + error.message);
+        return;
+      }
     }
 
     try {

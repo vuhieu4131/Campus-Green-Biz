@@ -1,6 +1,6 @@
 import CustomIcon from '../custom-icon';
 import React, { FC, useState, useEffect } from "react";
-import { Box, Text, Icon, Modal, Avatar, Button, Input, useSnackbar, Spinner, Select, Switch, useNavigate } from "zmp-ui";
+import { Box, Text, Icon, Modal, Avatar, Button, Input, useSnackbar, Spinner, Select, Switch, useNavigate, Page } from "zmp-ui";
 import { collection, query, where, getDocs, doc, updateDoc, deleteDoc, orderBy, addDoc, serverTimestamp, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 import { db, auth } from "../../firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
@@ -52,6 +52,7 @@ export const AdminView: FC<AdminProps> = ({ userData, onLogout }) => {
   const [creatingAdmin, setCreatingAdmin] = useState(false);
 
   const [detailUser, setDetailUser] = useState<any>(null);
+  const [detailItem, setDetailItem] = useState<any>(null);
   // 👉 BƯỚC 1: BỔ SUNG STATE CHO TÌM KIẾM VÀ LỌC THÀNH VIÊN/SHOP
   const [searchQuery, setSearchQuery] = useState("");
   const [sortFilter, setSortFilter] = useState("all");
@@ -250,7 +251,10 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
 };
   // 👉 BƯỚC 2: CÀI ĐẶT LẮNG NGHE SHOP BÁO CÁO CHUYỂN KHOẢN
   useEffect(() => {
-    const unsubProviders = onSnapshot(query(collection(db, "users"), where("role", "==", "provider"), where("status", "==", "pending")), (snap) => setPendingCounts(prev => ({ ...prev, providers: snap.size })));
+    const unsubProviders = onSnapshot(collection(db, "shops"), (snap) => {
+      const pendingCount = snap.docs.filter(doc => doc.data().status === "pending" || !doc.data().status).length;
+      setPendingCounts(prev => ({ ...prev, providers: pendingCount }));
+    });
     const unsubPosts = onSnapshot(query(collection(db, "services"), where("status", "==", "pending")), (snap) => setPendingCounts(prev => ({ ...prev, posts: snap.size })));
     const unsubCommunityPosts = onSnapshot(query(collection(db, "posts"), where("status", "==", "pending")), (snap) => setPendingCounts(prev => ({ ...prev, community_posts: snap.size })));
     const unsubFeedbacks = onSnapshot(query(collection(db, "feedbacks"), where("status", "!=", "done")), (snap) => setPendingCounts(prev => ({ ...prev, feedbacks: snap.size })));
@@ -286,10 +290,10 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
     try {
       let q;
       switch (featureId) {
-        case "members": q = query(collection(db, "users"), where("role", "==", "member")); break;
-        case "providers": q = query(collection(db, "users"), where("role", "==", "provider")); break;
-        case "posts": q = query(collection(db, "services"), orderBy("createdAt", "desc")); break;
-        case "community_posts": q = query(collection(db, "posts"), orderBy("createdAt", "desc")); break;
+        case "members": q = query(collection(db, "users")); break;
+        case "providers": q = query(collection(db, "shops")); break;
+        case "posts": q = query(collection(db, "services")); break;
+        case "community_posts": q = query(collection(db, "posts")); break;
         case "banners": q = query(collection(db, "banners"), orderBy("createdAt", "desc")); break;
         case "feedbacks": q = query(collection(db, "feedbacks"), orderBy("createdAt", "desc")); break;
         case "requests": q = query(collection(db, "support_requests"), orderBy("createdAt", "desc")); break;
@@ -352,6 +356,22 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
             
             // Cập nhật vào state riêng
             setPaidDataList(Object.values(groupedPaidByShop));
+        } else if (featureId === "members") {
+            const membersList = rawData.filter(u => u.role !== "admin" && u.role !== "provider" && u.role !== "distributor");
+            membersList.sort((a: any, b: any) => {
+                const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                return timeB - timeA;
+            });
+            setDataList(membersList);
+        } else if (featureId === "posts" || featureId === "community_posts") {
+            const sortedList = [...rawData];
+            sortedList.sort((a: any, b: any) => {
+                const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                return timeB - timeA;
+            });
+            setDataList(sortedList);
         } else {
             setDataList(rawData);
         }
@@ -398,7 +418,8 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
   // --- LOGIC XỬ LÝ ---
   const handleApprovePost = async (post: any) => {
     try {
-      const newStatus = post.status === "approved" ? "pending" : "approved";
+      const isApproved = post.status === "approved" || !post.status;
+      const newStatus = isApproved ? "pending" : "approved";
       const colName = selectedFeature === "community_posts" ? "posts" : "services";
       await updateDoc(doc(db, colName, post.id), { status: newStatus });
       openSnackbar({ text: "Đã cập nhật trạng thái!", type: "success" });
@@ -557,7 +578,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
   const handleToggleProviderStatus = async (item: any) => {
     try {
       const newStatus = item.status === "active" ? "pending" : "active";
-      await updateDoc(doc(db, "users", item.id), { status: newStatus });
+      await updateDoc(doc(db, "shops", item.id), { status: newStatus });
       openSnackbar({ text: "Đã cập nhật!", type: "success" });
       fetchData("providers"); 
     } catch (error) { openSnackbar({ text: "Lỗi", type: "error" }); }
@@ -712,7 +733,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
             processedList.sort((a, b) => (b._orderCount || 0) - (a._orderCount || 0));
         }
 
-        const pPending = processedList.filter(p => p.status === 'pending');
+        const pPending = processedList.filter(p => p.status === 'pending' || !p.status);
         const pActive = processedList.filter(p => p.status === 'active');
         const pDisplay = providerTab === 'pending' ? pPending : pActive;
 
@@ -787,7 +808,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                         )}
 
                         <Box flex className="gap-2">
-                            <Button className="flex-1 bg-white text-red-600 border border-red-200" size="small" onClick={() => handleDeleteItem("users", p.id)}>
+                            <Button className="flex-1 bg-white text-red-600 border border-red-200" size="small" onClick={() => handleDeleteItem("shops", p.id)}>
                                 Xóa
                             </Button>
                             <Button className="flex-1" size="small" variant={p.status==="active"?"secondary":"primary"} onClick={() => handleToggleProviderStatus(p)}>
@@ -804,7 +825,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
         case "community_posts": {
         const colName = selectedFeature === "community_posts" ? "posts" : "services";
         const poPending = dataList.filter(p => p.status === 'pending');
-        const poApproved = dataList.filter(p => p.status === 'approved');
+        const poApproved = dataList.filter(p => p.status === 'approved' || !p.status);
         const poDisplay = postTab === 'pending' ? poPending : poApproved;
         return (
           <Box p={4} className="bg-white h-full">
@@ -821,7 +842,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
               const displaySubtitle = selectedFeature === "community_posts" ? (p.authorName || "Người dùng") : p.shopName;
               return (
                 <Box key={p.id} className="mb-3 p-3 border rounded-lg bg-white shadow-md">
-                  <Box flex className="mb-2">
+                  <Box flex className="mb-2 cursor-pointer active:opacity-75" onClick={() => setDetailItem(p)}>
                     <img src={displayImage} className="w-16 h-16 rounded object-cover mr-3 bg-gray-200"/>
                     <Box className="flex-1">
                       <Text bold size="small" className="line-clamp-2">{displayTitle}</Text>
@@ -833,8 +854,8 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                     <Text size="xxSmall" className="text-red-500 cursor-pointer" onClick={() => handleDeleteItem(colName, p.id)}>
                       <CustomIcon icon="zi-delete"/> Xóa
                     </Text>
-                    <Button size="small" variant={p.status==="approved"?"secondary":"primary"} onClick={() => handleApprovePost(p)}>
-                      {p.status==="approved"?"Ẩn":"Duyệt"}
+                    <Button size="small" variant={(p.status==="approved" || !p.status)?"secondary":"primary"} onClick={() => handleApprovePost(p)}>
+                      {(p.status==="approved" || !p.status)?"Ẩn":"Duyệt"}
                     </Button>
                   </Box>
                 </Box>
@@ -1577,6 +1598,105 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
             </Box>
         )}
       </Modal>
+
+      {/* MODAL CHI TIẾT SẢN PHẨM / BÀI VIẾT COMMUNITY */}
+      <Modal 
+        visible={!!detailItem} 
+        title={selectedFeature === "community_posts" ? "Chi tiết bài viết" : "Chi tiết sản phẩm / dịch vụ"} 
+        onClose={() => setDetailItem(null)} 
+        actions={[{ text: "Đóng", onClick: () => setDetailItem(null), highLight: true }]}
+      >
+        {detailItem && (
+          <Box p={4} className="max-h-[70vh] overflow-y-auto hide-scroll">
+            {selectedFeature === "community_posts" ? (
+              // Chi tiết bài viết MXH
+              <Box>
+                {/* Tác giả & Ngày đăng */}
+                <Box flex alignItems="center" mb={3}>
+                  <Avatar src="https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png" size={40} />
+                  <Box ml={2}>
+                    <Text bold size="small" className="text-gray-800">{detailItem.authorName || "Người dùng ẩn danh"}</Text>
+                    <Text size="xxSmall" className="text-gray-400">{formatDate(detailItem.createdAt)}</Text>
+                  </Box>
+                </Box>
+                
+                {/* Trạng thái bài viết */}
+                <Box mb={3}>
+                  <Text size="xxSmall" className={`px-2 py-0.5 rounded-full font-bold border inline-block ${detailItem.status === 'approved' || !detailItem.status ? 'text-green-600 bg-green-50 border-green-200' : 'text-yellow-600 bg-yellow-50 border-yellow-200'}`}>
+                    {detailItem.status === 'approved' || !detailItem.status ? 'Đã duyệt' : 'Chờ duyệt'}
+                  </Text>
+                </Box>
+
+                {/* Nội dung bài viết */}
+                <Box className="bg-gray-50 p-4 rounded-xl border border-gray-100 mb-4">
+                  <Text size="small" className="text-gray-700 whitespace-pre-wrap break-words leading-relaxed">
+                    {detailItem.content}
+                  </Text>
+                </Box>
+
+                {/* Ảnh bài viết */}
+                {detailItem.images && detailItem.images.length > 0 && (
+                  <Box className="grid grid-cols-2 gap-2">
+                    {detailItem.images.map((img: string, idx: number) => (
+                      <Box key={idx} className="rounded-lg overflow-hidden border border-gray-100 shadow-sm">
+                        <img src={img} className="w-full h-32 object-cover" alt={`post-img-${idx}`} />
+                      </Box>
+                    ))}
+                  </Box>
+                )}
+              </Box>
+            ) : (
+              // Chi tiết sản phẩm/dịch vụ
+              <Box>
+                {/* Ảnh chính */}
+                <Box className="rounded-xl overflow-hidden border border-gray-200 shadow-md mb-4 flex justify-center bg-gray-50">
+                  <img 
+                    src={detailItem.image || (detailItem.images && detailItem.images[0]) || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png"} 
+                    className="max-h-48 object-contain" 
+                    alt="product" 
+                  />
+                </Box>
+
+                {/* Tiêu đề & Cửa hàng */}
+                <Box mb={3}>
+                  <Text.Title size="normal" className="text-gray-900 leading-tight mb-1">{detailItem.title}</Text.Title>
+                  <Box flex alignItems="center" className="text-gray-500">
+                    <CustomIcon icon="zi-store" size={14} className="mr-1" />
+                    <Text size="xxSmall" className="font-semibold">{detailItem.shopName || "Gian hàng"}</Text>
+                  </Box>
+                  <Text size="xxxxSmall" className="text-gray-400 mt-1">Đăng ngày: {formatDate(detailItem.createdAt)}</Text>
+                </Box>
+
+                {/* Giá cả & Trạng thái */}
+                <Box flex justifyContent="space-between" alignItems="center" className="mb-4 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                  <Box>
+                    <Text size="xxxxSmall" className="text-gray-500 uppercase tracking-wider">Giá bán</Text>
+                    <Text bold size="normal" className="text-red-600">
+                      {detailItem.price ? `${Number(detailItem.price).toLocaleString()}đ` : "Liên hệ"}
+                    </Text>
+                  </Box>
+                  <Box className="text-right">
+                    <Text size="xxxxSmall" className="text-gray-500 uppercase tracking-wider block mb-0.5">Trạng thái</Text>
+                    <Text size="xxSmall" className={`px-2 py-0.5 rounded-full font-bold border inline-block ${detailItem.status === 'approved' || !detailItem.status ? 'text-green-600 bg-green-50 border-green-200' : 'text-yellow-600 bg-yellow-50 border-yellow-200'}`}>
+                      {detailItem.status === 'approved' || !detailItem.status ? 'Đã duyệt' : 'Chờ duyệt'}
+                    </Text>
+                  </Box>
+                </Box>
+
+                {/* Mô tả sản phẩm */}
+                <Box className="mb-4">
+                  <Text bold size="small" className="text-gray-800 mb-1.5 block">Mô tả sản phẩm</Text>
+                  <Box className="bg-gray-50 p-3.5 rounded-xl border border-gray-100">
+                    <Text size="small" className="text-gray-600 whitespace-pre-wrap break-words leading-relaxed">
+                      {detailItem.description || "Không có mô tả cho sản phẩm/dịch vụ này."}
+                    </Text>
+                  </Box>
+                </Box>
+              </Box>
+            )}
+          </Box>
+        )}
+      </Modal>
       {/* 👉 BƯỚC 4: GIAO DIỆN MODAL SOẠN THÔNG BÁO */}
       <Modal 
           visible={showNotifyModal} 
@@ -1746,6 +1866,19 @@ export const AdminDashboardPage: FC = () => {
   const { openSnackbar } = useSnackbar();
 
   useEffect(() => {
+    // Kiểm tra cờ bypass dành cho Admin cứng
+    if (localStorage.getItem("isAdminBypass") === "true") {
+      setUserData({
+        id: "0000869131",
+        phone: "0000869131",
+        name: "Admin Hệ thống",
+        role: "admin",
+        avatar: "https://img.icons8.com/color/48/administrator-male.png"
+      });
+      setLoading(false);
+      return;
+    }
+
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setCurrentUser(user);
@@ -1777,6 +1910,7 @@ export const AdminDashboardPage: FC = () => {
   }, [navigate]);
 
   const handleLogout = async () => {
+    localStorage.removeItem("isAdminBypass");
     await signOut(auth);
     navigate("/");
   };
@@ -1794,8 +1928,8 @@ export const AdminDashboardPage: FC = () => {
   }
 
   return (
-    <Box className="h-screen overflow-hidden">
+    <Page className="bg-gray-50 overflow-y-auto pb-10">
       <AdminView userData={userData} onLogout={handleLogout} />
-    </Box>
+    </Page>
   );
 };
