@@ -187,12 +187,14 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
     try {
       await updateDoc(doc(db, "posts", data.id), {
         content: editContent.trim(),
-        privacy: editPrivacy
+        privacy: editPrivacy,
+        status: "pending" // Bắt buộc chuyển về pending để admin duyệt lại
       });
       data.content = editContent.trim();
       data.privacy = editPrivacy;
+      data.status = "pending"; // Cập nhật local
       setIsEditing(false);
-      openSnackbar({ text: "Đã lưu thay đổi", type: "success" });
+      openSnackbar({ text: "Đã lưu và gửi yêu cầu phê duyệt lại", type: "success" });
     } catch (error) {
       openSnackbar({ text: "Lỗi khi lưu bài viết", type: "error" });
     }
@@ -261,6 +263,11 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
             ) : (
               <Text size="xxSmall" className="text-gray-500">
                 {timeString} • {data.privacy || "Công khai"}
+                {data.authorId === currentUser?.uid && (
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ml-2 ${data.status === 'pending' ? 'bg-yellow-500 text-white' : 'bg-green-600 text-white'}`}>
+                    {data.status === 'pending' ? 'Chờ duyệt' : 'Đã duyệt'}
+                  </span>
+                )}
               </Text>
             )}
           </Box>

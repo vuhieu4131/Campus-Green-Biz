@@ -340,6 +340,11 @@ const NewMemberView: FC<{
                     <span className="text-[#a68c4d] inline-flex"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg></span>
                   </Box>
                 )}
+                {!isOtherProfile && post.status === "pending" && (
+                  <Box className="absolute bottom-1 right-1 bg-yellow-500 text-white text-[9px] px-1 py-0.5 rounded font-bold shadow-md z-10">
+                    Chờ duyệt
+                  </Box>
+                )}
               </Box>
             ))
           )}

@@ -15,9 +15,10 @@ const PostPage: React.FunctionComponent = () => {
   const navigate = useNavigate();
   const { openSnackbar } = useSnackbar();
   // 👇 THÊM MỚI: Lấy ID và Dữ liệu từ nút Chỉnh sửa truyền sang
-  const { id } = useParams(); 
+  const { id: paramId } = useParams(); 
   const location = useLocation();
   const editingPost = location.state?.product; // Đây chính là dữ liệu item truyền từ trang Chi tiết
+  const id = paramId || editingPost?.id;
   const [loading, setLoading] = useState(false);
   
   const [myLocations, setMyLocations] = useState<any[]>([]);
@@ -304,6 +305,7 @@ const handleRemoveVideo = () => {
         // Cập nhật dữ liệu
         await updateDoc(docRef, {
             ...postData,
+            status: "pending", // Bắt buộc chuyển về pending để admin duyệt lại
             updatedAt: serverTimestamp(), // Hàm của Firebase để tự động ghi nhận giờ sửa
         });
         openSnackbar({ text: "Cập nhật bài viết thành công!", type: "success", position: "top" });
