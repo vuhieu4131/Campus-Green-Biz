@@ -1,12 +1,13 @@
-import React, { FC } from "react";
-import { Box, Header, Icon, Page, Text } from "zmp-ui";
+import React, { FC, useState } from "react";
+import { Box, Header, Icon, Page, Text, Button } from "zmp-ui";
 import subscriptionDecor from "static/subscription-decor.svg";
 import { ListRenderer } from "components/list-renderer";
 import { useToBeImplemented } from "hooks";
 import { useRecoilCallback } from "recoil";
 import { userState } from "state";
+import { AdminView } from "../components/profile-modules/admin-view";
 
-const Subscription: FC = () => {
+const Subscription: FC<{ onLoginAdmin: () => void }> = ({ onLoginAdmin }) => {
   const requestUserInfo = useRecoilCallback(
     ({ snapshot }) =>
       async () => {
@@ -19,18 +20,27 @@ const Subscription: FC = () => {
   );
 
   return (
-    <Box className="m-4" onClick={requestUserInfo}>
+    <Box className="m-4">
       <Box
-        className="bg-green text-white rounded-xl p-4 space-y-2"
+        className="bg-green text-white rounded-xl p-4 space-y-2 mb-4"
         style={{
           backgroundImage: `url(${subscriptionDecor})`,
           backgroundPosition: "right 8px center",
           backgroundRepeat: "no-repeat",
         }}
+        onClick={requestUserInfo}
       >
         <Text.Title className="font-bold">Đăng ký thành viên</Text.Title>
         <Text size="xxSmall">Tích điểm đổi thưởng, mở rộng tiện ích</Text>
       </Box>
+      <Button 
+        fullWidth 
+        variant="secondary"
+        onClick={onLoginAdmin}
+        className="bg-blue-600 text-white font-bold"
+      >
+        Đăng nhập với quyền Admin
+      </Button>
     </Box>
   );
 };
@@ -114,10 +124,20 @@ const Other: FC = () => {
 };
 
 const ProfilePage: FC = () => {
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  if (isAdmin) {
+    return (
+      <Page className="relative overflow-y-auto">
+        <AdminView userData={{ name: "Admin", role: "admin" }} onLogout={() => setIsAdmin(false)} />
+      </Page>
+    );
+  }
+
   return (
-    <Page>
+    <Page className="relative overflow-y-auto">
       <Header showBackIcon={false} title="&nbsp;" />
-      <Subscription />
+      <Subscription onLoginAdmin={() => setIsAdmin(true)} />
       <Personal />
       <Other />
     </Page>
