@@ -110,16 +110,55 @@ const CreatePostPage: FC = () => {
         });
         openSnackbar({ text: "Đã đăng sản phẩm thành công!", type: "success" });
       } else {
-        await addDoc(collection(db, "posts"), {
+        let authorName = currentUser.email?.split('@')[0] || "Người dùng";
+        let authorAvatar = currentUser.photoURL || "https://i.pravatar.cc/150?img=11";
+        
+        try {
+          const userDocSnap = await getDoc(doc(db, "users", currentUser.uid));
+          if (userDocSnap.exists()) {
+            const userData = userDocSnap.data();
+            if (userData.name) authorName = userData.name;
+            if (userData.avatar) authorAvatar = userData.avatar;
+          }
+        } catch (e) {
+          console.error("Lỗi lấy thông tin người dùng từ Firestore:", e);
+        }
+
+        const postRef = await addDoc(collection(db, "posts"), {
           authorId: currentUser.uid,
+          authorName: authorName,
+          authorAvatar: authorAvatar,
           content: content.trim(),
           images: uploadedImageUrls,
           privacy: privacy,
           createdAt: serverTimestamp(),
           likesCount: 0,
-          commentsCount: 0
+          commentsCount: 0,
+          status: "pending"
         });
-        openSnackbar({ text: "Đã đăng bài thành công!", type: "success" });
+
+        // Gửi thông báo đến tất cả các Admin
+        try {
+          const qAdmins = query(collection(db, "users"), where("role", "==", "admin"));
+          const adminSnap = await getDocs(qAdmins);
+          
+          const notifyPromises = adminSnap.docs.map(adminDoc => {
+            return addDoc(collection(db, "notifications"), {
+              userId: adminDoc.id,
+              title: "Bài viết mới chờ duyệt 📝",
+              content: `Người dùng "${authorName}" vừa tạo bài đăng mới (ID: ${postRef.id}) cần kiểm duyệt.`,
+              isRead: false,
+              type: "post_approval",
+              postId: postRef.id,
+              createdAt: serverTimestamp()
+            });
+          });
+          await Promise.all(notifyPromises);
+        } catch (err) {
+          console.error("Lỗi gửi thông báo cho admin:", err);
+        }
+
+        openSnackbar({ text: "Đã đăng bài thành công! Vui lòng chờ duyệt.", type: "success" });
       }
       navigate(-1);
     } catch (error) {
@@ -172,7 +211,8 @@ const CreatePostPage: FC = () => {
     <Page className="bg-white flex flex-col h-screen">
       {/* Custom Header */}
       <Box className="flex justify-between items-center px-4 py-3 border-b border-gray-100 bg-white shadow-sm z-10">
-        <Icon icon="zi-close" className="text-2xl cursor-pointer" onClick={() => navigate(-1)} />
+      {/* @ts-ignore */}
+<Icon icon="zi-close" className="text-2xl cursor-pointer" onClick={() => navigate(-1)} />
         <Text.Title className="font-bold text-lg text-[#14502e]">{userRole === 'provider' ? 'Tạo sản phẩm' : 'Tạo bài đăng'}</Text.Title>
         <Button 
           size="small" 
@@ -312,12 +352,13 @@ const CreatePostPage: FC = () => {
         >
           <Box className="p-4 border-b border-gray-100 text-center font-bold relative">
             <Text>Ai có thể xem bài viết này?</Text>
-            <Icon icon="zi-close" className="absolute right-4 top-4 text-xl cursor-pointer" onClick={() => setShowPrivacySheet(false)} />
+            {/* @ts-ignore */}
+<Icon icon="zi-close" className="absolute right-4 top-4 text-xl cursor-pointer" onClick={() => setShowPrivacySheet(false)} />
           </Box>
           <Box className="p-2 pb-6">
             <Box className="flex items-center justify-between p-4 cursor-pointer active:bg-gray-100 rounded-xl" onClick={() => { setPrivacy("Công khai"); setShowPrivacySheet(false); }}>
               <Box className="flex items-center space-x-3">
-                <Icon icon="zi-earth" className="text-2xl text-gray-500" />
+                <Icon icon={"zi-earth" as any} className="text-2xl text-gray-500" />
                 <Box>
                   <Text className="font-medium text-gray-800">Công khai</Text>
                   <Text size="xSmall" className="text-gray-500">Mọi người trên và ngoài Campus</Text>

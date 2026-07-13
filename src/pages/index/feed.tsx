@@ -26,8 +26,11 @@ export const FeedList: FC = () => {
         ...doc.data()
       })) as RawPost[];
 
+      // Lọc bỏ bài viết đang chờ duyệt (bảo toàn bài viết cũ không có trường status)
+      const approvedPosts = rawData.filter(post => post.status !== "pending");
+
       // Xếp hạng bằng Edge Ranker tại Client
-      const sorted = sortPostsOnEdge(rawData);
+      const sorted = sortPostsOnEdge(approvedPosts);
       setPosts(sorted);
     } catch (error) {
       console.error("Lỗi tải bảng tin:", error);

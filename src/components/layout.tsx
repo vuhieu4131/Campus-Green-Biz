@@ -11,7 +11,7 @@ import SearchPage from "pages/search";
 import CheckoutResultPage from "pages/result";
 
 import StorePage from "pages/store";
-import AdminDashboardPage from "pages/admin-dashboard";
+import { AdminDashboardPage } from "./profile-modules/admin-view";
 import SettingsPage from "pages/settings";
 import AccountInfoPage from "pages/account-info";
 import WalletPage from "pages/wallet";

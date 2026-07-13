@@ -13,6 +13,7 @@ export interface RawPost {
   hasShoppableTags?: boolean;
   isPinned?: boolean;
   likedBy?: string[];
+  status?: string;
 }
 
 export const sortPostsOnEdge = (posts: RawPost[]): RawPost[] => {
