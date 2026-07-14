@@ -20,9 +20,6 @@ const CreatePostPage: FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
   const [userRole, setUserRole] = useState<string>("user"); // 'user' hoặc 'provider'
   
-  const [productName, setProductName] = useState("");
-  const [productPrice, setProductPrice] = useState("");
-  
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
@@ -64,16 +61,9 @@ const CreatePostPage: FC = () => {
       return;
     }
 
-    if (userRole === "provider") {
-      if (!productName.trim() || !productPrice.trim() || images.length === 0) {
-        openSnackbar({ text: "Vui lòng nhập tên, giá và ảnh sản phẩm!", type: "error" });
-        return;
-      }
-    } else {
-      if (!content.trim() && images.length === 0) {
-        openSnackbar({ text: "Vui lòng nhập nội dung hoặc hình ảnh!", type: "error" });
-        return;
-      }
+    if (!content.trim() && images.length === 0) {
+      openSnackbar({ text: "Vui lòng nhập nội dung hoặc hình ảnh!", type: "error" });
+      return;
     }
 
     setIsPosting(true);
@@ -98,33 +88,11 @@ const CreatePostPage: FC = () => {
           uploadedImageUrls.push(img.url);
         }
       }
-
-      if (userRole === "provider") {
-        await addDoc(collection(db, "products"), {
-          shopId: currentUser.uid,
-          name: productName.trim(),
-          price: Number(productPrice),
-          images: uploadedImageUrls,
-          status: "active",
-          createdAt: serverTimestamp(),
-        });
-        openSnackbar({ text: "Đã đăng sản phẩm thành công!", type: "success" });
-      } else {
-        let authorName = currentUser.email?.split('@')[0] || "Người dùng";
-        let authorAvatar = currentUser.photoURL || "https://i.pravatar.cc/150?img=11";
-        
-        try {
-          const userDocSnap = await getDoc(doc(db, "users", currentUser.uid));
-          if (userDocSnap.exists()) {
-            const userData = userDocSnap.data();
-            if (userData.name) authorName = userData.name;
-            if (userData.avatar) authorAvatar = userData.avatar;
-          }
-        } catch (e) {
-          console.error("Lỗi lấy thông tin người dùng từ Firestore:", e);
-        }
-
-        const postRef = await addDoc(collection(db, "posts"), {
+        // 1. Khai báo và lấy thông tin người dùng an toàn trước khi lưu vào cơ sở dữ liệu
+        const authorName = currentUser?.displayName || currentUser?.email?.split('@')[0] || "Người dùng";
+        const authorAvatar = currentUser?.photoURL || "https://i.pravatar.cc/150?img=11"; // Ảnh mặc định nếu user chưa có avatar
+        // 2. Thực hiện lưu dữ liệu (giữ nguyên cấu trúc của bạn)
+        await addDoc(collection(db, "posts"), {
           authorId: currentUser.uid,
           authorName: authorName,
           authorAvatar: authorAvatar,
@@ -136,30 +104,7 @@ const CreatePostPage: FC = () => {
           commentsCount: 0,
           status: "pending"
         });
-
-        // Gửi thông báo đến tất cả các Admin
-        try {
-          const qAdmins = query(collection(db, "users"), where("role", "==", "admin"));
-          const adminSnap = await getDocs(qAdmins);
-          
-          const notifyPromises = adminSnap.docs.map(adminDoc => {
-            return addDoc(collection(db, "notifications"), {
-              userId: adminDoc.id,
-              title: "Bài viết mới chờ duyệt 📝",
-              content: `Người dùng "${authorName}" vừa tạo bài đăng mới (ID: ${postRef.id}) cần kiểm duyệt.`,
-              isRead: false,
-              type: "post_approval",
-              postId: postRef.id,
-              createdAt: serverTimestamp()
-            });
-          });
-          await Promise.all(notifyPromises);
-        } catch (err) {
-          console.error("Lỗi gửi thông báo cho admin:", err);
-        }
-
-        openSnackbar({ text: "Đã đăng bài thành công! Vui lòng chờ duyệt.", type: "success" });
-      }
+        openSnackbar({ text: "Đã đăng bài thành công!", type: "success" });
       navigate(-1);
     } catch (error) {
       console.error("Lỗi đăng bài/sản phẩm:", error);
@@ -211,13 +156,18 @@ const CreatePostPage: FC = () => {
     <Page className="bg-white flex flex-col h-screen">
       {/* Custom Header */}
       <Box className="flex justify-between items-center px-4 py-3 border-b border-gray-100 bg-white shadow-sm z-10">
-      {/* @ts-ignore */}
-<Icon icon="zi-close" className="text-2xl cursor-pointer" onClick={() => navigate(-1)} />
-        <Text.Title className="font-bold text-lg text-[#14502e]">{userRole === 'provider' ? 'Tạo sản phẩm' : 'Tạo bài đăng'}</Text.Title>
+        {/* Bọc Icon trong một div để xử lý sự kiện onClick mà không bị lỗi TypeScript */}
+    <div 
+        className="cursor-pointer flex items-center justify-center" 
+        onClick={() => navigate(-1)}
+    >
+        <Icon icon="zi-close" className="text-2xl text-gray-700" />
+    </div>
+        <Text.Title className="font-bold text-lg text-[#14502e]">Tạo bài đăng</Text.Title>
         <Button 
           size="small" 
-          disabled={isPosting || (userRole === 'provider' ? (!productName.trim() || !productPrice.trim() || images.length === 0) : (!content.trim() && images.length === 0))}
-          className={`rounded-full px-4 ${(userRole === 'provider' ? (!productName.trim() || !productPrice.trim() || images.length === 0) : (!content.trim() && images.length === 0)) ? 'bg-gray-200 text-gray-400' : 'bg-[#14502e] text-white'}`}
+          disabled={isPosting || (!content.trim() && images.length === 0)}
+          className={`rounded-full px-4 ${(!content.trim() && images.length === 0) ? 'bg-gray-200 text-gray-400' : 'bg-[#14502e] text-white'}`}
           onClick={handleCreatePost}
         >
           {isPosting ? 'Đang tải...' : 'Đăng'}
@@ -248,30 +198,6 @@ const CreatePostPage: FC = () => {
 
         {/* Input Area */}
         <Box className="px-4 py-2">
-          {userRole === 'provider' ? (
-            <Box className="space-y-4 mb-4">
-              <Box>
-                <Text className="font-bold text-gray-700 mb-1">Tên sản phẩm</Text>
-                <input 
-                  type="text" 
-                  value={productName}
-                  onChange={(e) => setProductName(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-green-500" 
-                  placeholder="Ví dụ: Cà phê hữu cơ"
-                />
-              </Box>
-              <Box>
-                <Text className="font-bold text-gray-700 mb-1">Giá bán (VNĐ)</Text>
-                <input 
-                  type="number" 
-                  value={productPrice}
-                  onChange={(e) => setProductPrice(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-green-500" 
-                  placeholder="Ví dụ: 50000"
-                />
-              </Box>
-            </Box>
-          ) : (
             <textarea
               placeholder="Bạn đang nghĩ gì?"
               value={content}
@@ -280,7 +206,6 @@ const CreatePostPage: FC = () => {
               style={{ minHeight: '120px' }}
               maxLength={2000}
             />
-          )}
         </Box>
 
         {/* Image Preview Grid */}

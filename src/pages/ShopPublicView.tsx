@@ -1,8 +1,9 @@
 import React, { FC, useEffect, useState } from "react";
-import { Page, Header, Box, Text, Avatar, Button, Icon, Tabs, useSnackbar, Spinner, Modal } from "zmp-ui";
+import { Page, Header, Box, Text, Avatar, Button, Icon, Tabs, useSnackbar, Spinner, Modal, Sheet } from "zmp-ui";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
-import { db } from "../firebase";
+import { doc, getDoc, collection, query, where, getDocs, deleteDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { db, auth } from "../firebase";
+import { onAuthStateChanged } from "firebase/auth";
 import { openPhone, openChat } from "zmp-sdk/apis";
 
 const ShopPublicView: FC = () => {
@@ -25,6 +26,131 @@ const ShopPublicView: FC = () => {
   const [activeTab, setActiveTab] = useState("services");
   // 👇 STATE QUẢN LÝ ẨN/HIỆN GIÁ TIỀN 👇
   const [showPrice, setShowPrice] = useState(false);
+  const [currentUserPhone, setCurrentUserPhone] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        const phoneFromEmail = user.email ? user.email.replace("@campus.com", "") : "";
+        const localPhone = localStorage.getItem("user_phone");
+        setCurrentUserPhone(phoneFromEmail || localPhone || user.uid);
+      } else {
+        setCurrentUserPhone(null);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const isOwner = !!(
+    currentUserPhone && (
+      currentUserPhone === shop.id || 
+      currentUserPhone === shop.phone || 
+      currentUserPhone === id ||
+      currentUserPhone === shop.ownerPhone ||
+      currentUserPhone === shop.providerId
+    )
+  ) || !!(
+    auth.currentUser && (
+      auth.currentUser.uid === shop.uid ||
+      auth.currentUser.uid === shop.id ||
+      auth.currentUser.uid === id ||
+      auth.currentUser.uid === shop.providerId
+    )
+  );
+
+  const [selectedCategory, setSelectedCategory] = useState("Tất cả");
+  const [subTab, setSubTab] = useState<'approved' | 'pending' | 'rejected' | 'deleted'>('approved');
+  const [actionProduct, setActionProduct] = useState<any>(null);
+
+  useEffect(() => {
+    setSelectedCategory("Tất cả");
+  }, [subTab]);
+
+  const categoriesList = React.useMemo(() => {
+    const cats = new Set<string>();
+    cats.add("Tất cả");
+    services.forEach(item => {
+      // Chỉ lấy các danh mục của các sản phẩm tương ứng với tab hiện tại
+      if (isOwner) {
+        if (subTab === 'approved' && (item.status === 'pending' || item.status === 'rejected' || item.status === 'deleted')) return;
+        if (subTab === 'pending' && item.status !== 'pending') return;
+        if (subTab === 'rejected' && item.status !== 'rejected') return;
+        if (subTab === 'deleted' && item.status !== 'deleted') return;
+      }
+      if (item.productCategory && item.productCategory.trim()) {
+        const parts = item.productCategory.split(",");
+        parts.forEach(part => {
+          const trimmed = part.trim();
+          if (trimmed) {
+            cats.add(trimmed);
+          }
+        });
+      } else if (item.category) {
+        let catLabel = "";
+        switch (item.category) {
+          case "product": catLabel = "Sản phẩm"; break;
+          case "package": catLabel = "Dịch vụ"; break;
+          case "academy": catLabel = "Đào tạo"; break;
+          case "franchise": catLabel = "Nhượng quyền"; break;
+          default: catLabel = item.category;
+        }
+        if (catLabel) cats.add(catLabel);
+      }
+    });
+    return Array.from(cats);
+  }, [services, isOwner, subTab]);
+
+  const displayedServices = React.useMemo(() => {
+    const filtered = services.filter((item: any) => {
+      // 1. Lọc theo trạng thái kiểm duyệt (chỉ ẩn đối với khách vãng lai)
+      if (!isOwner && (item.status === "pending" || item.status === "rejected" || item.status === "deleted")) {
+        return false;
+      }
+      
+      // 2. Nếu chủ shop chia tab Đã duyệt / Chờ duyệt / Từ chối / Đã xóa
+      if (isOwner) {
+        if (subTab === 'approved') {
+          if (item.status === 'pending' || item.status === 'rejected' || item.status === 'deleted') return false;
+        } else if (subTab === 'pending') {
+          if (item.status !== 'pending') return false;
+        } else if (subTab === 'rejected') {
+          if (item.status !== 'rejected') return false;
+        } else if (subTab === 'deleted') {
+          if (item.status !== 'deleted') return false;
+        }
+      }
+
+      // 3. Lọc theo danh mục đã chọn
+      if (selectedCategory === "Tất cả") {
+        return true;
+      }
+      
+      // So khớp danh mục
+      if (item.productCategory && item.productCategory.trim()) {
+        const parts = item.productCategory.split(",").map((p: string) => p.trim().toLowerCase());
+        if (parts.includes(selectedCategory.toLowerCase())) {
+          return true;
+        }
+      }
+      
+      let catLabel = "";
+      switch (item.category) {
+        case "product": catLabel = "Sản phẩm"; break;
+        case "package": catLabel = "Dịch vụ"; break;
+        case "academy": catLabel = "Đào tạo"; break;
+        case "franchise": catLabel = "Nhượng quyền"; break;
+        default: catLabel = item.category;
+      }
+      return catLabel.toLowerCase() === selectedCategory.toLowerCase();
+    });
+
+    // Sắp xếp: Mới nhất lên đầu
+    return filtered.sort((a: any, b: any) => {
+      const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
+      const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
+      return timeB - timeA;
+    });
+  }, [services, selectedCategory, isOwner, subTab]);
 
   // 2. STATE QUẢN LÝ MODAL LIÊN HỆ (GỌI / CHAT)
   const [contactModal, setContactModal] = useState<{visible: boolean, type: 'call' | 'chat'}>({
@@ -39,40 +165,59 @@ const ShopPublicView: FC = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // 👇 1. TẢI CẤU HÌNH ADMIN (LẤY TRẠNG THÁI CÔNG TẮC GIÁ) 👇
-        const configSnap = await getDoc(doc(db, "system_config", "admin_settings"));
-        if (configSnap.exists() && configSnap.data().showPrice !== undefined) {
-            setShowPrice(configSnap.data().showPrice);
+        try {
+          const configSnap = await getDoc(doc(db, "system_config", "admin_settings"));
+          if (configSnap.exists() && configSnap.data().showPrice !== undefined) {
+              setShowPrice(configSnap.data().showPrice);
+          }
+        } catch (e) {
+          console.warn("Could not load admin config", e);
         }
         let currentShopData: any = null;
         let actualShopId = id; 
 
         // =========================================================
-        // BƯỚC 1: LẤY THÔNG TIN CỬA HÀNG TỪ BẢNG 'users'
+        // BƯỚC 1: LẤY THÔNG TIN CỬA HÀNG TỪ BẢNG 'users' VÀ 'shops'
         // =========================================================
-        const shopDoc = await getDoc(doc(db, "users", id));
+        let shopDoc = await getDoc(doc(db, "users", id));
+        if (!shopDoc.exists()) {
+           shopDoc = await getDoc(doc(db, "shops", id));
+        }
         
         if (shopDoc.exists()) {
           // Trường hợp 1: ID trên URL chính là Document ID (VD: Số điện thoại)
           currentShopData = shopDoc.data();
         } else {
-          // Trường hợp 2: ID trên URL là zaloId / providerId (Dãy số 33686...)
+          // Trường hợp 2: ID trên URL là zaloId / providerId
           const usersRef = collection(db, "users");
+          const shopsRef = collection(db, "shops");
           
-          // Tìm user có zaloId khớp với dãy số này (Dựa theo logic detail.tsx của bạn)
-          const qZalo = query(usersRef, where("zaloId", "==", id));
-          const snapZalo = await getDocs(qZalo);
+          let qZalo = query(usersRef, where("zaloId", "==", id));
+          let snapZalo = await getDocs(qZalo);
 
           if (!snapZalo.empty) {
              currentShopData = snapZalo.docs[0].data();
-             actualShopId = snapZalo.docs[0].id; // Lấy ID thật (SĐT) để dùng dự phòng
+             actualShopId = snapZalo.docs[0].id;
           } else {
-             // Tìm user có providerId khớp với dãy số này
-             const qProvider = query(usersRef, where("providerId", "==", id));
-             const snapProvider = await getDocs(qProvider);
-             if (!snapProvider.empty) {
-                 currentShopData = snapProvider.docs[0].data();
-                 actualShopId = snapProvider.docs[0].id;
+             qZalo = query(shopsRef, where("zaloId", "==", id));
+             snapZalo = await getDocs(qZalo);
+             if (!snapZalo.empty) {
+                currentShopData = snapZalo.docs[0].data();
+                actualShopId = snapZalo.docs[0].id;
+             } else {
+                 let qProvider = query(usersRef, where("providerId", "==", id));
+                 let snapProvider = await getDocs(qProvider);
+                 if (!snapProvider.empty) {
+                     currentShopData = snapProvider.docs[0].data();
+                     actualShopId = snapProvider.docs[0].id;
+                 } else {
+                     qProvider = query(shopsRef, where("providerId", "==", id));
+                     snapProvider = await getDocs(qProvider);
+                     if (!snapProvider.empty) {
+                         currentShopData = snapProvider.docs[0].data();
+                         actualShopId = snapProvider.docs[0].id;
+                     }
+                 }
              }
           }
         }
@@ -95,24 +240,49 @@ const ShopPublicView: FC = () => {
         // =========================================================
         const servicesRef = collection(db, "services");
         
-        // Dựa vào ảnh Database của bạn: trường lưu ID là 'providerId'
-        let qServ = query(servicesRef, where("providerId", "==", id));
-        let snapServ = await getDocs(qServ);
-
-        // Các phương án dự phòng (phòng khi Database lưu bằng trường khác)
-        if (snapServ.empty) {
-            qServ = query(servicesRef, where("ownerPhone", "==", actualShopId));
-            snapServ = await getDocs(qServ);
-        }
-        if (snapServ.empty) {
-            qServ = query(servicesRef, where("shopId", "==", actualShopId));
-            snapServ = await getDocs(qServ);
+        const possibleIds = new Set<string>();
+        if (id) possibleIds.add(id);
+        if (actualShopId) possibleIds.add(actualShopId);
+        if (currentShopData) {
+          if (currentShopData.phone) possibleIds.add(currentShopData.phone);
+          if (currentShopData.shopPhone) possibleIds.add(currentShopData.shopPhone);
+          if (currentShopData.ownerPhone) possibleIds.add(currentShopData.ownerPhone);
+          if (currentShopData.uid) possibleIds.add(currentShopData.uid);
         }
 
-        const list = snapServ.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
-        // Đã sửa lỗi TypeScript: ép kiểu để React chấp nhận hiển thị giá trị
-        setServices(list as any[]);
+        const allDocs: any[] = [];
+        const seenDocIds = new Set<string>();
+
+        for (const pid of Array.from(possibleIds)) {
+          // 1. providerId
+          const snap1 = await getDocs(query(servicesRef, where("providerId", "==", pid)));
+          snap1.docs.forEach(d => {
+            if (!seenDocIds.has(d.id)) {
+              seenDocIds.add(d.id);
+              allDocs.push({ id: d.id, ...d.data() });
+            }
+          });
+
+          // 2. ownerPhone
+          const snap2 = await getDocs(query(servicesRef, where("ownerPhone", "==", pid)));
+          snap2.docs.forEach(d => {
+            if (!seenDocIds.has(d.id)) {
+              seenDocIds.add(d.id);
+              allDocs.push({ id: d.id, ...d.data() });
+            }
+          });
+
+          // 3. shopId
+          const snap3 = await getDocs(query(servicesRef, where("shopId", "==", pid)));
+          snap3.docs.forEach(d => {
+            if (!seenDocIds.has(d.id)) {
+              seenDocIds.add(d.id);
+              allDocs.push({ id: d.id, ...d.data() });
+            }
+          });
+        }
+
+        setServices(allDocs);
 
       } catch (error) {
         console.error("Lỗi tải dữ liệu Shop:", error);
@@ -123,38 +293,42 @@ const ShopPublicView: FC = () => {
     fetchData();
   }, [id]);
 
-  // 4. LOGIC CHỌN CHI NHÁNH ĐỂ GỌI HOẶC CHAT ZALO
-  const handleContactSelect = (contact: any) => {
-    if (contactModal.type === 'call') {
-      if (contact.phone) {
-        openPhone({ phoneNumber: contact.phone });
-      } else {
-        openSnackbar({ text: "Cơ sở này chưa cập nhật số điện thoại", type: "warning" });
-      }
+  const handleChatDirect = () => {
+    const targetId = shop.phone || shop.id || id;
+    if (targetId) {
+      openChat({
+        type: "user",
+        id: targetId,
+        message: `Xin chào ${shop.name}, tôi cần tư vấn.`
+      });
     } else {
-      const targetId = contact.phone || shop.id || id;
-      if (targetId) {
-        openChat({
-          type: "user",
-          id: targetId,
-          message: `Xin chào ${contact.name}, tôi cần tư vấn.`
-        });
-      } else {
-        openSnackbar({ text: "Cơ sở này chưa có thông tin liên hệ Zalo", type: "warning" });
-      }
+      openSnackbar({ text: "Cửa hàng chưa có thông tin liên hệ Zalo", type: "warning" });
     }
-    setContactModal({ ...contactModal, visible: false });
   };
 
-  const contactList = [
-    { isMain: true, name: `${shop.name} (Trung tâm chính)`, phone: shop.phone || id, address: shop.address },
-    ...(shop.locations || []).map((loc: any, idx: number) => ({
-      isMain: false,
-      name: loc.name || `Cơ sở ${idx + 1}`,
-      phone: loc.phone || loc.managerPhone,
-      address: loc.address
-    }))
-  ];
+  const handleCallDirect = () => {
+    if (shop.phone || id) {
+      openPhone({ phoneNumber: shop.phone || id });
+    } else {
+      openSnackbar({ text: "Cửa hàng chưa cập nhật số điện thoại", type: "warning" });
+    }
+  };
+
+  const handleDeleteService = async (serviceId: string) => {
+    if (window.confirm("Bạn đã chắc chắn muốn xóa sản phẩm này?")) {
+      try {
+        await updateDoc(doc(db, "services", serviceId), {
+          status: "deleted",
+          updatedAt: serverTimestamp()
+        });
+        openSnackbar({ text: "Đã chuyển sản phẩm vào mục Đã xóa!", type: "success" });
+        setServices(prev => prev.map(item => item.id === serviceId ? { ...item, status: "deleted" } : item));
+      } catch (error) {
+        console.error("Lỗi xóa mặt hàng:", error);
+        openSnackbar({ text: "Không thể xóa mặt hàng", type: "error" });
+      }
+    }
+  };
 
   // 5. RENDER GIAO DIỆN
   return (
@@ -179,14 +353,14 @@ const ShopPublicView: FC = () => {
                   {/* ĐÃ SỬA LỖI TS: Thêm 'as any' */}
                   <Button
                     size="small" variant="secondary" prefix={<Icon icon="zi-chat" /> as any}
-                    onClick={() => setContactModal({ visible: true, type: 'chat' })}
+                    onClick={handleChatDirect}
                     className="bg-white text-blue-600 border border-blue-600"
                   >
                     Chat
                   </Button>
                   <Button
                     size="small" prefix={<Icon icon="zi-call" /> as any}
-                    onClick={() => setContactModal({ visible: true, type: 'call' })}
+                    onClick={handleCallDirect}
                   >
                     Gọi
                   </Button>
@@ -220,13 +394,100 @@ const ShopPublicView: FC = () => {
           {activeTab === "services" ? (
               // TAB 1: DANH SÁCH DỊCH VỤ
               loading ? <Box flex justifyContent="center" py={10}><Spinner /></Box> :
-              services.length > 0 ? (
-                <Box className="grid grid-cols-2 gap-3">
-                    {services.map((item) => (
+              (displayedServices.length > 0 || isOwner) ? (
+                <Box>
+                  {/* 👇 THANH CHUYỂN ĐỔI TAB ĐÃ DUYỆT / CHỜ DUYỆT (CHỈ CHỦ SHOP) 👇 */}
+                  {isOwner && (
+                    <Box flex className="mb-4 bg-gray-100 p-1 rounded-lg border border-gray-200 gap-1 overflow-x-auto hide-scroll">
+                      <div
+                        onClick={() => setSubTab('approved')}
+                        className={`flex-1 min-w-[75px] text-center py-2 text-[10px] font-bold rounded-md cursor-pointer transition-all duration-200 ${
+                          subTab === 'approved' 
+                            ? 'bg-white text-green-800 shadow-sm border border-gray-200' 
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                      >
+                        Đã duyệt
+                      </div>
+                      <div
+                        onClick={() => setSubTab('pending')}
+                        className={`flex-1 min-w-[75px] text-center py-2 text-[10px] font-bold rounded-md cursor-pointer transition-all duration-200 ${
+                          subTab === 'pending' 
+                            ? 'bg-white text-yellow-800 shadow-sm border border-gray-200' 
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                      >
+                        Chờ duyệt
+                      </div>
+                      <div
+                        onClick={() => setSubTab('rejected')}
+                        className={`flex-1 min-w-[75px] text-center py-2 text-[10px] font-bold rounded-md cursor-pointer transition-all duration-200 ${
+                          subTab === 'rejected' 
+                            ? 'bg-white text-red-800 shadow-sm border border-gray-200' 
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                      >
+                        Từ chối
+                      </div>
+                      <div
+                        onClick={() => setSubTab('deleted')}
+                        className={`flex-1 min-w-[75px] text-center py-2 text-[10px] font-bold rounded-md cursor-pointer transition-all duration-200 ${
+                          subTab === 'deleted' 
+                            ? 'bg-white text-gray-800 shadow-sm border border-gray-200' 
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                      >
+                        Đã xóa
+                      </div>
+                    </Box>
+                  )}
+
+                  {/* 👇 THANH LỌC DANH MỤC DẠNG PILLS TRƯỢT NGANG 👇 */}
+                  {categoriesList.length > 1 && (
+                    <Box className="w-full mb-4">
+                      <Box className="flex overflow-x-auto gap-2 pb-2 hide-scroll" style={{ whiteSpace: "nowrap" }}>
+                        {categoriesList.map(cat => {
+                          const isSelected = selectedCategory === cat;
+                          return (
+                            <div
+                              key={cat}
+                              onClick={() => setSelectedCategory(cat)}
+                              className={`inline-block px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer transition-all duration-200 border ${
+                                isSelected 
+                                  ? "bg-green-700 text-white border-green-700 shadow-sm" 
+                                  : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                              }`}
+                            >
+                              {cat}
+                            </div>
+                          );
+                        })}
+                      </Box>
+                    </Box>
+                  )}
+                  
+                  <Box className="grid grid-cols-2 gap-3">
+                    {/* 👇 BỔ SUNG NÚT THÊM SẢN PHẨM Ở ĐÂY NẾU LÀ CHỦ SHOP 👇 */}
+                    {isOwner && (
+                        <Box
+                           onClick={() => navigate("/post-service")}
+                           className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl overflow-hidden active:opacity-70 flex flex-col justify-center items-center cursor-pointer min-h-[220px]"
+                        >
+                            <Icon icon="zi-plus-circle" size={40} className="text-gray-400 mb-2" />
+                            <Text className="text-gray-500 font-medium">Thêm Mặt hàng</Text>
+                        </Box>
+                    )}
+                    {displayedServices.map((item) => (
                         <Box
                           key={item.id}
-                          onClick={() => navigate(`/detail/${item.id}`, { state: { product: item } })}
-                          className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100 active:opacity-70 flex flex-col"
+                          onClick={() => {
+                            if (isOwner) {
+                              setActionProduct(item);
+                            } else {
+                              navigate(`/detail/${item.id}`, { state: { product: item } });
+                            }
+                          }}
+                          className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100 active:opacity-75 flex flex-col cursor-pointer"
                         >
                             <Box className="relative pt-[100%]">
                                 <img src={item.image || "https://via.placeholder.com/150"} className="absolute inset-0 w-full h-full object-cover" alt="Product" />
@@ -237,12 +498,25 @@ const ShopPublicView: FC = () => {
                                         +{item.points} điểm
                                     </div>
                                 )}
+
+                                {/* 👉 Trạng thái duyệt dành cho chủ shop */}
+                                {isOwner && (
+                                    <div className={`absolute top-2 left-2 px-2 py-0.5 rounded text-[10px] font-bold shadow-sm z-10 ${
+                                      item.status === 'pending' ? 'bg-yellow-500 text-white' : 
+                                      item.status === 'rejected' ? 'bg-red-500 text-white' : 
+                                      item.status === 'deleted' ? 'bg-gray-500 text-white' : 
+                                      'bg-green-600 text-white'
+                                    }`}>
+                                        {item.status === 'pending' ? 'Pending' : 
+                                         item.status === 'rejected' ? 'Rejected' :
+                                         item.status === 'deleted' ? 'Deleted' : 'Active'}
+                                    </div>
+                                )}
                             </Box>
                             <Box p={2} className="flex-1 flex flex-col justify-between">
                                 <Text size="small" className="line-clamp-2 font-medium h-10 mb-1 text-gray-700">
                                   {item.title || item.name}
                                 </Text>
-                                {/* ĐÃ CẬP NHẬT: Giá tiền màu cam, không có mũi tên */}
                                 {/* 👇 HIỂN THỊ GIÁ DỰA TRÊN CÔNG TẮC ADMIN 👇 */}
                                 {showPrice ? (
                                     <Box mt={2}>
@@ -270,6 +544,7 @@ const ShopPublicView: FC = () => {
                             </Box>
                         </Box>
                     ))}
+                  </Box>
                 </Box>
               ) : (
                 <Box py={10} className="text-center bg-white rounded-2xl border border-dashed border-gray-200">
@@ -301,72 +576,54 @@ const ShopPublicView: FC = () => {
                   <Box className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
                       <Box flex alignItems="center" className="mb-3">
                           <Icon icon="zi-location" className="text-red-500 mr-2" />
-                          <Text className="font-bold text-gray-800">Hệ thống cơ sở</Text>
+                          <Text className="font-bold text-gray-800">Địa chỉ cửa hàng</Text>
                       </Box>
-
-                      {shop.locations && shop.locations.length > 0 ? (
-                          <Box className="flex flex-col gap-3">
-                              {shop.locations.map((loc: any, index: number) => (
-                                  <Box key={index} className="pb-3 border-b border-gray-50 last:border-0 last:pb-0">
-                                      <Text size="small" className="font-bold text-gray-700 mb-1">
-                                          {loc.name || `Cơ sở ${index + 1}`}
-                                      </Text>
-                                      <Text size="small" className="text-gray-600 flex items-start">
-                                          <Icon icon="zi-location-solid" size={14} className="mt-0.5 mr-1 text-gray-400" />
-                                          <span className="flex-1">{loc.address}</span>
-                                      </Text>
-                                      {(loc.phone || loc.managerPhone) && (
-                                          <Text size="small" className="text-blue-600 mt-1 flex items-center">
-                                              <Icon icon="zi-call" size={14} className="mr-1" />
-                                              {loc.phone || loc.managerPhone}
-                                          </Text>
-                                      )}
-                                  </Box>
-                              ))}
-                          </Box>
-                      ) : (
-                          <Box className="flex items-start">
-                              <Icon icon="zi-location-solid" size={14} className="mt-0.5 mr-1 text-gray-400" />
-                              <Text size="small" className="text-gray-600">
-                                  {shop.address || "Chưa cập nhật địa chỉ chi tiết."}
-                              </Text>
-                          </Box>
-                      )}
+                      <Box className="flex items-start">
+                          <Icon icon="zi-location-solid" size={14} className="mt-0.5 mr-1 text-gray-400" />
+                          <Text size="small" className="text-gray-600">
+                              {shop.address || "Chưa cập nhật địa chỉ chi tiết."}
+                          </Text>
+                      </Box>
                   </Box>
               </Box>
           )}
       </Box>
 
-      {/* --- MODAL CHỌN CHI NHÁNH ĐỂ GỌI / CHAT --- */}
-      <Modal
-          visible={contactModal.visible}
-          title={contactModal.type === 'call' ? "Chọn cơ sở để gọi điện" : "Chọn cơ sở để nhắn tin Zalo"}
-          onClose={() => setContactModal({ ...contactModal, visible: false })}
-      >
-          <Box className="max-h-[60vh] overflow-y-auto flex flex-col gap-3 p-2">
-              {contactList.map((contact, index) => (
-                  <Box
-                      key={index}
-                      onClick={() => handleContactSelect(contact)}
-                      className="p-3 bg-gray-50 rounded-xl border border-gray-200 active:bg-blue-50 cursor-pointer flex items-center justify-between"
-                  >
-                      <Box className="flex-1 pr-3">
-                          <Text size="small" className="font-bold text-gray-800 mb-1">{contact.name}</Text>
-                          {contact.phone && (
-                              <Text size="xSmall" className="text-blue-600 font-bold mb-1 flex items-center">
-                                  <Icon icon="zi-call" size={12} className="mr-1 text-gray-400" /> {contact.phone}
-                              </Text>
-                          )}
-                          <Text size="xSmall" className="text-gray-500 line-clamp-2">{contact.address}</Text>
-                      </Box>
 
-                      <Box className={`w-10 h-10 min-w-[40px] rounded-full flex items-center justify-center ${contactModal.type === 'call' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
-                          <Icon icon={contactModal.type === 'call' ? 'zi-call' : 'zi-chat'} size={20} />
-                      </Box>
-                  </Box>
-              ))}
+      {/* SHEET HỎI TÁC VỤ CHO CHỦ SHOP */}
+      <Sheet
+        visible={!!actionProduct}
+        onClose={() => setActionProduct(null)}
+        autoHeight
+        title="Tùy chọn sản phẩm"
+      >
+        <Box className="p-2 pb-6">
+          <Box 
+            className="flex items-center p-4 cursor-pointer active:bg-gray-100 rounded-xl text-gray-700 transition-colors"
+            onClick={() => {
+              const prod = actionProduct;
+              setActionProduct(null);
+              navigate("/post-service", { state: { product: prod } });
+            }}
+          >
+            <Icon icon="zi-edit-text" className="mr-3 text-2xl text-indigo-500" />
+            <Text className="text-[16px] font-medium">Chỉnh sửa thông tin</Text>
           </Box>
-      </Modal>
+
+          <Box 
+            className="flex items-center p-4 cursor-pointer active:bg-gray-100 rounded-xl text-red-600 transition-colors mt-2 border-t border-gray-100"
+            onClick={() => {
+              const prod = actionProduct;
+              setActionProduct(null);
+              handleDeleteService(prod.id);
+            }}
+          >
+            <Icon icon="zi-delete" className="mr-3 text-2xl text-red-500" />
+            <Text className="text-[16px] font-medium">Xóa sản phẩm này</Text>
+          </Box>
+        </Box>
+      </Sheet>
+
     </Page>
   );
 };

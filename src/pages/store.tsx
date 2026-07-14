@@ -1,8 +1,11 @@
 import CustomIcon from '../components/custom-icon';
-import React, { FC, useState } from "react";
+import React, { FC, useState, useEffect } from "react";
 import { useSetRecoilState } from 'recoil';
 import { cartState } from 'state';
 import { Page, Box, Text, Avatar, Icon, Input, useNavigate, Sheet, Button, useSnackbar } from "zmp-ui";
+import { auth, db } from "../firebase";
+import { onAuthStateChanged } from "firebase/auth";
+import { collection, query, where, getDocs } from "firebase/firestore";
 
 const StoreWelcome: FC = () => {
   const navigate = useNavigate();
@@ -163,6 +166,33 @@ const ConsumerStorePage: FC = () => {
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [quantity, setQuantity] = useState(1);
   const { openSnackbar } = useSnackbar();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const phoneFromEmail = user.email ? user.email.replace("@campus.com", "") : "";
+        const localPhone = localStorage.getItem("user_phone");
+        const finalPhone = phoneFromEmail || localPhone;
+
+        if (finalPhone) {
+          try {
+            const qShop = query(collection(db, "shops"), where("phone", "==", finalPhone));
+            const shopSnap = await getDocs(qShop);
+
+            if (!shopSnap.empty) {
+              const shopId = shopSnap.docs[0].id;
+              // Nếu là shop, đưa thẳng đến cửa hàng của shop
+              navigate(`/shop-details/${shopId}`, { replace: true });
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   const handleProductClick = (product: any) => {
     setSelectedProduct(product);
