@@ -1,12 +1,16 @@
 import CustomIcon from '../../components/custom-icon';
 import React, { FC, useState, useEffect } from "react";
 import { Box, Text, Avatar, Icon, useNavigate } from "zmp-ui";
+import { useRecoilValueLoadable } from "recoil";
+import { userState } from "state";
 import { auth, db } from "../../firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 
 export const Welcome: FC = () => {
   const navigate = useNavigate();
+  const userInfoLoadable = useRecoilValueLoadable(userState);
+  const userInfo = userInfoLoadable.state === "hasValue" ? userInfoLoadable.contents : null;
   const [userData, setUserData] = useState<any>(null);
 
   useEffect(() => {
@@ -17,20 +21,25 @@ export const Welcome: FC = () => {
         if (docSnap.exists()) {
           setUserData(docSnap.data());
         }
+      } else {
+        setUserData(null);
       }
     });
     return () => unsubscribe();
   }, []);
 
+  const avatar = userInfo?.avatar || userData?.avatar || "https://i.pravatar.cc/150?img=11";
+  const points = userData?.spendingPoints ?? userData?.points ?? 0;
+
   return (
     <Box className="flex justify-between items-center px-4 py-2 bg-white sticky top-0 z-50 shadow-md">
       {/* Trái: Avatar & Điểm */}
       <Box className="flex items-center space-x-2 cursor-pointer w-1/3" onClick={() => navigate('/profile')}>
-        <Avatar src={userData?.avatar || "https://i.pravatar.cc/150?img=11"} size={36} className="border border-gray-200" />
+        <Avatar src={avatar} size={36} className="border border-gray-200" />
         <Box className="bg-green-50 px-2 py-1.5 rounded-full flex items-center">
           <CustomIcon icon="zi-star-solid" className="text-[#14502e] text-xs mr-1" />
           <Text size="xxxxSmall" className="font-bold text-[#14502e]">
-            {userData?.points || 0}
+            {points}
           </Text>
         </Box>
       </Box>

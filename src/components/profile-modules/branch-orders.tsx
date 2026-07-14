@@ -158,7 +158,7 @@ const BranchOrdersPage: React.FC = () => {
                               </a>
 
                               <Box flex justifyContent="space-between" className="border-b border-gray-100 pb-2 mb-2 pr-10">
-                                  <Text size="small" bold className="text-gray-800">#{order.id.slice(0,6).toUpperCase()}</Text>
+                                  <Text size="small" bold className="text-gray-800">#{order.orderCode || order.id.slice(0,6).toUpperCase()}</Text>
                                   <Text size="xSmall" bold className={ order.status === 'pending' ? 'text-orange-600 bg-orange-50 px-2 py-0.5 rounded' : order.status === 'confirmed' ? 'text-blue-600 bg-blue-50 px-2 py-0.5 rounded' : order.status === 'cancelled' ? 'text-red-600 bg-red-50 px-2 py-0.5 rounded' : 'text-green-600 bg-green-50 px-2 py-0.5 rounded'}>
                                       {order.status === 'pending' ? 'Mới - Chờ duyệt' : order.status === 'confirmed' ? 'Đã chốt - Chờ khách' : order.status === 'cancelled' ? 'Đã hủy' : 'Hoàn thành'}
                                   </Text>

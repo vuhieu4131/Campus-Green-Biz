@@ -2,8 +2,9 @@ import CustomIcon from '../custom-icon';
 import React, { FC, useState, useEffect } from "react";
 import { Box, Text, Icon, Modal, Avatar, Button, Input, useSnackbar, Spinner, Select, Switch, useNavigate, Page } from "zmp-ui";
 import { collection, query, where, getDocs, doc, updateDoc, deleteDoc, orderBy, addDoc, serverTimestamp, getDoc, setDoc, onSnapshot } from "firebase/firestore";
-import { db, auth } from "../../firebase";
+import { db, auth, storage } from "../../firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 const { Option } = Select;
 // Hàm format ngày giờ
 const formatDate = (timestamp) => {
@@ -29,6 +30,7 @@ const MENU_ITEMS = [
   { id: "create_admin", label: "Tạo Admin", icon: "zi-add-user", color: "text-pink-500" },
   { id: "all_orders", label: "Tất cả đơn", icon: "zi-note", color: "text-indigo-500" },
   { id: "fee_reconciliation", label: "Đối soát phí", icon: "zi-poll", color: "text-red-600" }, // 👉 BƯỚC 1: CẬP NHẬT ICON MỚI
+  { id: "vip_requests", label: "Duyệt Nạp Điểm VIP", icon: "zi-star-solid", color: "text-yellow-500" },
   { id: "settings", label: "Cài đặt", icon: "zi-setting", color: "text-gray-600" }, 
 ];
 
@@ -40,11 +42,31 @@ export const AdminView: FC<AdminProps> = ({ userData, onLogout }) => {
 
   // 👉 BƯỚC 1: Bổ sung biến đếm fee_reconciliation
   const [pendingCounts, setPendingCounts] = useState({
-    providers: 0, posts: 0, community_posts: 0, feedbacks: 0, requests: 0, members: 0, banners: 0, create_admin: 0, fee_reconciliation: 0
+    providers: 0, posts: 0, community_posts: 0, feedbacks: 0, requests: 0, members: 0, banners: 0, create_admin: 0, fee_reconciliation: 0, vip_requests: 0
   });
 
   const [bannerInput, setBannerInput] = useState("");      
   const [bannerLinkInput, setBannerLinkInput] = useState(""); 
+  const [isUploadingBanner, setIsUploadingBanner] = useState(false);
+
+  const handleUploadBannerImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingBanner(true);
+    try {
+      const filename = `banners/${Date.now()}_${file.name}`;
+      const storageRef = ref(storage, filename);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      setBannerInput(url);
+      openSnackbar({ text: "Tải ảnh lên thành công!", type: "success" });
+    } catch (error) {
+      console.error("Lỗi khi tải ảnh lên:", error);
+      openSnackbar({ text: "Lỗi tải ảnh lên. Vui lòng thử lại.", type: "error" });
+    } finally {
+      setIsUploadingBanner(false);
+    }
+  };
 
   const [newAdminPhone, setNewAdminPhone] = useState("");
   const [newAdminName, setNewAdminName] = useState("");
@@ -67,10 +89,21 @@ export const AdminView: FC<AdminProps> = ({ userData, onLogout }) => {
   const [providerTab, setProviderTab] = useState("pending");
   const [postTab, setPostTab] = useState("pending");
   const [feedbackTab, setFeedbackTab] = useState("new");
+  const [bannerTab, setBannerTab] = useState("home");
+  const [postsSubTab, setPostsSubTab] = useState("category"); // 'category' hoặc 'approve'
+  const [categoriesList, setCategoriesList] = useState<any[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryIcon, setNewCategoryIcon] = useState("zi-store");
 
   const [replyModalVisible, setReplyModalVisible] = useState(false);
   const [selectedFeedback, setSelectedFeedback] = useState<any>(null);
   const [adminNote, setAdminNote] = useState("");
+
+  // STATE TỪ CHỐI VIP
+  const [showRejectVipModal, setShowRejectVipModal] = useState(false);
+  const [selectedVipRequest, setSelectedVipRequest] = useState<any>(null);
+  const [vipRejectReason, setVipRejectReason] = useState("");
 
   // STATE ĐỔI MẬT KHẨU
   const [showChangePass, setShowChangePass] = useState(false);
@@ -259,6 +292,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
     const unsubCommunityPosts = onSnapshot(query(collection(db, "posts"), where("status", "==", "pending")), (snap) => setPendingCounts(prev => ({ ...prev, community_posts: snap.size })));
     const unsubFeedbacks = onSnapshot(query(collection(db, "feedbacks"), where("status", "!=", "done")), (snap) => setPendingCounts(prev => ({ ...prev, feedbacks: snap.size })));
     const unsubRequests = onSnapshot(query(collection(db, "support_requests")), (snap) => setPendingCounts(prev => ({ ...prev, requests: snap.size })));
+    const unsubVip = onSnapshot(query(collection(db, "vip_points_requests"), where("status", "==", "pending")), (snap) => setPendingCounts(prev => ({ ...prev, vip_requests: snap.size })));
     
     // 👉 ăng-ten lắng nghe các đơn hàng ĐÃ BÁO CÁO
     const unsubFees = onSnapshot(
@@ -273,11 +307,12 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
         }
     );
 
-    return () => { unsubProviders(); unsubPosts(); unsubCommunityPosts(); unsubFeedbacks(); unsubRequests(); unsubFees(); };
+    return () => { unsubProviders(); unsubPosts(); unsubCommunityPosts(); unsubFeedbacks(); unsubRequests(); unsubFees(); unsubVip(); };
   }, []);
 
   // 👉 BƯỚC 2: STATE CHO TÍNH NĂNG ĐỐI SOÁT & CẤU HÌNH NGÂN HÀNG ADMIN
   const [reconciliationTab, setReconciliationTab] = useState("fees"); // Mặc định mở Tab "Phí nền tảng"
+  const [adminVipTab, setAdminVipTab] = useState("pending"); // Mặc định mở Tab "Chờ duyệt"
   const [adminBankInfoText, setAdminBankInfoText] = useState("");     // Nội dung Text ngân hàng
   const [adminBankQrLink, setAdminBankQrLink] = useState("");       // Link mã QR
   const [savingBankInfo, setSavingBankInfo] = useState(false);       // Trạng thái đang lưu
@@ -301,6 +336,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
         case "vouchers": q = query(collection(db, "voucher_campaigns"), orderBy("createdAt", "desc")); break;
         // Lấy toàn bộ đơn hoàn thành để lọc đối soát
         case "fee_reconciliation": q = query(collection(db, "orders"), where("status", "in", ["completed", "success"])); break; 
+        case "vip_requests": q = query(collection(db, "vip_points_requests"), orderBy("createdAt", "desc")); break;
         default: setLoading(false); return;
       }
       
@@ -415,6 +451,75 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
         setUserNotifs([]); // Reset sạch sẽ khi đóng bảng
     }
 }, [detailUser]);
+  const handleApproveVipRequest = async (request: any) => {
+    try {
+      const qShop = query(collection(db, "shops"), where("phone", "==", request.shopPhone));
+      const snapShop = await getDocs(qShop);
+      if (snapShop.empty) {
+        openSnackbar({ text: "Không tìm thấy thông tin shop tương ứng!", type: "error" });
+        return;
+      }
+      
+      const shopDoc = snapShop.docs[0];
+      const currentVipPoints = shopDoc.data().vipPushPoints || 0;
+      
+      await updateDoc(doc(db, "shops", shopDoc.id), {
+        vipPushPoints: currentVipPoints + Number(request.points)
+      });
+      
+      await updateDoc(doc(db, "vip_points_requests", request.id), {
+        status: "approved",
+        approvedAt: serverTimestamp()
+      });
+      
+      setDataList(prev => prev.map(item => item.id === request.id ? { ...item, status: "approved" } : item));
+      openSnackbar({ text: "Đã duyệt và cộng điểm thành công!", type: "success" });
+    } catch (e) {
+      console.error(e);
+      openSnackbar({ text: "Lỗi hệ thống khi duyệt!", type: "error" });
+    }
+  };
+
+  const handleRejectVipRequest = (request: any) => {
+    setSelectedVipRequest(request);
+    setVipRejectReason("");
+    setShowRejectVipModal(true);
+  };
+
+  const handleRejectVipSubmit = async () => {
+    if (!selectedVipRequest) return;
+    if (!vipRejectReason.trim()) {
+      openSnackbar({ text: "Vui lòng nhập lý do từ chối!", type: "warning" });
+      return;
+    }
+    try {
+      // 1. Cập nhật yêu cầu trong DB
+      await updateDoc(doc(db, "vip_points_requests", selectedVipRequest.id), {
+        status: "rejected",
+        rejectedReason: vipRejectReason.trim(),
+        rejectedAt: serverTimestamp()
+      });
+
+      // 2. Gửi thông báo đến Shop
+      await addDoc(collection(db, "notifications"), {
+        userId: selectedVipRequest.shopPhone,
+        title: "Yêu cầu nạp điểm VIP bị từ chối ❌",
+        content: `Yêu cầu nạp ${selectedVipRequest.points} điểm VIP của bạn đã bị từ chối. Lý do: ${vipRejectReason.trim()}`,
+        isRead: false,
+        type: "vip_reject_notification",
+        createdAt: serverTimestamp()
+      });
+
+      // 3. Cập nhật state nội bộ
+      setDataList(prev => prev.map(item => item.id === selectedVipRequest.id ? { ...item, status: "rejected", rejectedReason: vipRejectReason.trim() } : item));
+      setShowRejectVipModal(false);
+      openSnackbar({ text: "Đã từ chối và gửi thông báo lý do đến Shop!", type: "success" });
+    } catch (e) {
+      console.error(e);
+      openSnackbar({ text: "Lỗi hệ thống khi từ chối!", type: "error" });
+    }
+  };
+
   // --- LOGIC XỬ LÝ ---
   const handleApprovePost = async (post: any) => {
     try {
@@ -591,9 +696,80 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
 
   const handleAddBanner = async () => {
     if (!bannerInput.trim()) return;
-    try { await addDoc(collection(db, "banners"), { image: bannerInput.trim(), link: bannerLinkInput.trim(), active: true, createdAt: serverTimestamp() }); setBannerInput(""); setBannerLinkInput(""); openSnackbar({ text: "Thêm thành công!", type: "success" }); fetchData("banners"); } 
+    try { await addDoc(collection(db, "banners"), { image: bannerInput.trim(), link: bannerLinkInput.trim(), type: bannerTab, active: true, createdAt: serverTimestamp() }); setBannerInput(""); setBannerLinkInput(""); openSnackbar({ text: "Thêm thành công!", type: "success" }); fetchData("banners"); } 
     catch (error) { openSnackbar({ text: "Lỗi", type: "error" }); }
   };
+
+  const fetchCategories = async () => {
+    setLoadingCategories(true);
+    try {
+      const q = query(collection(db, "categories"), orderBy("createdAt", "asc"));
+      const querySnapshot = await getDocs(q);
+      let list = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+      
+      if (list.length === 0) {
+        // Tự động khởi tạo 6 danh mục mặc định
+        const defaultCats = [
+          { name: "Công nghệ", icon: "zi-memory" },
+          { name: "Thời trang", icon: "zi-star" },
+          { name: "Góc học tập", icon: "zi-note" },
+          { name: "Phòng trọ", icon: "zi-location" },
+          { name: "Ăn uống", icon: "zi-shopping-bag" },
+          { name: "Tiện ích cộng đồng", icon: "zi-group" }
+        ];
+        
+        const batchPromises = defaultCats.map(async (cat, index) => {
+          const docRef = await addDoc(collection(db, "categories"), {
+            name: cat.name,
+            icon: cat.icon,
+            createdAt: new Date(Date.now() + index * 1000)
+          });
+          return { id: docRef.id, name: cat.name, icon: cat.icon };
+        });
+        
+        list = await Promise.all(batchPromises);
+      }
+      setCategoriesList(list);
+    } catch (e) {
+      console.error("Lỗi tải danh mục:", e);
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
+
+  const handleAddCategory = async () => {
+    if (!newCategoryName.trim()) return;
+    try {
+      await addDoc(collection(db, "categories"), {
+        name: newCategoryName.trim(),
+        icon: newCategoryIcon,
+        createdAt: serverTimestamp()
+      });
+      setNewCategoryName("");
+      openSnackbar({ text: "Thêm danh mục thành công!", type: "success" });
+      fetchCategories();
+    } catch (e) {
+      console.error(e);
+      openSnackbar({ text: "Lỗi thêm danh mục", type: "error" });
+    }
+  };
+
+  const handleDeleteCategory = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, "categories", id));
+      openSnackbar({ text: "Xóa danh mục thành công!", type: "success" });
+      fetchCategories();
+    } catch (e) {
+      console.error(e);
+      openSnackbar({ text: "Lỗi xóa danh mục", type: "error" });
+    }
+  };
+
+  useEffect(() => {
+    if (selectedFeature === "posts" && postsSubTab === "category") {
+      fetchCategories();
+    }
+  }, [selectedFeature, postsSubTab]);
 
   const handleProcessFeedback = async () => {
       if (!selectedFeedback) return;
@@ -821,55 +997,264 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
           </Box>
         );
       }
-        case "posts": 
-        case "community_posts": {
-        const colName = selectedFeature === "community_posts" ? "posts" : "services";
-        const poPending = dataList.filter(p => p.status === 'pending');
-        const poApproved = dataList.filter(p => p.status === 'approved' || !p.status);
-        const poDisplay = postTab === 'pending' ? poPending : poApproved;
-        return (
-          <Box p={4} className="bg-white h-full">
-            <Box flex className="mb-4 border-b border-gray-200">
-                <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${postTab==="pending"?"border-green-600 text-green-600 font-bold":"border-transparent text-gray-500"}`} onClick={()=>setPostTab("pending")}>Cần duyệt ({poPending.length})</Box>
-                <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${postTab==="approved"?"border-green-600 text-green-600 font-bold":"border-transparent text-gray-500"}`} onClick={()=>setPostTab("approved")}>Đã duyệt ({poApproved.length})</Box>
+        case "posts": {
+          const poPending = dataList.filter(p => p.status === 'pending');
+          const poApproved = dataList.filter(p => p.status === 'approved' || !p.status);
+          const poDisplay = postTab === 'pending' ? poPending : poApproved;
+
+          return (
+            <Box p={4} className="bg-white h-full hide-scroll">
+              {/* Tab phân tách giữa Danh mục và Duyệt */}
+              <Box flex className="mb-4 border-b border-gray-200">
+                <Box 
+                  className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${postsSubTab === "category" ? "border-green-600 text-green-600 font-bold" : "border-transparent text-gray-500"}`} 
+                  onClick={() => setPostsSubTab("category")}
+                >
+                  Danh mục
+                </Box>
+                <Box 
+                  className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${postsSubTab === "approve" ? "border-green-600 text-green-600 font-bold" : "border-transparent text-gray-500"}`} 
+                  onClick={() => setPostsSubTab("approve")}
+                >
+                  Duyệt ({poPending.length + poApproved.length})
+                </Box>
+              </Box>
+
+              {postsSubTab === "category" ? (
+                <Box>
+                  {/* Form thêm Danh mục */}
+                  <Box className="bg-gray-50 p-3 rounded-lg mb-6 border border-gray-200">
+                    <Text size="small" bold className="mb-2">Thêm Danh mục ngành hàng</Text>
+                    <Box mb={3}>
+                      <Input 
+                        placeholder="Tên danh mục" 
+                        value={newCategoryName} 
+                        onChange={(e) => setNewCategoryName(e.target.value)} 
+                      />
+                    </Box>
+                    <Box mb={3} className="relative">
+                      <Select 
+                        label="Chọn Icon hiển thị" 
+                        value={newCategoryIcon} 
+                        onChange={(val) => setNewCategoryIcon(val)}
+                      >
+                        <Option value="zi-store" title="Cửa hàng (zi-store)" />
+                        <Option value="zi-memory" title="Công nghệ (zi-memory)" />
+                        <Option value="zi-star" title="Thời trang (zi-star)" />
+                        <Option value="zi-note" title="Học tập (zi-note)" />
+                        <Option value="zi-location" title="Phòng trọ (zi-location)" />
+                        <Option value="zi-shopping-bag" title="Ăn uống (zi-shopping-bag)" />
+                        <Option value="zi-group" title="Cộng đồng (zi-group)" />
+                        <Option value="zi-calendar" title="Lịch hẹn (zi-calendar)" />
+                        <Option value="zi-ticket" title="Ưu đãi (zi-ticket)" />
+                      </Select>
+                    </Box>
+                    <Button fullWidth onClick={handleAddCategory} disabled={!newCategoryName.trim()}>Thêm</Button>
+                  </Box>
+
+                  {/* Danh sách danh mục */}
+                  <Text size="small" bold className="mb-3">Danh sách danh mục hiện tại</Text>
+                  {loadingCategories ? (
+                    <Box className="flex justify-center p-4"><Spinner /></Box>
+                  ) : categoriesList.length === 0 ? (
+                    <Text className="text-center text-gray-400 mt-2">Trống.</Text>
+                  ) : (
+                    categoriesList.map((cat) => (
+                      <Box key={cat.id} flex justifyContent="space-between" alignItems="center" className="p-3 border rounded-lg mb-2 shadow-sm bg-white">
+                        <Box flex alignItems="center">
+                          <CustomIcon icon={cat.icon || "zi-store"} className="text-xl text-[#14502e] mr-3" />
+                          <Text bold>{cat.name}</Text>
+                        </Box>
+                        <Box 
+                          className="cursor-pointer p-1.5 rounded-full hover:bg-red-50 text-red-500 transition-colors"
+                          onClick={() => handleDeleteCategory(cat.id)}
+                        >
+                          <CustomIcon icon="zi-delete" size={18} />
+                        </Box>
+                      </Box>
+                    ))
+                  )}
+                </Box>
+              ) : (
+                <Box>
+                  {/* Phân tab phụ Cần duyệt / Đã duyệt */}
+                  <Box flex className="mb-4 border-b border-gray-200">
+                    <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${postTab === "pending" ? "border-green-600 text-green-600 font-bold" : "border-transparent text-gray-500"}`} onClick={() => setPostTab("pending")}>Cần duyệt ({poPending.length})</Box>
+                    <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${postTab === "approved" ? "border-green-600 text-green-600 font-bold" : "border-transparent text-gray-500"}`} onClick={() => setPostTab("approved")}>Đã duyệt ({poApproved.length})</Box>
+                  </Box>
+                  
+                  {poDisplay.length === 0 && <Text size="small" className="text-center text-gray mt-4">Trống.</Text>}
+                  {poDisplay.map((p) => {
+                    const displayImage = p.image || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png";
+                    const displayTitle = p.title;
+                    const displaySubtitle = p.shopName;
+                    
+                    return (
+                      <Box key={p.id} className="mb-3 p-3 border rounded-lg bg-white shadow-md">
+                        <Box flex className="mb-2 cursor-pointer active:opacity-75" onClick={() => setDetailItem(p)}>
+                          <img src={displayImage} className="w-16 h-16 rounded object-cover mr-3 bg-gray-200"/>
+                          <Box className="flex-1">
+                            <Text bold size="small" className="line-clamp-2">{displayTitle}</Text>
+                            <Text size="xxSmall" className="text-gray">{displaySubtitle}</Text>
+                            <Text size="xxSmall" className="text-gray">{formatDate(p.createdAt)}</Text>
+                          </Box>
+                        </Box>
+                        <Box flex justifyContent="space-between" alignItems="center">
+                          <Text size="xxSmall" className="text-red-500 cursor-pointer" onClick={() => handleDeleteItem("services", p.id)}>
+                            <CustomIcon icon="zi-delete"/> Xóa
+                          </Text>
+                          <Button size="small" variant={(p.status === "approved" || !p.status) ? "secondary" : "primary"} onClick={() => handleApprovePost(p)}>
+                            {(p.status === "approved" || !p.status) ? "Ẩn" : "Duyệt"}
+                          </Button>
+                        </Box>
+                      </Box>
+                    );
+                  })}
+                </Box>
+              )}
             </Box>
-            {poDisplay.length===0 && <Text size="small" className="text-center text-gray mt-4">Trống.</Text>}
-            {poDisplay.map((p) => {
-              const displayImage = selectedFeature === "community_posts" 
-                ? (p.images && p.images[0] ? p.images[0] : "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png")
-                : (p.image || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png");
-              const displayTitle = selectedFeature === "community_posts" ? p.content : p.title;
-              const displaySubtitle = selectedFeature === "community_posts" ? (p.authorName || "Người dùng") : p.shopName;
-              return (
-                <Box key={p.id} className="mb-3 p-3 border rounded-lg bg-white shadow-md">
-                  <Box flex className="mb-2 cursor-pointer active:opacity-75" onClick={() => setDetailItem(p)}>
-                    <img src={displayImage} className="w-16 h-16 rounded object-cover mr-3 bg-gray-200"/>
-                    <Box className="flex-1">
-                      <Text bold size="small" className="line-clamp-2">{displayTitle}</Text>
-                      <Text size="xxSmall" className="text-gray">{displaySubtitle}</Text>
-                      <Text size="xxSmall" className="text-gray">{formatDate(p.createdAt)}</Text>
+          );
+        }
+
+        case "community_posts": {
+          const poPending = dataList.filter(p => p.status === 'pending');
+          const poApproved = dataList.filter(p => p.status === 'approved' || !p.status);
+          const poDisplay = postTab === 'pending' ? poPending : poApproved;
+          return (
+            <Box p={4} className="bg-white h-full">
+              <Box flex className="mb-4 border-b border-gray-200">
+                  <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${postTab==="pending"?"border-green-600 text-green-600 font-bold":"border-transparent text-gray-500"}`} onClick={()=>setPostTab("pending")}>Cần duyệt ({poPending.length})</Box>
+                  <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${postTab==="approved"?"border-green-600 text-green-600 font-bold":"border-transparent text-gray-500"}`} onClick={()=>setPostTab("approved")}>Đã duyệt ({poApproved.length})</Box>
+              </Box>
+              {poDisplay.length===0 && <Text size="small" className="text-center text-gray mt-4">Trống.</Text>}
+              {poDisplay.map((p) => {
+                const displayImage = p.images && p.images[0] ? p.images[0] : "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png";
+                const displayTitle = p.content;
+                const displaySubtitle = p.authorName || "Người dùng";
+                return (
+                  <Box key={p.id} className="mb-3 p-3 border rounded-lg bg-white shadow-md">
+                    <Box flex className="mb-2 cursor-pointer active:opacity-75" onClick={() => setDetailItem(p)}>
+                      <img src={displayImage} className="w-16 h-16 rounded object-cover mr-3 bg-gray-200"/>
+                      <Box className="flex-1">
+                        <Text bold size="small" className="line-clamp-2">{displayTitle}</Text>
+                        <Text size="xxSmall" className="text-gray">{displaySubtitle}</Text>
+                        <Text size="xxSmall" className="text-gray">{formatDate(p.createdAt)}</Text>
+                      </Box>
+                    </Box>
+                    <Box flex justifyContent="space-between" alignItems="center">
+                      <Text size="xxSmall" className="text-red-500 cursor-pointer" onClick={() => handleDeleteItem("posts", p.id)}>
+                        <CustomIcon icon="zi-delete"/> Xóa
+                      </Text>
+                      <Button size="small" variant={(p.status==="approved" || !p.status)?"secondary":"primary"} onClick={() => handleApprovePost(p)}>
+                        {(p.status==="approved" || !p.status)?"Ẩn":"Duyệt"}
+                      </Button>
                     </Box>
                   </Box>
-                  <Box flex justifyContent="space-between" alignItems="center">
-                    <Text size="xxSmall" className="text-red-500 cursor-pointer" onClick={() => handleDeleteItem(colName, p.id)}>
-                      <CustomIcon icon="zi-delete"/> Xóa
-                    </Text>
-                    <Button size="small" variant={(p.status==="approved" || !p.status)?"secondary":"primary"} onClick={() => handleApprovePost(p)}>
-                      {(p.status==="approved" || !p.status)?"Ẩn":"Duyệt"}
-                    </Button>
+                );
+              })}
+            </Box>
+          );
+        }
+      case "banners": {
+        const bannersFiltered = dataList.filter(b => {
+          if (bannerTab === "home") {
+            return b.type === "home";
+          } else {
+            return b.type === "store" || !b.type;
+          }
+        });
+
+        return (
+          <Box p={4} className="bg-white h-full hide-scroll">
+            {/* Tab điều hướng */}
+            <Box flex className="mb-4 border-b border-gray-200">
+              <Box 
+                className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${bannerTab === "home" ? "border-blue-600 text-blue-600 font-bold" : "border-transparent text-gray-500"}`} 
+                onClick={() => setBannerTab("home")}
+              >
+                Trang chủ
+              </Box>
+              <Box 
+                className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${bannerTab === "store" ? "border-blue-600 text-blue-600 font-bold" : "border-transparent text-gray-500"}`} 
+                onClick={() => setBannerTab("store")}
+              >
+                Cửa hàng
+              </Box>
+            </Box>
+
+            {/* Form Thêm Banner */}
+            <Box className="bg-gray-50 p-3 rounded-lg mb-6 border border-gray-200">
+              <Text size="small" bold className="mb-2">Thêm Banner {bannerTab === "home" ? "Trang chủ" : "Cửa hàng"}</Text>
+              
+              {/* Nút tải ảnh lên với hướng dẫn tỷ lệ tương ứng */}
+              <Box mb={2} className="relative">
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  id="banner-image-upload" 
+                  className="hidden" 
+                  onChange={handleUploadBannerImage} 
+                />
+                <label htmlFor="banner-image-upload">
+                  <Box 
+                    className={`border-2 border-dashed border-gray-300 rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer hover:border-[#14502e] hover:bg-green-50 transition-colors ${bannerInput ? 'bg-green-50/50' : 'bg-white'}`}
+                  >
+                    {isUploadingBanner ? (
+                      <Box className="flex flex-col items-center">
+                        <Spinner />
+                        <Text size="xSmall" className="text-gray-500 mt-2">Đang tải ảnh lên...</Text>
+                      </Box>
+                    ) : bannerInput ? (
+                      <Box className="w-full flex flex-col items-center">
+                        <img src={bannerInput} alt="Banner Preview" className="w-full h-24 object-cover rounded-lg mb-2 shadow-sm" />
+                        <Text size="xSmall" className="text-[#14502e] font-semibold flex items-center">
+                          <CustomIcon icon="zi-check-circle" size={16} className="mr-1 text-green-600" />
+                          Đã tải ảnh lên. Nhấp để thay đổi
+                        </Text>
+                      </Box>
+                    ) : (
+                      <Box className="flex flex-col items-center py-2 text-center">
+                        <CustomIcon icon="zi-plus" className="text-gray-400 text-3xl mb-1" />
+                        <Text size="small" bold className="text-gray-600">Tải ảnh banner lên</Text>
+                        <Text size="xSmall" className="text-gray-400 mt-1">
+                          {bannerTab === "home" 
+                            ? "Tỷ lệ khuyên dùng 2:1 (VD: 600x300 px)" 
+                            : "Tỷ lệ khuyên dùng 2.3:1 (VD: 690x300 px)"}
+                        </Text>
+                      </Box>
+                    )}
+                  </Box>
+                </label>
+              </Box>
+
+              <Box mb={2}><Input placeholder="Link điều hướng" value={bannerLinkInput} onChange={(e)=>setBannerLinkInput(e.target.value)}/></Box>
+              <Button fullWidth onClick={handleAddBanner} disabled={isUploadingBanner || !bannerInput.trim()}>Đăng</Button>
+            </Box>
+
+            {/* Danh sách banner tương ứng */}
+            {bannersFiltered.length === 0 ? (
+              <Text className="text-center text-gray-400 mt-4">Không có banner nào ở tab này.</Text>
+            ) : (
+              bannersFiltered.map((b) => (
+                <Box key={b.id} className="mb-4 relative border rounded-lg overflow-hidden shadow-md">
+                  <img src={b.image} className="w-full h-32 object-cover"/>
+                  {b.link && (
+                    <Box className="absolute bottom-2 left-2 bg-black/60 px-2 py-0.5 rounded text-white text-[10px] truncate max-w-[80%]">
+                      Link: {b.link}
+                    </Box>
+                  )}
+                  <Box 
+                    className="absolute top-2 right-2 bg-white rounded-full p-1 shadow cursor-pointer hover:bg-gray-100" 
+                    onClick={()=>handleDeleteItem("banners", b.id)}
+                  >
+                    <CustomIcon icon="zi-delete" className="text-red-500" size={18}/>
                   </Box>
                 </Box>
-              );
-            })}
+              ))
+            )}
           </Box>
         );
       }
-      case "banners": return (
-          <Box>
-             <Box className="bg-gray-50 p-3 rounded-lg mb-6 border border-gray-200"><Text size="small" bold className="mb-2">Thêm Banner</Text><Box mb={2}><Input placeholder="Link ảnh" value={bannerInput} onChange={(e)=>setBannerInput(e.target.value)}/></Box><Box mb={2}><Input placeholder="Link điều hướng" value={bannerLinkInput} onChange={(e)=>setBannerLinkInput(e.target.value)}/></Box><Button fullWidth onClick={handleAddBanner}>Đăng</Button></Box>
-             {dataList.map((b) => (<Box key={b.id} className="mb-4 relative border rounded-lg overflow-hidden shadow-md"><img src={b.image} className="w-full h-32 object-cover"/><Box className="absolute top-2 right-2 bg-white rounded-full p-1 shadow cursor-pointer" onClick={()=>handleDeleteItem("banners", b.id)}><CustomIcon icon="zi-delete" className="text-red-500" size={18}/></Box></Box>))}
-          </Box>
-        );
         case "feedbacks": 
         const fbNew = dataList.filter(f => f.status !== "done");
         const fbHistory = dataList.filter(f => f.status === "done");
@@ -921,6 +1306,159 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
             ))}
           </Box>
         );
+        case "vip_requests": {
+          const pendingList = dataList.filter(req => req.status === "pending");
+          const historyList = dataList.filter(req => req.status !== "pending");
+
+          return (
+            <Box p={0} flex flexDirection="column" className="h-full bg-[#f8fafc]">
+              {/* Tab điều hướng */}
+              <Box flex className="mb-4 border-b border-gray-200 bg-white shrink-0">
+                <Box 
+                  className={`flex-1 text-center py-2 border-b-2 text-xs font-bold cursor-pointer transition-colors ${adminVipTab === "pending" ? "border-purple-600 text-purple-600" : "border-transparent text-gray-500"}`} 
+                  onClick={() => setAdminVipTab("pending")}
+                >
+                  Chờ duyệt ({pendingList.length})
+                </Box>
+                <Box 
+                  className={`flex-1 text-center py-2 border-b-2 text-xs font-bold cursor-pointer transition-colors ${adminVipTab === "history" ? "border-purple-600 text-purple-600" : "border-transparent text-gray-500"}`} 
+                  onClick={() => setAdminVipTab("history")}
+                >
+                  Lịch sử duyệt ({historyList.length})
+                </Box>
+              </Box>
+
+              <Box p={4} className="flex-1 overflow-y-auto hide-scroll pb-32">
+                <Box className="bg-blue-50 p-3.5 rounded-xl border border-blue-100 mb-4 flex items-center shadow-sm">
+                  <CustomIcon icon="zi-info-circle" className="text-blue-500 mr-2 shrink-0" />
+                  <Text size="xSmall" className="text-blue-700 leading-normal">
+                    {adminVipTab === "pending" 
+                      ? "Danh sách các yêu cầu mua điểm đẩy hàng VIP đang chờ duyệt. Vui lòng đối soát tài khoản trước khi duyệt." 
+                      : "Lịch sử duyệt nạp điểm VIP của các Shop."}
+                  </Text>
+                </Box>
+
+                {adminVipTab === "pending" && (
+                  <Box className="animate-fade-in-down">
+                    {pendingList.length === 0 ? (
+                      <Box p={4} className="text-center text-gray-500">Không có yêu cầu nạp điểm nào đang chờ.</Box>
+                    ) : (
+                      pendingList.map((req) => (
+                        <Box key={req.id} className="bg-white rounded-2xl p-4 shadow-md border border-gray-150 mb-4 flex flex-col">
+                          <Box flex justifyContent="space-between" alignItems="center" mb={2}>
+                            <Text bold size="normal" className="text-gray-800">{req.shopName}</Text>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-yellow-200 bg-yellow-50 text-yellow-800">
+                              Đang chờ
+                            </span>
+                          </Box>
+
+                          {req.orderCode && (
+                            <Text size="xSmall" className="text-gray-500 mb-1">
+                              Mã đơn: <span className="font-semibold text-gray-800 select-all">{req.orderCode}</span>
+                            </Text>
+                          )}
+
+                          <Text size="xSmall" className="text-gray-500 mb-1">
+                            SĐT Shop: <span className="font-semibold text-gray-800 select-all">{req.shopPhone}</span>
+                          </Text>
+                          <Text size="xSmall" className="text-gray-500 mb-1">
+                            Số điểm mua: <span className="font-bold text-purple-700">{req.points?.toLocaleString()} điểm</span>
+                          </Text>
+                          <Text size="xSmall" className="text-gray-500 mb-2">
+                            Số tiền: <span className="font-bold text-[#14502e]">{(req.amount || 0).toLocaleString()} đ</span>
+                          </Text>
+                          
+                          {req.receiptImage && (
+                            <Box mb={3} className="w-full">
+                              <Text size="xxxxSmall" className="text-gray-400 mb-1 block">Biên lai chuyển khoản:</Text>
+                              <img 
+                                src={req.receiptImage} 
+                                alt="Biên lai" 
+                                className="w-32 h-44 object-cover rounded-xl border border-gray-200 shadow-sm active:scale-150 transition-transform cursor-zoom-in"
+                                onClick={() => window.open(req.receiptImage, '_blank')}
+                              />
+                            </Box>
+                          )}
+
+                          <Text size="xxxxSmall" className="text-gray-400 mb-3">
+                            Gửi lúc: {formatDate(req.createdAt)}
+                          </Text>
+
+                          <Box flex className="gap-2 border-t border-gray-100 pt-3">
+                            <Button 
+                              className="flex-1 bg-red-50 text-red-600 border border-red-200 active:bg-red-100 font-semibold"
+                              size="small"
+                              onClick={() => handleRejectVipRequest(req)}
+                            >
+                              Từ chối
+                            </Button>
+                            <Button 
+                              className="flex-1 bg-green-600 active:bg-green-700 font-semibold"
+                              size="small"
+                              onClick={() => handleApproveVipRequest(req)}
+                            >
+                              Duyệt nạp
+                            </Button>
+                          </Box>
+                        </Box>
+                      ))
+                    )}
+                  </Box>
+                )}
+
+                {adminVipTab === "history" && (
+                  <Box className="animate-fade-in-down">
+                    {historyList.length === 0 ? (
+                      <Box p={4} className="text-center text-gray-500">Chưa có lịch sử duyệt nạp điểm.</Box>
+                    ) : (
+                      historyList.map((req) => {
+                        const isApp = req.status === "approved";
+                        return (
+                          <Box key={req.id} className="bg-white rounded-2xl p-4 shadow-md border border-gray-150 mb-4 flex flex-col">
+                            <Box flex justifyContent="space-between" alignItems="center" mb={2}>
+                              <Text bold size="normal" className="text-gray-800">{req.shopName}</Text>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${isApp ? 'border-green-200 bg-green-50 text-green-700' : 'border-red-200 bg-red-50 text-red-600'}`}>
+                                {isApp ? 'Đã duyệt' : 'Đã từ chối'}
+                              </span>
+                            </Box>
+
+                            {req.orderCode && (
+                              <Text size="xSmall" className="text-gray-500 mb-1">
+                                Mã đơn: <span className="font-semibold text-gray-800 select-all">{req.orderCode}</span>
+                              </Text>
+                            )}
+
+                            <Text size="xSmall" className="text-gray-500 mb-1">
+                              SĐT Shop: <span className="font-semibold text-gray-800">{req.shopPhone}</span>
+                            </Text>
+                            <Text size="xSmall" className="text-gray-500 mb-1">
+                              Số điểm: <span className="font-bold text-purple-700">{req.points?.toLocaleString()} điểm</span>
+                            </Text>
+                            <Text size="xSmall" className="text-gray-500 mb-2">
+                              Số tiền: <span className="font-bold text-gray-700">{(req.amount || 0).toLocaleString()} đ</span>
+                            </Text>
+
+                            <Text size="xxxxSmall" className="text-gray-400">
+                              Yêu cầu nạp: {formatDate(req.createdAt)}
+                            </Text>
+                            <Text size="xxxxSmall" className="text-gray-400 mt-1">
+                              {isApp ? `Duyệt lúc: ${formatDate(req.approvedAt)}` : `Từ chối lúc: ${formatDate(req.rejectedAt)}`}
+                            </Text>
+                            {!isApp && req.rejectedReason && (
+                              <Text size="xxxxSmall" className="text-red-500 font-semibold mt-1">
+                                Lý do từ chối: {req.rejectedReason}
+                              </Text>
+                            )}
+                          </Box>
+                        );
+                      })
+                    )}
+                  </Box>
+                )}
+              </Box>
+            </Box>
+          );
+        }
         case "vouchers": 
           // TÍNH TRẠNG THÁI HIỂN THỊ
           let currentStatus = "Chưa thiết lập";
@@ -1397,7 +1935,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                   <Box key={order.id} className="mb-3 p-3 bg-white rounded-xl border border-gray-200 shadow-md">
                       {/* Mã đơn & Trạng thái */}
                       <Box flex justifyContent="space-between" className="border-b border-gray-100 pb-2 mb-2">
-                          <Text size="small" bold className="text-blue-600">#{order.id.slice(0,6).toUpperCase()}</Text>
+                          <Text size="small" bold className="text-blue-600">#{order.orderCode || order.id.slice(0,6).toUpperCase()}</Text>
                           <Text size="xSmall" bold className={
                               order.status === 'completed' || order.status === 'success' ? "text-green-500" :
                               order.status === 'cancelled' ? "text-red-500" : "text-yellow-500"
@@ -1732,6 +2270,27 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
       </Modal>
       <Modal visible={replyModalVisible} title="Xử lý" onClose={() => setReplyModalVisible(false)} actions={[{ text: "Hủy", onClick: () => setReplyModalVisible(false) }, { text: "Xác nhận", onClick: handleProcessFeedback, highLight: true }]}><Box p={4}><Input.TextArea placeholder="Ghi chú xử lý..." value={adminNote} onChange={(e) => setAdminNote(e.target.value)} /></Box></Modal>
 
+      {/* MODAL TỪ CHỐI DUYỆT VIP */}
+      <Modal 
+        visible={showRejectVipModal} 
+        title="Lý do từ chối nạp VIP" 
+        onClose={() => setShowRejectVipModal(false)}
+        actions={[
+          { text: "Hủy", onClick: () => setShowRejectVipModal(false) },
+          { text: "Từ chối", onClick: handleRejectVipSubmit, highLight: true }
+        ]}
+      >
+        <Box p={4}>
+          <Input
+            label="Nhập lý do từ chối"
+            placeholder="Ví dụ: Chưa nhận được tiền, Sai nội dung chuyển khoản..."
+            value={vipRejectReason}
+            onChange={(e) => setVipRejectReason(e.target.value)}
+            clearable
+          />
+        </Box>
+      </Modal>
+
       {/* MODAL ĐỔI MẬT KHẨU ADMIN */}
       <Modal visible={showChangePass} title="Đổi mật khẩu Admin" onClose={() => setShowChangePass(false)}>
         <Box p={4}>
@@ -1814,7 +2373,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                 {filteredOrders.map((order, idx) => (
                                     <Box key={order.id} className="mb-3 p-3 bg-white rounded-xl border border-gray-200 shadow-md animate-fade-in-up">
                                         <Box flex justifyContent="space-between" className="border-b border-gray-100 pb-2 mb-2">
-                                            <Text size="small" bold className="text-blue-600">#{order.id.slice(0,6).toUpperCase()}</Text>
+                                            <Text size="small" bold className="text-blue-600">#{order.orderCode || order.id.slice(0,6).toUpperCase()}</Text>
                                             <Text size="xSmall" className="text-gray-500">{formatDate(order.createdAt)}</Text>
                                         </Box>
                                         

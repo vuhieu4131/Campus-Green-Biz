@@ -397,50 +397,57 @@ const ShopPublicView: FC = () => {
               (displayedServices.length > 0 || isOwner) ? (
                 <Box>
                   {/* 👇 THANH CHUYỂN ĐỔI TAB ĐÃ DUYỆT / CHỜ DUYỆT (CHỈ CHỦ SHOP) 👇 */}
-                  {isOwner && (
-                    <Box flex className="mb-4 bg-gray-100 p-1 rounded-lg border border-gray-200 gap-1 overflow-x-auto hide-scroll">
-                      <div
-                        onClick={() => setSubTab('approved')}
-                        className={`flex-1 min-w-[75px] text-center py-2 text-[10px] font-bold rounded-md cursor-pointer transition-all duration-200 ${
-                          subTab === 'approved' 
-                            ? 'bg-white text-green-800 shadow-sm border border-gray-200' 
-                            : 'text-gray-500 hover:text-gray-700'
-                        }`}
-                      >
-                        Đã duyệt
-                      </div>
-                      <div
-                        onClick={() => setSubTab('pending')}
-                        className={`flex-1 min-w-[75px] text-center py-2 text-[10px] font-bold rounded-md cursor-pointer transition-all duration-200 ${
-                          subTab === 'pending' 
-                            ? 'bg-white text-yellow-800 shadow-sm border border-gray-200' 
-                            : 'text-gray-500 hover:text-gray-700'
-                        }`}
-                      >
-                        Chờ duyệt
-                      </div>
-                      <div
-                        onClick={() => setSubTab('rejected')}
-                        className={`flex-1 min-w-[75px] text-center py-2 text-[10px] font-bold rounded-md cursor-pointer transition-all duration-200 ${
-                          subTab === 'rejected' 
-                            ? 'bg-white text-red-800 shadow-sm border border-gray-200' 
-                            : 'text-gray-500 hover:text-gray-700'
-                        }`}
-                      >
-                        Từ chối
-                      </div>
-                      <div
-                        onClick={() => setSubTab('deleted')}
-                        className={`flex-1 min-w-[75px] text-center py-2 text-[10px] font-bold rounded-md cursor-pointer transition-all duration-200 ${
-                          subTab === 'deleted' 
-                            ? 'bg-white text-gray-800 shadow-sm border border-gray-200' 
-                            : 'text-gray-500 hover:text-gray-700'
-                        }`}
-                      >
-                        Đã xóa
-                      </div>
-                    </Box>
-                  )}
+                  {isOwner && (() => {
+                    const countApproved = services.filter((item: any) => item.status !== 'pending' && item.status !== 'rejected' && item.status !== 'deleted').length;
+                    const countPending = services.filter((item: any) => item.status === 'pending').length;
+                    const countRejected = services.filter((item: any) => item.status === 'rejected').length;
+                    const countDeleted = services.filter((item: any) => item.status === 'deleted').length;
+
+                    return (
+                      <Box flex className="mb-4 bg-gray-100 p-1 rounded-lg border border-gray-200 gap-1 overflow-x-auto hide-scroll">
+                        <div
+                          onClick={() => setSubTab('approved')}
+                          className={`flex-1 min-w-[80px] text-center py-2 text-[10px] font-bold rounded-md cursor-pointer transition-all duration-200 ${
+                            subTab === 'approved' 
+                              ? 'bg-white text-green-800 shadow-sm border border-gray-200' 
+                              : 'text-gray-500 hover:text-gray-700'
+                          }`}
+                        >
+                          Đã duyệt ({countApproved})
+                        </div>
+                        <div
+                          onClick={() => setSubTab('pending')}
+                          className={`flex-1 min-w-[80px] text-center py-2 text-[10px] font-bold rounded-md cursor-pointer transition-all duration-200 ${
+                            subTab === 'pending' 
+                              ? 'bg-white text-yellow-800 shadow-sm border border-gray-200' 
+                              : 'text-gray-500 hover:text-gray-700'
+                          }`}
+                        >
+                          Chờ duyệt ({countPending})
+                        </div>
+                        <div
+                          onClick={() => setSubTab('rejected')}
+                          className={`flex-1 min-w-[80px] text-center py-2 text-[10px] font-bold rounded-md cursor-pointer transition-all duration-200 ${
+                            subTab === 'rejected' 
+                              ? 'bg-white text-red-800 shadow-sm border border-gray-200' 
+                              : 'text-gray-500 hover:text-gray-700'
+                          }`}
+                        >
+                          Từ chối ({countRejected})
+                        </div>
+                        <div
+                          onClick={() => setSubTab('deleted')}
+                          className={`flex-1 min-w-[80px] text-center py-2 text-[10px] font-bold rounded-md cursor-pointer transition-all duration-200 ${
+                            subTab === 'deleted' 
+                              ? 'bg-white text-gray-800 shadow-sm border border-gray-200' 
+                              : 'text-gray-500 hover:text-gray-700'
+                          }`}
+                        >
+                          Đã xóa ({countDeleted})
+                        </div>
+                      </Box>
+                    );
+                  })()}
 
                   {/* 👇 THANH LỌC DANH MỤC DẠNG PILLS TRƯỢT NGANG 👇 */}
                   {categoriesList.length > 1 && (

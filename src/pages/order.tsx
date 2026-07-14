@@ -285,6 +285,16 @@ const handleSelectVoucher = (voucher: any) => {
     
     setLoading(true);
     try {
+      const generateOrderCode = () => {
+        const year = new Date().getFullYear().toString().slice(-2);
+        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        let suffix = "";
+        for (let i = 0; i < 6; i++) {
+          suffix += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return `${year}${suffix}`;
+      };
+
       const fullDeliveryAddress = isProductFlow ? `${specificAddress}, ${ward}, ${district}, ${province}` : null;
 
       const orderData = {
@@ -316,6 +326,7 @@ const handleSelectVoucher = (voucher: any) => {
         paymentMethod,
         earnedPoints: earnedPoints,
         status: "pending",
+        orderCode: generateOrderCode(),
         createdAt: serverTimestamp()
       };
       

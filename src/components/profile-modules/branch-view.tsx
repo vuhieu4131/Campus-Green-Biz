@@ -275,7 +275,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
                 if (order.userId) {
                     const userRef = doc(db, "users", order.userId);
                     await updateDoc(userRef, { spendingPoints: increment(pointsEarned), rankPoints: increment(pointsEarned) }).catch(e => console.log("Lỗi", e));
-                    await addDoc(collection(db, "point_transactions"), { userId: order.userId, type: "plus", amount: pointsEarned, description: `Tích điểm từ đơn hàng #${order.id.slice(0,6).toUpperCase()}`, walletType: "main", createdAt: serverTimestamp() });
+                    await addDoc(collection(db, "point_transactions"), { userId: order.userId, type: "plus", amount: pointsEarned, description: `Tích điểm từ đơn hàng #${order.orderCode || order.id.slice(0,6).toUpperCase()}`, walletType: "main", createdAt: serverTimestamp() });
                 }
                 if (order.shopId) {
                     const shopRef = doc(db, "users", order.shopId);
@@ -910,7 +910,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
 
                                       {/* Dòng Mã đơn & Trạng thái */}
                                       <Box flex justifyContent="space-between" className="border-b border-gray-100 pb-2 mb-2">
-                                          <Text size="small" bold className="text-gray-800">#{order.id.slice(0,6).toUpperCase()}</Text>
+                                          <Text size="small" bold className="text-gray-800">#{order.orderCode || order.id.slice(0,6).toUpperCase()}</Text>
                                           <Text size="xSmall" bold className={
                                               order.status === 'pending' ? 'text-orange-600 bg-orange-50 px-2 py-0.5 rounded' :
                                               order.status === 'confirmed' ? 'text-blue-600 bg-blue-50 px-2 py-0.5 rounded' :
@@ -1126,7 +1126,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
                       return (
                           <Box key={idx} className="bg-white p-3 rounded-xl mb-3 border border-gray-200 shadow-md animate-fade-in-up">
                               <Box flex justifyContent="space-between" className="border-b border-gray-100 pb-2 mb-2">
-                                  <Text size="small" bold className="text-blue-600">#{order.id.slice(0,6).toUpperCase()}</Text>
+                                  <Text size="small" bold className="text-blue-600">#{order.orderCode || order.id.slice(0,6).toUpperCase()}</Text>
                                   <Text size="xSmall" className="text-gray-500">
                                       {order.createdAt?.toDate ? order.createdAt.toDate().toLocaleDateString('vi-VN') : ""}
                                   </Text>
@@ -1157,7 +1157,7 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
       >
           <Box p={4}>
               <Text size="small" className="mb-3 text-gray-700">
-                  Vui lòng nhập lý do hủy đơn hàng <Text bold as="span" className="text-blue-600">#{selectedOrderToCancel?.id?.slice(0,6).toUpperCase()}</Text> để lưu lại lịch sử:
+                  Vui lòng nhập lý do hủy đơn hàng <Text bold as="span" className="text-blue-600">#{selectedOrderToCancel?.orderCode || selectedOrderToCancel?.id?.slice(0,6).toUpperCase()}</Text> để lưu lại lịch sử:
               </Text>
               <Input.TextArea
                   placeholder="VD: Khách báo bận không đến được, Khách đặt nhầm..."

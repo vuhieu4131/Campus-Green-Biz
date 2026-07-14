@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Page, Box, Input, Button, Text, useSnackbar, Header, Icon, Spinner, Select } from "zmp-ui";
 // 👉 BƯỚC 1: Bổ sung doc và getDoc để đọc cấu hình Admin
-import { collection, addDoc, updateDoc, serverTimestamp, query, where, getDocs, doc, getDoc } from "firebase/firestore";
+import { collection, addDoc, updateDoc, serverTimestamp, query, where, getDocs, doc, getDoc, orderBy } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db } from "../firebase"; 
 import { useNavigate, useParams, useLocation } from "react-router-dom";
@@ -28,6 +28,7 @@ const PostPage: React.FunctionComponent = () => {
 
   // 👉 BƯỚC 2: Thêm State lưu tỷ lệ điểm của Admin (Mặc định 10%)
   const [minRewardRate, setMinRewardRate] = useState(10);
+  const [dbCategories, setDbCategories] = useState<any[]>([]);
 
   const [uploadingImage, setUploadingImage] = useState(false); // State xoay vòng loading tải ảnh
   const [uploadingVideo, setUploadingVideo] = useState(false); // State xoay vòng loading tải video
@@ -39,7 +40,7 @@ const PostPage: React.FunctionComponent = () => {
     productCategory: string;
   }>({
     title: "", price: "", originalPrice: "", shopName: "", points: "", // 👉 THÊM originalPrice: ""
-    description: "", images: [], videoUrl: "", selectedLocation: "", category: "package", 
+    description: "", images: [], videoUrl: "", selectedLocation: "", category: "", 
     stock: "",
     productCategory: ""
   });
@@ -47,6 +48,7 @@ const PostPage: React.FunctionComponent = () => {
   // 👉 THÊM MỚI: State quản lý Phân loại hàng (Màu sắc, Size...)
   const [hasVariants, setHasVariants] = useState(false);
   const [attributes, setAttributes] = useState([{ name: "", values: "" }]);
+  const [isVip, setIsVip] = useState(false);
 
  useEffect(() => {
   const init = async () => {
@@ -72,11 +74,20 @@ const PostPage: React.FunctionComponent = () => {
           if (editingPost.attributes && editingPost.attributes.length > 0) {
               setAttributes(editingPost.attributes);
           }
+          setIsVip(editingPost.isVip || false);
       }
-          // 👉 BƯỚC 3: Lấy Tỷ lệ tích điểm từ Cấu hình Admin
+          // 👉 BƯỚC 3: Lấy Tỷ lệ tích điểm từ Cấu hình Admin và tải danh mục
           const configSnap = await getDoc(doc(db, "system_config", "admin_settings"));
           if (configSnap.exists() && configSnap.data().rewardPointRate !== undefined) {
               setMinRewardRate(Number(configSnap.data().rewardPointRate));
+          }
+
+          try {
+            const querySnapshot = await getDocs(query(collection(db, "categories"), orderBy("createdAt", "asc")));
+            const catList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+            setDbCategories(catList);
+          } catch (error) {
+            console.error("Lỗi khi tải danh mục:", error);
           }
 
           const userPhone = localStorage.getItem("user_phone");
@@ -273,6 +284,33 @@ const handleRemoveVideo = () => {
 
     try {
       const userPhone = localStorage.getItem("user_phone");
+      
+      // Lấy thông tin shop để kiểm tra & khấu trừ Ví điểm đẩy hàng VIP
+      const qShop = query(collection(db, "shops"), where("phone", "==", userPhone));
+      const snapShop = await getDocs(qShop);
+      if (snapShop.empty) {
+        openSnackbar({ text: "Không tìm thấy thông tin shop của bạn!", type: "error", position: "top" });
+        setLoading(false);
+        return;
+      }
+      const shopDoc = snapShop.docs[0];
+      const currentVipPoints = shopDoc.data().vipPushPoints || 0;
+      const wasAlreadyVip = editingPost?.isVip === true;
+
+      // Phí: 10 điểm nếu đăng VIP và trước đó chưa phải VIP.
+      // Phí: 1 điểm nếu đăng mới và không phải VIP.
+      const vipCost = (isVip && !wasAlreadyVip) ? 10 : (!id ? 1 : 0);
+
+      if (vipCost > 0 && currentVipPoints < vipCost) {
+        openSnackbar({ 
+          text: `Số dư Ví điểm VIP không đủ (Cần tối thiểu ${vipCost} điểm để ${isVip ? "đăng bài VIP" : "đăng bài"}). Vui lòng nạp thêm!`, 
+          type: "error", 
+          position: "top" 
+        });
+        setLoading(false);
+        return;
+      }
+
       const validAttributes = hasVariants ? attributes.filter(a => a.name.trim() && a.values.trim()) : [];
 
       // 👇 Gom dữ liệu lại thành 1 cục (Payload) để dùng chung
@@ -292,10 +330,18 @@ const handleRemoveVideo = () => {
         productCategory: form.productCategory || "Khác", // 👇 THÊM MỚI: Nếu shop quên nhập, mặc định là "Khác"
         providerId: userPhone, 
         ownerPhone: userPhone, 
-        stock: form.category === "product" ? Number(form.stock) : -1,
-        hasVariants: form.category === "product" ? hasVariants : false,
-        attributes: form.category === "product" ? validAttributes : [],
+        stock: form.stock ? Number(form.stock) : -1,
+        hasVariants: hasVariants,
+        attributes: validAttributes,
+        isVip: isVip,
       };
+
+      // Khấu trừ điểm VIP của shop
+      if (vipCost > 0) {
+        await updateDoc(doc(db, "shops", shopDoc.id), {
+          vipPushPoints: currentVipPoints - vipCost
+        });
+      }
 
       if (id) {
         // 👇 NẾU CÓ ID -> CHẾ ĐỘ CHỈNH SỬA
@@ -313,7 +359,7 @@ const handleRemoveVideo = () => {
         // 👇 NẾU KHÔNG CÓ ID -> CHẾ ĐỘ ĐĂNG MỚI
         // Thêm dữ liệu mới vào bảng "services"
         const collectionRef = collection(db, "services");
-        
+
         await addDoc(collectionRef, {
             ...postData,
             status: "pending", // Bạn có thể thêm trường trạng thái để chờ Admin duyệt
@@ -450,6 +496,26 @@ const handleRemoveVideo = () => {
         <Box mb={4}>
           <Input label="Tên sản phẩm/ dịch vụ" placeholder="VD: Tinh dầu bạch đàn" value={form.title} onChange={(e) => handleChange("title", e.target.value)} />
         </Box>
+
+        {/* CÂU HỎI ĐĂNG VIP */}
+        <Box mb={4} className="bg-purple-50 p-3.5 rounded-xl border border-purple-100 shadow-sm">
+          <Box flex justifyContent="space-between" alignItems="center">
+            <Text size="small" className="font-semibold text-purple-950 flex-1 pr-2">Bạn có muốn đăng Sản phẩm/ Dịch vụ này lên VIP không?</Text>
+            <input 
+              type="checkbox" 
+              className="w-5 h-5 accent-purple-600 cursor-pointer shrink-0" 
+              checked={isVip} 
+              onChange={(e) => setIsVip(e.target.checked)} 
+            />
+          </Box>
+          {isVip && (
+            <Box className="mt-2.5 bg-white/70 p-2.5 rounded-lg border border-purple-200">
+              <Text size="xxxxSmall" className="text-purple-800 leading-normal font-medium">
+                📢 <b>Thông báo:</b> Sản phẩm này sẽ được hiển thị trong thư mục <b>Sản phẩm Hot</b> và trừ <b>10 điểm</b> cho mỗi bài đăng VIP. Số điểm này sẽ được trừ trực tiếp vào Ví điểm đẩy hàng VIP của shop.
+              </Text>
+            </Box>
+          )}
+        </Box>
         {/* 👇 THÊM MỚI: Ô nhập Nhãn phân loại 👇 */}
         <Box mb={4}>
           <Input 
@@ -462,18 +528,28 @@ const handleRemoveVideo = () => {
         <Box mb={4}>
             <Text size="small" className="mb-1 font-medium ml-1">Danh mục</Text>
             <Select
+                placeholder="Chọn danh mục"
                 value={form.category}
                 onChange={(val) => handleChange("category", val as string)}
                 closeOnSelect
             >
-                <Option value="package" title="Dịch vụ" />
-                <Option value="product" title="Sản Phẩm" />
-                <Option value="academy" title="Đào Tạo" />
-                <Option value="franchise" title="Nhượng Quyền" />
+                {dbCategories.map(cat => (
+                  <Option key={cat.id} value={cat.name} title={cat.name} />
+                ))}
+                {dbCategories.length === 0 && (
+                  <>
+                    <Option value="Công nghệ" title="Công nghệ" />
+                    <Option value="Thời trang" title="Thời trang" />
+                    <Option value="Góc học tập" title="Góc học tập" />
+                    <Option value="Phòng trọ" title="Phòng trọ" />
+                    <Option value="Ăn uống" title="Ăn uống" />
+                    <Option value="Tiện ích cộng đồng" title="Tiện ích cộng đồng" />
+                  </>
+                )}
             </Select>
         </Box>
-        {/* 👉 GIAO DIỆN CHỈ HIỆN KHI CHỌN "SẢN PHẨM" */}
-        {form.category === "product" && (
+        {/* 👉 GIAO DIỆN CHỈ HIỆN KHI ĐÃ CHỌN DANH MỤC */}
+        {form.category !== "" && (
             <Box mb={4} className="bg-blue-50 p-4 rounded-xl border border-blue-100 shadow-sm animate-fade-in-down">
                 <Text size="small" bold className="text-blue-800 mb-3">Thông tin Bán hàng</Text>
                 

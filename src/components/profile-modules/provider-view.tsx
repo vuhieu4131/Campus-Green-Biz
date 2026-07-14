@@ -3,7 +3,8 @@ import React, { FC, useState, useEffect } from "react";
 import { Box, Text, Icon, Button, Avatar, List, Modal, Input, Spinner, useSnackbar, Progress, Select } from "zmp-ui";
 import { useNavigate } from "react-router-dom";
 import { collection, query, where, getDocs, doc, updateDoc, addDoc, setDoc, serverTimestamp, orderBy, limit, getDoc, onSnapshot } from "firebase/firestore";
-import { db } from "../../firebase"; 
+import { db, storage } from "../../firebase"; 
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { openShareSheet } from "zmp-sdk/apis";
 
 const { Item } = List;
@@ -289,6 +290,106 @@ const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
     }
 };
   const [pendingCount, setPendingCount] = useState(0);
+  const [shopVipPoints, setShopVipPoints] = useState(0);
+  const [showVipModal, setShowVipModal] = useState(false);
+  const [pointsToBuy, setPointsToBuy] = useState("");
+  const [vipActiveTab, setVipActiveTab] = useState("buy");
+  const [myVipRequests, setMyVipRequests] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!showVipModal || !userData.id) return;
+    const q = query(
+      collection(db, "vip_points_requests"), 
+      where("shopId", "==", userData.id), 
+      orderBy("createdAt", "desc")
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+      setMyVipRequests(list);
+    });
+    return () => unsub();
+  }, [showVipModal, userData.id]);
+
+  const [receiptUrl, setReceiptUrl] = useState("");
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
+  const [submittingVipRequest, setSubmittingVipRequest] = useState(false);
+
+  const handleUploadReceipt = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingReceipt(true);
+    try {
+      const filename = `vip_receipts/${userData.id}_${Date.now()}_${file.name}`;
+      const storageRef = ref(storage, filename);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      setReceiptUrl(url);
+      openSnackbar({ text: "Tải biên lai lên thành công!", type: "success" });
+    } catch (error) {
+      console.error("Lỗi khi tải ảnh biên lai:", error);
+      openSnackbar({ text: "Lỗi tải ảnh lên. Vui lòng thử lại.", type: "error" });
+    } finally {
+      setUploadingReceipt(false);
+    }
+  };
+
+  const handleSubmitVipRequest = async () => {
+    if (!pointsToBuy || Number(pointsToBuy) <= 0) {
+      openSnackbar({ text: "Vui lòng nhập số điểm muốn mua hợp lệ!", type: "error" });
+      return;
+    }
+    if (!receiptUrl) {
+      openSnackbar({ text: "Vui lòng tải ảnh biên lai chuyển tiền lên!", type: "error" });
+      return;
+    }
+
+    const generateOrderCode = () => {
+      const year = new Date().getFullYear().toString().slice(-2);
+      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+      let suffix = "";
+      for (let i = 0; i < 6; i++) {
+        suffix += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return `${year}${suffix}`;
+    };
+
+    setSubmittingVipRequest(true);
+    try {
+      const code = generateOrderCode();
+      await addDoc(collection(db, "vip_points_requests"), {
+        orderCode: code,
+        shopId: userData.id,
+        shopPhone: userData.phone,
+        shopName: userData.name || userData.phone,
+        points: Number(pointsToBuy),
+        amount: Number(pointsToBuy) * 1000,
+        receiptImage: receiptUrl,
+        status: "pending",
+        createdAt: serverTimestamp()
+      });
+      openSnackbar({ text: `Gửi yêu cầu mua điểm VIP thành công! Mã đơn: ${code}`, type: "success" });
+      setShowVipModal(false);
+      setPointsToBuy("");
+      setReceiptUrl("");
+    } catch (error) {
+      console.error("Lỗi gửi yêu cầu mua điểm:", error);
+      openSnackbar({ text: "Lỗi hệ thống. Vui lòng thử lại.", type: "error" });
+    } finally {
+      setSubmittingVipRequest(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!userData.id) return;
+    const unsub = onSnapshot(doc(db, "shops", userData.id), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setShopVipPoints(data.vipPushPoints || 0);
+      }
+    });
+    return () => unsub();
+  }, [userData.id]);
+
   const [stats, setStats] = useState({ totalRevenue: 0, monthlyRevenue: 0, completedCount: 0, monthlyFee: 0, totalFee: 0 });
   const [showCompletedModal, setShowCompletedModal] = useState(false);
   const [completedOrders, setCompletedOrders] = useState<any[]>([]);
@@ -928,6 +1029,24 @@ useEffect(() => {
               </Box>
           </Box>
 
+          {/* VÍ ĐIỂM ĐẨY HÀNG VIP */}
+          <Box 
+              mt={3} p={3} 
+              className="bg-purple-50 rounded-xl border border-purple-100 flex justify-between items-center cursor-pointer active:opacity-70 transition-opacity"
+              onClick={() => setShowVipModal(true)}
+          >
+              <Box flex alignItems="center">
+                  <Box className="w-8 h-8 rounded-full bg-white flex items-center justify-center mr-2 shadow-md">
+                      <CustomIcon icon="zi-star-solid" className="text-purple-600" size={16}/>
+                  </Box>
+                  <Text size="small" className="text-gray-700 font-medium">Ví điểm đẩy hàng VIP:</Text>
+              </Box>
+              <Box flex alignItems="center">
+                  <Text bold size="normal" className="text-purple-600 mr-2">{shopVipPoints.toLocaleString()} điểm</Text>
+                  <CustomIcon icon="zi-chevron-right" className="text-purple-400" size={16}/>
+              </Box>
+          </Box>
+
           <Box mt={3} p={3} className="bg-orange-50 rounded-xl border border-orange-100 flex justify-between items-center">
               <Box flex alignItems="center">
                   <Box className="w-8 h-8 rounded-full bg-white flex items-center justify-center mr-2 shadow-md">
@@ -1003,6 +1122,195 @@ useEffect(() => {
       </Box>
 
       {/* --- CÁC MODAL --- */}
+
+      {/* MODAL VÍ ĐIỂM ĐẨY HÀNG VIP */}
+      <Modal 
+        visible={showVipModal} 
+        title="Ví Điểm Đẩy Hàng VIP" 
+        onClose={() => { setShowVipModal(false); setPointsToBuy(""); setVipActiveTab("buy"); }}
+        actions={[{ text: "Đóng", onClick: () => { setShowVipModal(false); setPointsToBuy(""); setVipActiveTab("buy"); } }]}
+      >
+        <Box p={4} className="hide-scroll overflow-y-auto" style={{ maxHeight: '75vh' }}>
+          <Box className="bg-gradient-to-br from-purple-500 to-indigo-600 p-4 rounded-xl text-white shadow-md text-center mb-4 shrink-0">
+            <Text size="small" className="opacity-90">Số dư hiện tại</Text>
+            <Text bold size="xLarge" className="mt-1">{shopVipPoints.toLocaleString()} điểm</Text>
+            <Text size="xxxxSmall" className="opacity-75 mt-2 block">* Mỗi lượt đăng sản phẩm mới sẽ trừ 1 điểm VIP</Text>
+          </Box>
+
+          {/* TAB BAR */}
+          <Box flex className="mb-4 border-b border-gray-200 shrink-0">
+            <Box 
+              className={`flex-1 text-center py-2 border-b-2 text-xs font-bold cursor-pointer transition-colors ${vipActiveTab === "buy" ? "border-purple-600 text-purple-600" : "border-transparent text-gray-500"}`} 
+              onClick={() => setVipActiveTab("buy")}
+            >
+              Nạp điểm
+            </Box>
+            <Box 
+              className={`flex-1 text-center py-2 border-b-2 text-xs font-bold cursor-pointer transition-colors ${vipActiveTab === "pending" ? "border-purple-600 text-purple-600" : "border-transparent text-gray-500"}`} 
+              onClick={() => setVipActiveTab("pending")}
+            >
+              Chờ duyệt ({myVipRequests.filter(r => r.status === "pending").length})
+            </Box>
+            <Box 
+              className={`flex-1 text-center py-2 border-b-2 text-xs font-bold cursor-pointer transition-colors ${vipActiveTab === "history" ? "border-purple-600 text-purple-600" : "border-transparent text-gray-500"}`} 
+              onClick={() => setVipActiveTab("history")}
+            >
+              Lịch sử nạp ({myVipRequests.filter(r => r.status !== "pending").length})
+            </Box>
+          </Box>
+
+          {/* TAB CONTENTS */}
+          {vipActiveTab === "buy" && (
+            <Box className="animate-fade-in-down">
+              <Box className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 mb-4">
+                <Text size="xxSmall" className="text-yellow-800 leading-relaxed font-semibold">
+                  💡 Quy định nạp điểm VIP:
+                  <br />• Tỷ lệ chuyển đổi: 1.000đ = 1 điểm.
+                  <br />• Điền số điểm muốn mua bên dưới để tạo mã thanh toán chuyển khoản QR tự động.
+                  <br />• Sau khi chuyển khoản, Admin sẽ duyệt và điểm được cộng trực tiếp vào ví của bạn.
+                </Text>
+              </Box>
+
+              <Box mb={4}>
+                <Input 
+                  type="number" 
+                  label="Số điểm muốn mua" 
+                  placeholder="Ví dụ: 100" 
+                  value={pointsToBuy} 
+                  onChange={(e) => setPointsToBuy(e.target.value)} 
+                  clearable
+                />
+              </Box>
+
+              {Number(pointsToBuy) > 0 && (
+                <Box className="flex flex-col items-center border border-gray-100 rounded-xl p-4 bg-gray-50 mb-2">
+                  <Text bold size="small" className="text-gray-700 mb-1">Thông tin thanh toán:</Text>
+                  <Text size="xSmall" className="text-gray-500 mb-2">Số tiền: <span className="text-[#14502e] font-bold text-sm">{(Number(pointsToBuy) * 1000).toLocaleString('vi-VN')} đ</span></Text>
+                  
+                  <Box className="bg-white p-2 rounded-xl shadow-md border mb-3 flex items-center justify-center">
+                    <img 
+                      src={`https://img.vietqr.io/image/MB-9999999999-compact.png?amount=${Number(pointsToBuy) * 1000}&addInfo=${encodeURIComponent(userData.phone + "need" + pointsToBuy)}&accountName=GREENBIZ%20ADMIN`} 
+                      alt="QR Thanh toán" 
+                      className="w-48 h-48 object-contain"
+                    />
+                  </Box>
+
+                  <Box className="bg-purple-100/50 border border-purple-200 p-2.5 rounded-lg w-full text-center mb-4">
+                    <Text size="xxxxSmall" className="text-gray-500 block mb-0.5 font-medium">Nội dung chuyển khoản (Đã tích hợp trong QR):</Text>
+                    <Text size="xSmall" bold className="text-purple-700 tracking-wide select-all">
+                      {userData.phone}need{pointsToBuy}
+                    </Text>
+                  </Box>
+
+                  <Box className="w-full border-t border-gray-200 pt-4">
+                    <Text bold size="small" className="text-gray-700 mb-2">Tải Biên lai chuyển tiền (Ảnh chụp giao dịch):</Text>
+                    <Box className="relative">
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        id="vip-receipt-upload" 
+                        className="hidden" 
+                        onChange={handleUploadReceipt} 
+                      />
+                      <label htmlFor="vip-receipt-upload">
+                        <Box 
+                          className={`border-2 border-dashed border-gray-300 rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer hover:border-purple-500 hover:bg-purple-50 transition-colors ${receiptUrl ? 'bg-purple-50/50' : 'bg-white'}`}
+                        >
+                          {uploadingReceipt ? (
+                            <Box className="flex flex-col items-center">
+                              <Spinner />
+                              <Text size="xSmall" className="text-gray-500 mt-2">Đang tải ảnh biên lai lên...</Text>
+                            </Box>
+                          ) : receiptUrl ? (
+                            <Box className="w-full flex flex-col items-center">
+                              <img src={receiptUrl} alt="Biên lai" className="w-32 h-32 object-cover rounded-lg border border-purple-200 shadow-sm mb-2" />
+                              <Text size="xxxxSmall" className="text-purple-600 font-bold">Chạm để tải ảnh khác</Text>
+                            </Box>
+                          ) : (
+                            <>
+                              <Icon icon="zi-camera" className="text-gray-400 text-3xl mb-1"/>
+                              <Text size="xxxxSmall" className="text-gray-500 font-medium">Nhấn để chụp hoặc chọn ảnh biên lai</Text>
+                            </>
+                          )}
+                        </Box>
+                      </label>
+                    </Box>
+                  </Box>
+
+                  <Button 
+                    fullWidth 
+                    className="mt-4 bg-purple-600 active:bg-purple-700" 
+                    loading={submittingVipRequest}
+                    disabled={!receiptUrl || uploadingReceipt}
+                    onClick={handleSubmitVipRequest}
+                  >
+                    Xác nhận chuyển tiền
+                  </Button>
+                </Box>
+              )}
+            </Box>
+          )}
+
+          {vipActiveTab === "pending" && (
+            <Box className="animate-fade-in-down">
+              {myVipRequests.filter(r => r.status === "pending").length === 0 ? (
+                <Text size="small" className="text-center text-gray-500 py-6 block">Không có đơn mua nào đang chờ duyệt.</Text>
+              ) : (
+                myVipRequests.filter(r => r.status === "pending").map((req) => (
+                  <Box key={req.id} className="bg-white border border-gray-150 rounded-xl p-3.5 shadow-sm mb-3">
+                    <Box flex justifyContent="space-between" alignItems="center" mb={1.5}>
+                      <Text bold size="small" className="text-purple-700">+{req.points?.toLocaleString()} điểm VIP</Text>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-yellow-200 bg-yellow-50 text-yellow-800">
+                        Chờ duyệt
+                      </span>
+                    </Box>
+                    {req.orderCode && (
+                      <Text size="xxxxSmall" className="text-gray-500 block mb-1">Mã đơn: <span className="font-semibold text-gray-800 select-all">{req.orderCode}</span></Text>
+                    )}
+                    <Text size="xxxxSmall" className="text-gray-500 block mb-1">Số tiền: <span className="font-semibold text-gray-800">{(req.amount || 0).toLocaleString()}đ</span></Text>
+                    <Text size="xxxxSmall" className="text-gray-500 block mb-2">Ngày gửi: {formatDate(req.createdAt)}</Text>
+                    {req.receiptImage && (
+                      <img src={req.receiptImage} alt="Biên lai" className="w-16 h-20 object-cover rounded-lg border border-gray-200 active:scale-150 transition-transform cursor-pointer" onClick={() => window.open(req.receiptImage, '_blank')} />
+                    )}
+                  </Box>
+                ))
+              )}
+            </Box>
+          )}
+
+          {vipActiveTab === "history" && (
+            <Box className="animate-fade-in-down">
+              {myVipRequests.filter(r => r.status !== "pending").length === 0 ? (
+                <Text size="small" className="text-center text-gray-500 py-6 block">Chưa có lịch sử giao dịch nạp điểm.</Text>
+              ) : (
+                myVipRequests.filter(r => r.status !== "pending").map((req) => {
+                  const isApp = req.status === "approved";
+                  return (
+                    <Box key={req.id} className="bg-white border border-gray-150 rounded-xl p-3.5 shadow-sm mb-3">
+                      <Box flex justifyContent="space-between" alignItems="center" mb={1.5}>
+                        <Text bold size="small" className={isApp ? "text-green-600" : "text-red-500"}>
+                          {isApp ? `+${req.points?.toLocaleString()} điểm VIP` : `${req.points?.toLocaleString()} điểm VIP`}
+                        </Text>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${isApp ? 'border-green-200 bg-green-50 text-green-700' : 'border-red-200 bg-red-50 text-red-600'}`}>
+                          {isApp ? 'Thành công' : 'Bị từ chối'}
+                        </span>
+                      </Box>
+                      {req.orderCode && (
+                        <Text size="xxxxSmall" className="text-gray-500 block mb-1">Mã đơn: <span className="font-semibold text-gray-800 select-all">{req.orderCode}</span></Text>
+                      )}
+                      <Text size="xxxxSmall" className="text-gray-500 block mb-1">Số tiền: <span className="font-semibold text-gray-800">{(req.amount || 0).toLocaleString()}đ</span></Text>
+                      <Text size="xxxxSmall" className="text-gray-500 block">Thời gian: {formatDate(req.createdAt)}</Text>
+                      {!isApp && req.rejectedReason && (
+                        <Text size="xxxxSmall" className="text-red-500 block mt-1.5 font-semibold">Lý do từ chối: {req.rejectedReason}</Text>
+                      )}
+                    </Box>
+                  );
+                })
+              )}
+            </Box>
+          )}
+        </Box>
+      </Modal>
 
       {/* MODAL THÔNG TIN SHOP & VÍ ĐIỂM */}
       <Modal visible={showShopInfoModal} title="Thông tin Shop" onClose={() => setShowShopInfoModal(false)}>
@@ -1395,7 +1703,7 @@ useEffect(() => {
                               return (
                                   <Box key={idx} className="bg-white p-3 rounded-xl mb-3 border border-gray-200 shadow-md animate-fade-in-up">
                                       <Box flex justifyContent="space-between" className="border-b border-gray-100 pb-2 mb-2">
-                                          <Text size="small" bold className="text-blue-600">#{order.id.slice(0,6).toUpperCase()}</Text>
+                                          <Text size="small" bold className="text-blue-600">#{order.orderCode || order.id.slice(0,6).toUpperCase()}</Text>
                                           <Text size="xSmall" bold className={order.status === 'pending' ? 'text-orange-500' : order.status === 'cancelled' ? 'text-red-500' : 'text-green-500'}>
                                               {order.status === 'pending' ? 'Mới' : order.status === 'confirmed' ? 'Đã chốt' : order.status === 'cancelled' ? 'Đã hủy' : 'Hoàn thành'}
                                           </Text>
@@ -1479,7 +1787,7 @@ useEffect(() => {
                       return (
                       <Box key={idx} className="bg-white p-3 rounded-xl mb-3 border border-gray-200 shadow-md animate-fade-in-up">
                           <Box flex justifyContent="space-between" className="border-b border-gray-100 pb-2 mb-2">
-                              <Text size="small" bold className="text-blue-600">#{order.id.slice(0,6).toUpperCase()}</Text>
+                              <Text size="small" bold className="text-blue-600">#{order.orderCode || order.id.slice(0,6).toUpperCase()}</Text>
                               <Text size="xSmall" className="text-gray-500">{order.createdAt?.toDate ? order.createdAt.toDate().toLocaleDateString('vi-VN') : ""}</Text>
                           </Box>
                           
@@ -1713,7 +2021,7 @@ useEffect(() => {
                                       >
                                           <Box flex justifyContent="space-between" alignItems="center" className="border-b border-gray-100 pb-2 mb-2">
                                               <Box flex alignItems="center">
-                                                  <Text size="small" bold className="text-gray-800">#{order.id.slice(0,6).toUpperCase()}</Text>
+                                                  <Text size="small" bold className="text-gray-800">#{order.orderCode || order.id.slice(0,6).toUpperCase()}</Text>
                                                   
                                                   {/* 👉 GẮN CỜ "ĐANG CHỜ DUYỆT" */}
                                                   {isReported && (
