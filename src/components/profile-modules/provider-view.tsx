@@ -47,9 +47,11 @@ const formatDate = (timestamp) => {
 
 interface ProviderProps {
   userData: any;
+  onBackToProfile?: () => void; // Dấu ? nghĩa là hàm này có thể có hoặc không
+  onLogout?: () => void;        // Định nghĩa thêm hàm đăng xuất
 }
 
-export const ProviderView: FC<ProviderProps> = ({ userData }) => {
+export const ProviderView: FC<ProviderProps> = ({ userData, onBackToProfile, onLogout }) => {
   const navigate = useNavigate();
   const { openSnackbar } = useSnackbar();
 
