@@ -10,50 +10,31 @@ const { Item } = List;
 const { TextArea } = Input;
 const { Option } = Select;
 // 👉 Placeholder cho App ID của bạn
-const YOUR_APP_ID = "3525851935148341014"; 
+const YOUR_APP_ID = "2196212719506893777"; 
 
 // 👉 1. HÀM TÍNH RANK SHOP & LOGIC LÊN HẠNG (CẬP NHẬT)
 const calculateShopRankInfo = (points: number) => {
   const p = points || 0;
-  
+  // Cấu trúc trả về: { Rank hiện tại, Rank kế tiếp, Mục tiêu điểm }
   if (p < 300) return { 
-    name: "Khởi Nghiệp Nhí", 
-    color: "bg-gray-100 text-gray-600", 
-    icon: "zi-star", 
-    nextRank: "Cửa Tiệm Xanh", 
-    target: 300 
+      name: "Thạch Anh", color: "bg-gray-100 text-gray-600", icon: "zi-star", 
+      nextRank: "Ngọc Bích", target: 300 
   };
-  
   if (p < 1000) return { 
-    name: "Cửa Tiệm Xanh", 
-    color: "bg-green-100 text-green-700", 
-    icon: "zi-home-solid", 
-    nextRank: "Đối Tác Uy Tín", 
-    target: 1000 
+      name: "Ngọc Bích", color: "bg-green-100 text-green-700", icon: "zi-shield-solid", 
+      nextRank: "Hồng Ngọc", target: 1000 
   };
-  
   if (p < 2000) return { 
-    name: "Đối Tác Uy Tín", 
-    color: "bg-red-100 text-red-600", 
-    icon: "zi-shield-solid", 
-    nextRank: "Thương Gia Bền Vững", 
-    target: 2000 
+      name: "Hồng Ngọc", color: "bg-red-100 text-red-600", icon: "zi-heart-solid", 
+      nextRank: "Lam Ngọc", target: 2000 
   };
-  
   if (p < 5000) return { 
-    name: "Thương Gia Bền Vững", 
-    color: "bg-blue-100 text-blue-600", 
-    icon: "zi-heart-solid", 
-    nextRank: "Thủ Lĩnh Thương Mại", 
-    target: 5000 
+      name: "Lam Ngọc", color: "bg-blue-100 text-blue-600", icon: "zi-diamond", 
+      nextRank: "Kim Cương", target: 5000 
   };
-  
   return { 
-    name: "Thủ Lĩnh Thương Mại", 
-    color: "bg-purple-100 text-purple-600", 
-    icon: "zi-crown", // Hoặc giữ nguyên "zi-diamond-solid" nếu thư viện không có icon vương miện
-    nextRank: "Max Level", 
-    target: 0 
+      name: "Kim Cương", color: "bg-purple-100 text-purple-600", icon: "zi-diamond-solid", 
+      nextRank: "Max Level", target: 0 
   };
 };
 
@@ -66,11 +47,9 @@ const formatDate = (timestamp) => {
 
 interface ProviderProps {
   userData: any;
-  onLogout: () => void;
-  onBackToProfile?: () => void;
 }
 
-export const ProviderView: FC<ProviderProps> = ({ userData, onLogout, onBackToProfile}) => {
+export const ProviderView: FC<ProviderProps> = ({ userData }) => {
   const navigate = useNavigate();
   const { openSnackbar } = useSnackbar();
 
@@ -532,7 +511,7 @@ useEffect(() => {
       if (oldPass !== userData.password) return openSnackbar({ text: "Mật khẩu cũ sai", type: "error" });
       setPassLoading(true);
       try {
-          await updateDoc(doc(db, "shops", userData.id), { password: newPass });
+          await updateDoc(doc(db, "users", userData.phone), { password: newPass });
           openSnackbar({ text: "Đổi mật khẩu thành công!", type: "success" });
           setShowChangePassModal(false); setOldPass(""); setNewPass(""); setConfirmPass("");
       } catch (error) { openSnackbar({ text: "Lỗi hệ thống", type: "error" }); } finally { setPassLoading(false); }
@@ -588,7 +567,7 @@ useEffect(() => {
       if (!editName.trim()) return openSnackbar({ text: "Tên Shop không được để trống", type: "warning" });
       setUpdatingInfo(true);
       try {
-        await updateDoc(doc(db, "shops", userData.id), { name: editName, address: editAddress, managerName: editManager, description: editDescription, avatar: editAvatar, cover: editCover });
+          await updateDoc(doc(db, "users", userData.phone), { name: editName, address: editAddress, managerName: editManager, description: editDescription, avatar: editAvatar, cover: editCover });
           openSnackbar({ text: "Cập nhật thành công!", type: "success" });
           setShowShopInfoModal(false);
           window.dispatchEvent(new Event("authStateChanged"));
@@ -779,7 +758,7 @@ useEffect(() => {
     setSavingLocations(true);
     try {
       // 1. Lưu danh sách cơ sở vào data của Shop chính
-      await updateDoc(doc(db, "shops", userData.id), { locations: locations });
+      await updateDoc(doc(db, "users", userData.phone), { locations: locations });
 
       // 2. Tự động tạo tài khoản mặc định cho các Quản lý (nếu họ chưa có tài khoản)
       for (const loc of locations) {
