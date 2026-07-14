@@ -1,4 +1,4 @@
-import React, { FC, useEffect, useState } from "react";
+import React, { FC, useEffect, useState, useRef } from "react";
 import { Page, Header, Box, Text, Avatar, Button, Icon, Tabs, useSnackbar, Spinner, Modal, Sheet } from "zmp-ui";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { doc, getDoc, collection, query, where, getDocs, deleteDoc, updateDoc, serverTimestamp } from "firebase/firestore";
@@ -151,6 +151,41 @@ const ShopPublicView: FC = () => {
       return timeB - timeA;
     });
   }, [services, selectedCategory, isOwner, subTab]);
+
+  // 1.5. PHÂN TRANG SẢN PHẨM CUỘN VÔ HẠN (LOAD 10 SẢN PHẨM MỖI LẦN)
+  const [visibleCount, setVisibleCount] = useState(10);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setVisibleCount(10);
+  }, [selectedCategory, subTab]);
+
+  useEffect(() => {
+    if (displayedServices.length <= visibleCount) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setVisibleCount(prev => prev + 10);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (sentinelRef.current) {
+      observer.observe(sentinelRef.current);
+    }
+
+    return () => {
+      if (sentinelRef.current) {
+        observer.unobserve(sentinelRef.current);
+      }
+    };
+  }, [sentinelRef, displayedServices.length, visibleCount]);
+
+  const paginatedServices = React.useMemo(() => {
+    return displayedServices.slice(0, visibleCount);
+  }, [displayedServices, visibleCount]);
 
   // 2. STATE QUẢN LÝ MODAL LIÊN HỆ (GỌI / CHAT)
   const [contactModal, setContactModal] = useState<{visible: boolean, type: 'call' | 'chat'}>({
@@ -484,7 +519,7 @@ const ShopPublicView: FC = () => {
                             <Text className="text-gray-500 font-medium">Thêm Mặt hàng</Text>
                         </Box>
                     )}
-                    {displayedServices.map((item) => (
+                    {paginatedServices.map((item) => (
                         <Box
                           key={item.id}
                           onClick={() => {
@@ -551,6 +586,11 @@ const ShopPublicView: FC = () => {
                             </Box>
                         </Box>
                     ))}
+                    {displayedServices.length > visibleCount && (
+                      <Box ref={sentinelRef} className="py-4 flex justify-center items-center col-span-2">
+                        <Spinner visible />
+                      </Box>
+                    )}
                   </Box>
                 </Box>
               ) : (

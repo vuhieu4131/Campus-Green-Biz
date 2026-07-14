@@ -5,7 +5,7 @@ import { cartState, userState, totalQuantityState } from 'state';
 import { Page, Box, Text, Avatar, Icon, Input, useNavigate, Sheet, Button, useSnackbar } from "zmp-ui";
 import { auth, db } from "../firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, query, where, getDocs, doc, getDoc, orderBy } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, getDoc, orderBy, onSnapshot } from "firebase/firestore";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Pagination, Autoplay } from "swiper";
 
@@ -107,44 +107,87 @@ const StoreBanner: FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchBanners = async () => {
-      try {
-        const q = query(collection(db, "banners"));
-        const querySnapshot = await getDocs(q);
-        const bannerList = querySnapshot.docs
-          .map((doc) => ({ id: doc.id, ...doc.data() } as any))
-          .filter((b) => (b.type === "store" || !b.type) && b.active !== false)
-          .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-        setBanners(bannerList);
-      } catch (e) {
-        console.error("Lỗi khi tải banners:", e);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchBanners();
+    const q = query(collection(db, "banners"));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const bannerList = querySnapshot.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() } as any))
+        .filter((b) => (b.type === "store" || !b.type) && b.active !== false)
+        .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      setBanners(bannerList);
+      setLoading(false);
+    }, (error) => {
+      console.error("Lỗi khi tải banners:", error);
+      setLoading(false);
+    });
+    return () => unsubscribe();
   }, []);
 
   if (loading || banners.length === 0) {
     return (
-      <Box className="px-4 mt-6">
-        <Box className="bg-gradient-to-r from-[#14502e] to-[#22c55e] rounded-2xl p-4 flex justify-between items-center text-white relative overflow-hidden shadow-md">
-          <Box className="relative z-10 w-2/3">
-            <Text className="font-bold text-lg leading-tight mb-1">Ưu Đãi Đặc Biệt<br/>Tháng 10</Text>
-            <Text size="xSmall" className="text-white/80 mb-2">Giảm 25% cho sản phẩm Xanh</Text>
-            <Box className="bg-white text-[#14502e] inline-block px-3 py-1 rounded-full text-xs font-bold shadow-md cursor-pointer">
-              Mua Ngay
+      <Box className="bg-transparent mt-6" pb={2}>
+        <Swiper
+          modules={[Pagination, Autoplay]}
+          pagination={{ clickable: true }}
+          autoplay={{ delay: 2500, disableOnInteraction: false }}
+          loop
+        >
+          {/* Slide 1 */}
+          <SwiperSlide className="px-4">
+            <Box className="bg-gradient-to-r from-[#14502e] to-[#22c55e] rounded-2xl p-4 flex justify-between items-center text-white relative overflow-hidden shadow-md aspect-[2.3/1]">
+              <Box className="relative z-10 w-2/3">
+                <Text className="font-bold text-base leading-tight mb-1">Ưu Đãi Đặc Biệt<br/>Tháng 10</Text>
+                <Text className="text-white/80 text-[10px] mb-2 block">Giảm 25% cho sản phẩm Xanh</Text>
+                <Box className="bg-white text-[#14502e] inline-block px-3 py-1 rounded-full text-[10px] font-bold shadow-md cursor-pointer">
+                  Mua Ngay
+                </Box>
+              </Box>
+              <Box className="w-1/3 flex justify-end relative z-10">
+                <Box className="w-12 h-12 bg-white/20 rounded-xl backdrop-blur-sm border border-white/30 flex items-center justify-center">
+                  <CustomIcon icon="zi-poll" className="text-white text-2xl" />
+                </Box>
+              </Box>
+              <Box className="absolute -bottom-4 -right-4 w-24 h-24 bg-white/10 rounded-full blur-md" />
             </Box>
-          </Box>
-          <Box className="w-1/3 flex justify-end relative z-10">
-            {/* Placeholder cho ảnh sản phẩm trong banner */}
-            <Box className="w-16 h-16 bg-white/20 rounded-xl backdrop-blur-sm border border-white/30 flex items-center justify-center">
-              <CustomIcon icon="zi-poll" className="text-white text-3xl" />
+          </SwiperSlide>
+
+          {/* Slide 2 */}
+          <SwiperSlide className="px-4">
+            <Box className="bg-gradient-to-r from-purple-600 to-indigo-700 rounded-2xl p-4 flex justify-between items-center text-white relative overflow-hidden shadow-md aspect-[2.3/1]">
+              <Box className="relative z-10 w-2/3">
+                <Text className="font-bold text-base leading-tight mb-1">Ví Điểm Đẩy VIP<br/>Nâng Tầm Shop</Text>
+                <Text className="text-white/80 text-[10px] mb-2 block">Đăng sản phẩm Hot thu hút ngàn lượt xem</Text>
+                <Box className="bg-white text-purple-700 inline-block px-3 py-1 rounded-full text-[10px] font-bold shadow-md cursor-pointer" onClick={() => navigate('/profile')}>
+                  Nạp ngay
+                </Box>
+              </Box>
+              <Box className="w-1/3 flex justify-end relative z-10">
+                <Box className="w-12 h-12 bg-white/20 rounded-xl backdrop-blur-sm border border-white/30 flex items-center justify-center">
+                  <CustomIcon icon="zi-star-solid" className="text-white text-2xl" />
+                </Box>
+              </Box>
+              <Box className="absolute -bottom-4 -right-4 w-24 h-24 bg-white/10 rounded-full blur-md" />
             </Box>
-          </Box>
-          {/* Vòng tròn trang trí */}
-          <Box className="absolute -bottom-4 -right-4 w-24 h-24 bg-white/10 rounded-full blur-md" />
-        </Box>
+          </SwiperSlide>
+
+          {/* Slide 3 */}
+          <SwiperSlide className="px-4">
+            <Box className="bg-gradient-to-r from-amber-500 to-orange-600 rounded-2xl p-4 flex justify-between items-center text-white relative overflow-hidden shadow-md aspect-[2.3/1]">
+              <Box className="relative z-10 w-2/3">
+                <Text className="font-bold text-base leading-tight mb-1">Mua Bán Dễ Dàng<br/>Tích Lũy Điểm Xanh</Text>
+                <Text className="text-white/80 text-[10px] mb-2 block">Nhận 1 điểm Xanh cho mỗi 10.000đ mua sắm</Text>
+                <Box className="bg-white text-orange-600 inline-block px-3 py-1 rounded-full text-[10px] font-bold shadow-md cursor-pointer">
+                  Khám Phá
+                </Box>
+              </Box>
+              <Box className="w-1/3 flex justify-end relative z-10">
+                <Box className="w-12 h-12 bg-white/20 rounded-xl backdrop-blur-sm border border-white/30 flex items-center justify-center">
+                  <CustomIcon icon="zi-user" className="text-white text-2xl" />
+                </Box>
+              </Box>
+              <Box className="absolute -bottom-4 -right-4 w-24 h-24 bg-white/10 rounded-full blur-md" />
+            </Box>
+          </SwiperSlide>
+        </Swiper>
       </Box>
     );
   }
@@ -201,19 +244,16 @@ const StoreCategories: FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const q = query(collection(db, "categories"), orderBy("createdAt", "asc"));
-        const querySnapshot = await getDocs(q);
-        const list = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as any));
-        setCategories(list);
-      } catch (e) {
-        console.error("Lỗi khi tải danh mục:", e);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchCategories();
+    const q = query(collection(db, "categories"), orderBy("createdAt", "asc"));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const list = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as any));
+      setCategories(list);
+      setLoading(false);
+    }, (error) => {
+      console.error("Lỗi khi tải danh mục:", error);
+      setLoading(false);
+    });
+    return () => unsubscribe();
   }, []);
 
   const displayCategories = categories.length > 0 ? categories : [
@@ -359,21 +399,18 @@ const ConsumerStorePage: FC = () => {
   const [loadingServices, setLoadingServices] = useState(true);
 
   useEffect(() => {
-    const fetchServices = async () => {
-      try {
-        const q = query(collection(db, "services"));
-        const querySnapshot = await getDocs(q);
-        const list = querySnapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() } as any))
-          .filter(item => item.status === "approved" || !item.status);
-        setDbServices(list);
-      } catch (e) {
-        console.error("Lỗi khi tải sản phẩm:", e);
-      } finally {
-        setLoadingServices(false);
-      }
-    };
-    fetchServices();
+    const q = query(collection(db, "services"));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const list = querySnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as any))
+        .filter(item => item.status !== "deleted" && item.status !== "rejected");
+      setDbServices(list);
+      setLoadingServices(false);
+    }, (error) => {
+      console.error("Lỗi khi tải sản phẩm:", error);
+      setLoadingServices(false);
+    });
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {

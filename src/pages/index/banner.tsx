@@ -4,7 +4,7 @@ import { Swiper, SwiperSlide } from "swiper/react";
 import { getDummyImage } from "utils/product";
 import { Box } from "zmp-ui";
 import { db } from "../../firebase";
-import { collection, query, getDocs } from "firebase/firestore";
+import { collection, query, getDocs, onSnapshot } from "firebase/firestore";
 import { useNavigate } from "react-router";
 
 export const Banner: FC = () => {
@@ -13,22 +13,19 @@ export const Banner: FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchBanners = async () => {
-      try {
-        const q = query(collection(db, "banners"));
-        const querySnapshot = await getDocs(q);
-        const bannerList = querySnapshot.docs
-          .map((doc) => ({ id: doc.id, ...doc.data() } as any))
-          .filter((b) => b.type === "home" && b.active !== false)
-          .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-        setBanners(bannerList);
-      } catch (e) {
-        console.error("Lỗi khi tải banners trang chủ:", e);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchBanners();
+    const q = query(collection(db, "banners"));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const bannerList = querySnapshot.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() } as any))
+        .filter((b) => b.type === "home" && b.active !== false)
+        .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      setBanners(bannerList);
+      setLoading(false);
+    }, (error) => {
+      console.error("Lỗi khi tải banners trang chủ:", error);
+      setLoading(false);
+    });
+    return () => unsubscribe();
   }, []);
 
   if (loading || banners.length === 0) {
