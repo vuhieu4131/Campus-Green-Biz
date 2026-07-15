@@ -56,6 +56,29 @@ export const ProviderView: FC<ProviderProps> = ({ userData, onBackToProfile, onL
   const navigate = useNavigate();
   const { openSnackbar } = useSnackbar();
 
+  const handleShareOrder = async (order) => {
+    try {
+      const orderCode = order.orderCode || order.id.slice(0, 8).toUpperCase();
+      const orderTitle = order.productName || "Đơn hàng Green Biz";
+      const orderPrice = Number(order.totalAmount || order.totalPrice || order.total || 0).toLocaleString('vi-VN') + 'đ';
+      let statusText = order.status || 'Chờ xác nhận';
+      if (order.status === 'completed' || order.status === 'success') statusText = 'Hoàn thành';
+      else if (order.status === 'cancelled') statusText = 'Đã hủy';
+      else statusText = 'Đang xử lý';
+      
+      await openShareSheet({
+        type: "zmp_deep_link",
+        data: {
+          title: `Mã đơn hàng: #${orderCode} - Campus Green Biz`,
+          description: `Đơn hàng: ${orderTitle} (${orderPrice}). Trạng thái: ${statusText}. Ghé thăm Campus Green Biz nhé!`,
+          thumbnail: order.productImage || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png",
+        },
+      });
+    } catch (err) {
+      console.error("Lỗi chia sẻ đơn hàng:", err);
+    }
+  };
+
   // --- STATE QUẢN LÝ MODALS CŨ ---
   const [showReferralModal, setShowReferralModal] = useState(false);
   const [referralList, setReferralList] = useState<any[]>([]);
@@ -98,6 +121,9 @@ export const ProviderView: FC<ProviderProps> = ({ userData, onBackToProfile, onL
   const [showOrdersModal, setShowOrdersModal] = useState(false);
   const [orderList, setOrderList] = useState<any[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
+  const [selectedOrderDetail, setSelectedOrderDetail] = useState<any>(null);
+  const [showCancelInput, setShowCancelInput] = useState(false);
+  const [cancelReasonText, setCancelReasonText] = useState("");
 
   // State Thông tin Shop
   const [showShopInfoModal, setShowShopInfoModal] = useState(false);
@@ -1678,7 +1704,7 @@ useEffect(() => {
                       Mới ({orderList.filter(o=>o.status==='pending').length})
                   </Box>
                   <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${orderTab==="confirmed"?"border-blue-500 text-blue-600 font-bold":"border-transparent text-gray-500"}`} onClick={()=>setOrderTab("confirmed")}>
-                      Chờ khách ({orderList.filter(o=>o.status==='confirmed').length})
+                      Chờ vận chuyển ({orderList.filter(o=>o.status==='confirmed' || o.status==='shipping').length})
                   </Box>
                   <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${orderTab==="history"?"border-gray-500 text-gray-800 font-bold":"border-transparent text-gray-500"}`} onClick={()=>setOrderTab("history")}>
                       Lịch sử
@@ -1690,8 +1716,8 @@ useEffect(() => {
                       (() => {
                           let filtered = orderList;
                           if (orderTab === 'pending') filtered = filtered.filter(o => o.status === 'pending');
-                          else if (orderTab === 'confirmed') filtered = filtered.filter(o => o.status === 'confirmed');
-                          else filtered = filtered.filter(o => o.status === 'completed' || o.status === 'cancelled');
+                          else if (orderTab === 'confirmed') filtered = filtered.filter(o => o.status === 'confirmed' || o.status === 'shipping');
+                          else filtered = filtered.filter(o => o.status === 'completed' || o.status === 'success' || o.status === 'cancelled');
 
                           if (filtered.length === 0) return (<Box flex flexDirection="column" alignItems="center" py={8}><CustomIcon icon="zi-note" size={40} className="text-gray-300 mb-2"/><Text className="text-center text-gray-500">Trống.</Text></Box>);
 
@@ -1699,70 +1725,111 @@ useEffect(() => {
                               const total = Number(order.totalAmount || order.totalPrice || order.total || 0);
                               const originalAmount = Number(order.originalAmount || total);
                               const discountAmount = Number(order.discountAmount || 0);
+                              const recipientName = order.recipientName || order.receiverName || order.userName || "Chưa rõ";
+                              const recipientPhone = order.recipientPhone || order.receiverPhone || order.userId || "Chưa rõ";
+                              const deliveryAddress = order.address || order.deliveryAddress || "Chưa rõ";
 
                               return (
-                                  <Box key={idx} className="bg-white p-3 rounded-xl mb-3 border border-gray-200 shadow-md animate-fade-in-up">
+                                  <Box 
+                                      key={idx} 
+                                      onClick={() => setSelectedOrderDetail(order)}
+                                      className="bg-white p-3 rounded-xl mb-3 border border-gray-200 shadow-md animate-fade-in-up active:scale-[0.98] active:bg-gray-50 transition-all cursor-pointer"
+                                  >
                                       <Box flex justifyContent="space-between" className="border-b border-gray-100 pb-2 mb-2">
-                                          <Text size="small" bold className="text-blue-600">#{order.orderCode || order.id.slice(0,6).toUpperCase()}</Text>
+                                          <Text size="small" bold className="text-blue-600">#{order.orderCode || order.id.slice(0, 8).toUpperCase()}</Text>
                                           <Text size="xSmall" bold className={order.status === 'pending' ? 'text-orange-500' : order.status === 'cancelled' ? 'text-red-500' : 'text-green-500'}>
                                               {order.status === 'pending' ? 'Mới' : order.status === 'confirmed' ? 'Đã chốt' : order.status === 'cancelled' ? 'Đã hủy' : 'Hoàn thành'}
                                           </Text>
                                       </Box>
                                       {/* 👉 THÊM MỚI: HIỂN THỊ LÝ DO HỦY ĐƠN */}
-                                        {order.status === 'cancelled' && order.cancelReason && (
-                                            <Box className="mb-2">
-                                                <Text size="xSmall" className="text-red-600 bg-red-50 p-2 rounded border border-red-100 italic">
-                                                    Lý do hủy: {order.cancelReason}
-                                                </Text>
-                                            </Box>
-                                        )}
-                                      {/* 👉 BỔ SUNG: HIỂN THỊ CHI TIẾT SẢN PHẨM & PHÂN LOẠI CHO CHỦ SHOP */}
-                                      {order.cartItems && order.cartItems.length > 0 ? (
-                                          // Trường hợp 1: Khách mua từ Giỏ hàng (Nhiều món)
-                                          <Box className="mb-2 bg-gray-50/50 p-2 rounded border border-gray-100">
-                                              {order.cartItems.map((item: any, i: number) => (
-                                                  <Box key={i} className="mb-1 last:mb-0">
-                                                      <Text size="small" bold className="text-gray-800 line-clamp-1">
-                                                          <span className="text-blue-600 mr-1">x{item.quantity}</span> 
-                                                          {item.product?.title || item.product?.name || item.name}
-                                                      </Text>
-                                                      {/* In ra phân loại của từng món trong giỏ */}
-                                                      {item.options && Object.keys(item.options).length > 0 && (
-                                                          <Text size="xxxxSmall" className="text-gray-500 flex items-center mt-0.5 italic">
-                                                              <CustomIcon icon="zi-note" size={12} className="mr-1" />
-                                                              {Object.entries(item.options).map(([k, v]) => `${k}: ${v}`).join(' | ')}
-                                                          </Text>
-                                                      )}
-                                                  </Box>
-                                              ))}
-                                          </Box>
-                                      ) : (
-                                          // Trường hợp 2: Khách Mua ngay 1 món hoặc Đặt lịch Dịch vụ
+                                      {order.status === 'cancelled' && order.cancelReason && (
                                           <Box className="mb-2">
-                                              <Text size="small" bold className="text-gray-800 mb-1">{order.productName}</Text>
-                                              
-                                              {order.selectedVariants && Object.keys(order.selectedVariants).length > 0 ? (
-                                                  <Text size="xSmall" className="text-gray-600 font-medium flex items-center bg-gray-100 w-fit px-2 py-0.5 rounded">
-                                                      <CustomIcon icon="zi-note" size={12} className="mr-1 text-gray-500" />
-                                                      {Object.entries(order.selectedVariants).map(([k, v]) => `${k}: ${v}`).join(' | ')}
-                                                  </Text>
-                                              ) : (order.bookingTime || order.bookingDate) ? (
-                                                  <Text size="xSmall" className="text-gray-600">⏰ {order.bookingTime} {order.bookingDate ? `- ${order.bookingDate}` : ''}</Text>
-                                              ) : null}
+                                              <Text size="xSmall" className="text-red-600 bg-red-50 p-2 rounded border border-red-100 italic">
+                                                  Lý do hủy: {order.cancelReason}
+                                              </Text>
                                           </Box>
                                       )}
 
-                                      <Box className="bg-gray-50 p-2 rounded border border-gray-100 mb-2 flex flex-col gap-1">
-                                          <Box flex alignItems="center"><CustomIcon icon="zi-user" size={14} className="text-blue-600 mr-1" /><Text size="xSmall" bold>{order.userName}</Text></Box>
-                                          <Box flex alignItems="center"><CustomIcon icon="zi-location" size={14} className="text-red-500 mr-1" /><Text size="xSmall" className="text-gray-600 line-clamp-1">{order.location?.name || "Chưa rõ"}</Text></Box>
+                                      {/* Thông tin khách đặt */}
+                                      <Box className="bg-blue-50/30 p-2 rounded-lg border border-blue-100/30 mb-2.5 text-xs space-y-0.5">
+                                          <p><strong className="text-gray-700">Khách đặt:</strong> {recipientName} ({recipientPhone})</p>
+                                          <p className="line-clamp-1"><strong className="text-gray-700">Địa chỉ:</strong> {deliveryAddress}</p>
                                       </Box>
 
-                                      <Box flex flexDirection="column" alignItems="flex-end" pt={2} className="border-t border-gray-100">
-                                          {discountAmount > 0 && (<Text size="xSmall" className="text-green-600 mb-0.5">Voucher: -{discountAmount.toLocaleString()}đ</Text>)}
-                                          <Box flex alignItems="baseline">
-                                              <Text size="xSmall" className="text-gray-500 mr-2">Tổng:</Text>
-                                              <Text bold size="large" className="text-red-600">{total.toLocaleString()}đ</Text>
+                                      {/* 👉 BỔ SUNG: HIỂN THỊ CHI TIẾT SẢN PHẨM & PHÂN LOẠI CHO CHỦ SHOP */}
+                                      {(order.items || order.cartItems) && (order.items || order.cartItems).length > 0 ? (
+                                          // Trường hợp 1: Khách mua từ Giỏ hàng (Nhiều món)
+                                          <Box className="mb-2 bg-gray-50/50 p-2 rounded border border-gray-100 space-y-2">
+                                              {(order.items || order.cartItems).map((item: any, i: number) => {
+                                                  const imgUrl = item.product?.image || item.product?.images?.[0] || "";
+                                                  return (
+                                                      <Box key={i} flex className="items-start space-x-2 py-1 first:pt-0 last:pb-0 border-b border-dashed border-gray-100 last:border-none">
+                                                          <Box className="w-10 h-10 rounded bg-gray-100 overflow-hidden shrink-0 border border-gray-200 flex items-center justify-center">
+                                                              {imgUrl ? (
+                                                                  <img src={imgUrl} className="w-full h-full object-cover" alt="" />
+                                                              ) : (
+                                                                  <Icon icon="zi-image" size={16} className="text-gray-400" />
+                                                              )}
+                                                          </Box>
+                                                          <Box className="flex-1 min-w-0">
+                                                              <Text size="xSmall" bold className="text-gray-800 line-clamp-1">
+                                                                  <span className="text-blue-600 mr-1">x{item.quantity}</span> 
+                                                                  {item.product?.title || item.product?.name || item.name}
+                                                              </Text>
+                                                              {item.options && Object.keys(item.options).length > 0 && (
+                                                                  <Text size="xxxxSmall" className="text-gray-500 italic mt-0.5">
+                                                                      {Object.entries(item.options).map(([k, v]) => `${k}: ${v}`).join(' | ')}
+                                                                  </Text>
+                                                              )}
+                                                          </Box>
+                                                      </Box>
+                                                  );
+                                              })}
                                           </Box>
+                                      ) : (
+                                          // Trường hợp 2: Khách Mua ngay 1 món hoặc Đặt lịch Dịch vụ
+                                          (() => {
+                                              const singleImg = order.productImage || order.product?.image || order.product?.images?.[0] || "";
+                                              return (
+                                                  <Box flex className="items-start space-x-2 mb-2 bg-gray-50/50 p-2 rounded border border-gray-100">
+                                                      <Box className="w-10 h-10 rounded bg-gray-100 overflow-hidden shrink-0 border border-gray-200 flex items-center justify-center">
+                                                          {singleImg ? (
+                                                              <img src={singleImg} className="w-full h-full object-cover" alt="" />
+                                                          ) : (
+                                                              <Icon icon="zi-image" size={16} className="text-gray-400" />
+                                                          )}
+                                                      </Box>
+                                                      <Box className="flex-1 min-w-0">
+                                                          <Text size="xSmall" bold className="text-gray-800 line-clamp-1">{order.productName}</Text>
+                                                          {order.selectedVariants && Object.keys(order.selectedVariants).length > 0 ? (
+                                                              <Text size="xxxxSmall" className="text-gray-500 italic mt-0.5 font-medium">
+                                                                  {Object.entries(order.selectedVariants).map(([k, v]) => `${k}: ${v}`).join(' | ')}
+                                                              </Text>
+                                                          ) : (order.bookingTime || order.bookingDate) ? (
+                                                              <Text size="xxxxSmall" className="text-gray-500 mt-0.5">⏰ Lịch: {order.bookingTime} {order.bookingDate}</Text>
+                                                          ) : null}
+                                                      </Box>
+                                                  </Box>
+                                              );
+                                          })()
+                                      )}
+
+                                      <Box flex justifyContent="space-between" alignItems="center" pt={2} className="border-t border-gray-100">
+                                          <Box flex flexDirection="column" alignItems="flex-start">
+                                              {discountAmount > 0 && (<Text size="xxxxSmall" className="text-green-600 mb-0.5">Voucher: -{discountAmount.toLocaleString()}đ</Text>)}
+                                              <Box flex alignItems="baseline">
+                                                  <Text size="xxxxSmall" className="text-gray-500 mr-1.5">Tổng thu:</Text>
+                                                  <Text bold size="small" className="text-red-600">{total.toLocaleString()}đ</Text>
+                                              </Box>
+                                          </Box>
+                                          <Button 
+                                              size="small" 
+                                              onClick={(e) => { e.stopPropagation(); handleShareOrder(order); }}
+                                              className="bg-[#14502e] text-white flex items-center space-x-1 h-7 px-3 rounded-lg"
+                                          >
+                                              <CustomIcon icon="zi-share" size={12} />
+                                              <span className="text-[11px]">Chia sẻ Zalo</span>
+                                          </Button>
                                       </Box>
                                   </Box>
                               )
@@ -1774,6 +1841,260 @@ useEffect(() => {
                   <Button fullWidth variant="secondary" onClick={() => setShowOrdersModal(false)}>Đóng bảng quản lý</Button>
               </Box>
           </Box>
+      </Modal>
+
+      {/* 👉 MODAL CHI TIẾT ĐƠN HÀNG (MỚI) */}
+      <Modal 
+        visible={!!selectedOrderDetail} 
+        title="Chi tiết đơn hàng" 
+        onClose={() => {
+          setSelectedOrderDetail(null);
+          setShowCancelInput(false);
+          setCancelReasonText("");
+        }}
+      >
+        {selectedOrderDetail && (() => {
+          const total = Number(selectedOrderDetail.totalAmount || selectedOrderDetail.totalPrice || selectedOrderDetail.total || 0);
+          const originalAmount = Number(selectedOrderDetail.originalAmount || total);
+          const discountAmount = Number(selectedOrderDetail.discountAmount || 0);
+          const recipientName = selectedOrderDetail.recipientName || selectedOrderDetail.receiverName || selectedOrderDetail.userName || "Chưa rõ";
+          const recipientPhone = selectedOrderDetail.recipientPhone || selectedOrderDetail.receiverPhone || selectedOrderDetail.userId || "Chưa rõ";
+          const deliveryAddress = selectedOrderDetail.address || selectedOrderDetail.deliveryAddress || "Chưa rõ";
+          const statusText = selectedOrderDetail.status === 'pending' 
+            ? 'Mới (Chờ duyệt)' 
+            : selectedOrderDetail.status === 'confirmed' || selectedOrderDetail.status === 'shipping'
+              ? 'Chờ vận chuyển' 
+              : selectedOrderDetail.status === 'cancelled' 
+                ? 'Đã hủy' 
+                : 'Đã hoàn thành';
+          const statusColor = selectedOrderDetail.status === 'pending' 
+            ? 'text-orange-500 bg-orange-50' 
+            : selectedOrderDetail.status === 'confirmed' || selectedOrderDetail.status === 'shipping'
+              ? 'text-blue-500 bg-blue-50' 
+              : selectedOrderDetail.status === 'cancelled' 
+                ? 'text-red-500 bg-red-50' 
+                : 'text-green-500 bg-green-50';
+
+          return (
+            <Box p={4} className="hide-scroll" style={{ maxHeight: '75vh', overflowY: 'auto' }}>
+              {/* Trạng thái đơn */}
+              <Box className="flex justify-between items-center mb-4 pb-3 border-b border-gray-100">
+                <Text size="large" bold className="text-gray-800">Mã đơn: #{selectedOrderDetail.orderCode || selectedOrderDetail.id.slice(0, 8).toUpperCase()}</Text>
+                <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${statusColor}`}>
+                  {statusText}
+                </span>
+              </Box>
+
+              {/* Thông tin giao hàng */}
+              <Box className="bg-white p-3 rounded-xl border border-gray-150 shadow-sm mb-4">
+                <Text size="small" bold className="text-gray-800 mb-2 block border-b border-gray-100 pb-1">
+                  Thông tin nhận hàng
+                </Text>
+                <Box className="space-y-1.5 text-xs text-gray-600">
+                  <p><strong className="text-gray-700">Người nhận:</strong> {recipientName}</p>
+                  <p><strong className="text-gray-700">Số điện thoại:</strong> {recipientPhone}</p>
+                  <p><strong className="text-gray-700">Địa chỉ giao hàng:</strong> {deliveryAddress}</p>
+                  {selectedOrderDetail.location?.name && (
+                    <p><strong className="text-gray-700">Cơ sở:</strong> {selectedOrderDetail.location.name}</p>
+                  )}
+                  {selectedOrderDetail.note && (
+                    <p className="bg-orange-50/50 p-1.5 rounded border border-orange-100/50 mt-1">
+                      <strong className="text-orange-700">Ghi chú:</strong> {selectedOrderDetail.note}
+                    </p>
+                  )}
+                </Box>
+              </Box>
+
+              {/* Danh sách sản phẩm */}
+              <Box className="bg-white p-3 rounded-xl border border-gray-150 shadow-sm mb-4">
+                <Text size="small" bold className="text-gray-800 mb-2 block border-b border-gray-100 pb-1">
+                  Sản phẩm đặt mua
+                </Text>
+                {(() => {
+                  const detailItems = selectedOrderDetail.items || selectedOrderDetail.cartItems;
+                  return detailItems && detailItems.length > 0 ? (
+                    <Box className="space-y-3">
+                      {detailItems.map((item: any, i: number) => {
+                        const imgUrl = item.product?.image || item.product?.images?.[0] || "";
+                        return (
+                          <Box key={i} flex className="items-start space-x-2 py-1.5 first:pt-0 last:pb-0 border-b border-dashed border-gray-100 last:border-none">
+                            <Box className="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden shrink-0 border border-gray-200 flex items-center justify-center">
+                              {imgUrl ? (
+                                <img src={imgUrl} className="w-full h-full object-cover" alt="" />
+                              ) : (
+                                <Icon icon="zi-image" size={16} className="text-gray-400" />
+                              )}
+                            </Box>
+                            <Box className="flex-1 min-w-0">
+                              <Text size="small" bold className="text-gray-800 line-clamp-1">
+                                {item.product?.title || item.product?.name || item.name}
+                              </Text>
+                              {item.options && Object.keys(item.options).length > 0 && (
+                                <p className="text-[10px] text-gray-500 italic mt-0.5">
+                                  Phân loại: {Object.entries(item.options).map(([k, v]) => `${k}: ${v}`).join(' | ')}
+                                </p>
+                              )}
+                              <Box flex justifyContent="space-between" className="mt-1">
+                                <Text size="xSmall" className="text-gray-500">x{item.quantity}</Text>
+                                <Text size="xSmall" bold className="text-gray-700">{(item.product?.price || 0).toLocaleString()}đ</Text>
+                              </Box>
+                            </Box>
+                          </Box>
+                        );
+                      })}
+                    </Box>
+                  ) : (
+                  <Box className="py-1">
+                    <Text size="small" bold className="text-gray-800">{selectedOrderDetail.productName}</Text>
+                    {selectedOrderDetail.selectedVariants && Object.keys(selectedOrderDetail.selectedVariants).length > 0 && (
+                      <p className="text-xs text-gray-500 italic mt-1">
+                        Phân loại: {Object.entries(selectedOrderDetail.selectedVariants).map(([k, v]) => `${k}: ${v}`).join(' | ')}
+                      </p>
+                    )}
+                    {selectedOrderDetail.bookingTime && (
+                      <p className="text-xs text-gray-600 mt-1">⏰ Lịch hẹn: {selectedOrderDetail.bookingTime} {selectedOrderDetail.bookingDate}</p>
+                    )}
+                  </Box>
+                ) })()}
+              </Box>
+
+              {/* Chi tiết thanh toán */}
+              <Box className="bg-white p-3 rounded-xl border border-gray-150 shadow-sm mb-4 text-xs">
+                <Box flex justifyContent="space-between" className="mb-1.5">
+                  <Text className="text-gray-500">Tiền hàng gốc:</Text>
+                  <Text className="text-gray-700">{originalAmount.toLocaleString()}đ</Text>
+                </Box>
+                {discountAmount > 0 && (
+                  <Box flex justifyContent="space-between" className="mb-1.5 text-green-600">
+                    <Text>Voucher giảm giá:</Text>
+                    <Text>-{discountAmount.toLocaleString()}đ</Text>
+                  </Box>
+                )}
+                <Box flex justifyContent="space-between" className="mb-1.5">
+                  <Text className="text-gray-500">Phương thức thanh toán:</Text>
+                  <Text bold className="text-gray-700">{selectedOrderDetail.paymentMethod || "Thanh toán khi nhận hàng (COD)"}</Text>
+                </Box>
+                <Box flex justifyContent="space-between" className="pt-2 border-t border-gray-100 items-center">
+                  <Text bold className="text-gray-800 text-sm">Thực thu:</Text>
+                  <Text bold className="text-red-600 text-base">{total.toLocaleString()}đ</Text>
+                </Box>
+              </Box>
+
+              {/* Phần nhập lý do hủy đơn (nếu click nút Hủy) */}
+              {showCancelInput && (
+                <Box className="bg-red-50 p-3 rounded-xl border border-red-150 mb-4">
+                  <Text size="xSmall" bold className="text-red-700 mb-1.5 block">Nhập lý do hủy đơn hàng:</Text>
+                  <input 
+                    type="text" 
+                    placeholder="VD: Khách đổi ý, hết hàng..." 
+                    value={cancelReasonText}
+                    onChange={(e) => setCancelReasonText(e.target.value)}
+                    className="w-full p-2 border border-red-200 rounded-lg text-xs mb-2.5 focus:outline-none focus:ring-1 focus:ring-red-400 bg-white"
+                  />
+                  <Box flex className="space-x-2">
+                    <Button 
+                      size="small" 
+                      onClick={async () => {
+                        if (!cancelReasonText.trim()) {
+                          return openSnackbar({ text: "Vui lòng nhập lý do hủy!", type: "warning" });
+                        }
+                        try {
+                          await updateDoc(doc(db, "orders", selectedOrderDetail.id), {
+                            status: "cancelled",
+                            cancelReason: cancelReasonText.trim()
+                          });
+                          setOrderList(prev => prev.map(o => o.id === selectedOrderDetail.id ? { ...o, status: "cancelled", cancelReason: cancelReasonText.trim() } : o));
+                          openSnackbar({ text: "Đã hủy đơn hàng thành công!", type: "success" });
+                          setSelectedOrderDetail(null);
+                          setShowCancelInput(false);
+                          setCancelReasonText("");
+                        } catch (e) {
+                          openSnackbar({ text: "Lỗi khi hủy đơn hàng", type: "error" });
+                        }
+                      }}
+                      className="bg-red-600 text-white flex-1 rounded-lg text-xs"
+                    >
+                      Xác nhận hủy đơn
+                    </Button>
+                    <Button 
+                      size="small" 
+                      variant="secondary"
+                      onClick={() => {
+                        setShowCancelInput(false);
+                        setCancelReasonText("");
+                      }}
+                      className="flex-1 rounded-lg text-xs"
+                    >
+                      Hủy bỏ
+                    </Button>
+                  </Box>
+                </Box>
+              )}
+
+              {/* Nút hành động chính */}
+              {!showCancelInput && (
+                <Box flex className="space-x-2 mt-4 shrink-0">
+                  {selectedOrderDetail.status === 'pending' && (
+                    <>
+                      <Button 
+                        className="bg-green-600 text-white flex-1 rounded-xl text-sm font-bold"
+                        onClick={async () => {
+                          try {
+                            await handleUpdateOrderStatus(selectedOrderDetail.id, "confirmed");
+                            setSelectedOrderDetail(null);
+                          } catch (e) {}
+                        }}
+                      >
+                        Duyệt đơn
+                      </Button>
+                      <Button 
+                        variant="secondary"
+                        className="border border-red-200 text-red-600 flex-1 rounded-xl text-sm font-bold bg-white"
+                        onClick={() => setShowCancelInput(true)}
+                      >
+                        Hủy đơn
+                      </Button>
+                    </>
+                  )}
+
+                  {(selectedOrderDetail.status === 'confirmed' || selectedOrderDetail.status === 'shipping') && (
+                    <>
+                      <Button 
+                        className="bg-green-600 text-white flex-1 rounded-xl text-sm font-bold"
+                        onClick={async () => {
+                          try {
+                            await handleUpdateOrderStatus(selectedOrderDetail.id, "completed");
+                            setSelectedOrderDetail(null);
+                          } catch (e) {}
+                        }}
+                      >
+                        Xác nhận đã giao hàng
+                      </Button>
+                      <Button 
+                        variant="secondary"
+                        className="border border-red-200 text-red-600 flex-1 rounded-xl text-sm font-bold bg-white"
+                        onClick={() => setShowCancelInput(true)}
+                      >
+                        Hủy đơn
+                      </Button>
+                    </>
+                  )}
+
+                  {(selectedOrderDetail.status === 'completed' || selectedOrderDetail.status === 'cancelled') && (
+                    <Button 
+                      fullWidth 
+                      variant="secondary" 
+                      onClick={() => setSelectedOrderDetail(null)}
+                      className="rounded-xl text-sm font-bold bg-gray-100"
+                    >
+                      Đóng chi tiết
+                    </Button>
+                  )}
+                </Box>
+              )}
+            </Box>
+          );
+        })()}
       </Modal>
 
       {/* MODAL LỊCH SỬ ĐÃ PHỤC VỤ (CÓ CHI TIẾT PHÍ NỀN TẢNG) */}
@@ -1801,8 +2122,18 @@ useEffect(() => {
                           </Box>
                           
                           <Box flex justify-between alignItems="center" pt={2} className="border-t border-gray-100">
-                              <Text size="xSmall" className="text-gray-500">Thu khách:</Text>
-                              <Text size="normal" bold className="text-green-600">{total.toLocaleString()}đ</Text>
+                              <Box flex flexDirection="column" alignItems="flex-start">
+                                  <Text size="xxxxSmall" className="text-gray-500 font-semibold mb-0.5">Thu khách:</Text>
+                                  <Text size="normal" bold className="text-green-600">{total.toLocaleString()}đ</Text>
+                              </Box>
+                              <Button 
+                                  size="small" 
+                                  onClick={() => handleShareOrder(order)}
+                                  className="bg-[#14502e] text-white flex items-center space-x-1 h-7 px-3 rounded-lg"
+                              >
+                                  <CustomIcon icon="zi-share" size={12} />
+                                  <span className="text-[11px]">Chia sẻ Zalo</span>
+                              </Button>
                           </Box>
                       </Box>
                       )
@@ -2038,10 +2369,20 @@ useEffect(() => {
                                           </Text>
                                           
                                           <Box flex justify-between alignItems="center" className="bg-gray-50 p-2 rounded">
-                                              <Text size="xSmall" className="text-gray-500">Phí ({order.platformFeeRate || 10}%):</Text>
-                                              <Text size="normal" bold className={feeTab === "unpaid" ? "text-red-500" : "text-green-600"}>
-                                                  {fee.toLocaleString()}đ
-                                              </Text>
+                                              <Box flex flexDirection="column" alignItems="flex-start">
+                                                  <Text size="xxxxSmall" className="text-gray-500">Phí ({order.platformFeeRate || 10}%):</Text>
+                                                  <Text size="normal" bold className={feeTab === "unpaid" ? "text-red-500" : "text-green-600"}>
+                                                      {fee.toLocaleString()}đ
+                                                  </Text>
+                                              </Box>
+                                              <Button 
+                                                  size="small" 
+                                                  onClick={() => handleShareOrder(order)}
+                                                  className="bg-[#14502e] text-white flex items-center space-x-1 h-7 px-3 rounded-lg border-none"
+                                              >
+                                                  <CustomIcon icon="zi-share" size={12} />
+                                                  <span className="text-[11px]">Chia sẻ Zalo</span>
+                                              </Button>
                                           </Box>
                                       </Box>
                                   )

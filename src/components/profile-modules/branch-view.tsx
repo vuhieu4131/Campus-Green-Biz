@@ -31,6 +31,29 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
   const navigate = useNavigate();
   const { openSnackbar } = useSnackbar();
 
+  const handleShareOrder = async (order) => {
+    try {
+      const orderCode = order.orderCode || order.id.slice(0, 8).toUpperCase();
+      const orderTitle = order.productName || "Đơn hàng Green Biz";
+      const orderPrice = Number(order.totalAmount || order.totalPrice || order.total || 0).toLocaleString('vi-VN') + 'đ';
+      let statusText = order.status || 'Chờ xác nhận';
+      if (order.status === 'completed' || order.status === 'success') statusText = 'Hoàn thành';
+      else if (order.status === 'cancelled') statusText = 'Đã hủy';
+      else statusText = 'Đang xử lý';
+      
+      await openShareSheet({
+        type: "zmp_deep_link",
+        data: {
+          title: `Mã đơn hàng: #${orderCode} - Campus Green Biz`,
+          description: `Đơn hàng: ${orderTitle} (${orderPrice}). Trạng thái: ${statusText}. Ghé thăm Campus Green Biz nhé!`,
+          thumbnail: order.productImage || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png",
+        },
+      });
+    } catch (err) {
+      console.error("Lỗi chia sẻ đơn hàng:", err);
+    }
+  };
+
   const branchInfo = userData?.branchInfo || {};
 
   // Các State quản lý Modal cơ bản
@@ -1030,19 +1053,29 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
                                       </Box>
 
                                       {/* 👉 HIỂN THỊ RÕ RÀNG TIỀN GỐC, VOUCHER VÀ THỰC THU */}
-                                      <Box flex flexDirection="column" alignItems="flex-end" mb={2} pt={2} className="border-t border-gray-100">
-                                          {discountAmount > 0 && (
-                                              <>
-                                                  <Text size="xSmall" className="text-gray-400">Tổng gốc: <span className="line-through">{originalAmount.toLocaleString()}đ</span></Text>
-                                                  <Text size="xSmall" className="text-green-600 font-medium mb-0.5">Voucher giảm: -{discountAmount.toLocaleString()}đ</Text>
-                                              </>
-                                          )}
-                                          <Box flex alignItems="baseline">
-                                              <Text size="small" className="text-gray-600 mr-2">Thu khách:</Text>
-                                              <Text bold size="xLarge" className="text-red-600 leading-none">
-                                                  {total.toLocaleString()}đ
-                                              </Text>
+                                      <Box flex justifyContent="space-between" alignItems="center" mb={2} pt={2} className="border-t border-gray-100">
+                                          <Box flex flexDirection="column" alignItems="flex-start">
+                                              {discountAmount > 0 && (
+                                                  <>
+                                                      <Text size="xSmall" className="text-gray-400">Tổng gốc: <span className="line-through">{originalAmount.toLocaleString()}đ</span></Text>
+                                                      <Text size="xSmall" className="text-green-600 font-medium mb-0.5">Voucher giảm: -{discountAmount.toLocaleString()}đ</Text>
+                                                  </>
+                                              )}
+                                              <Box flex alignItems="baseline">
+                                                  <Text size="small" className="text-gray-600 mr-2">Thu khách:</Text>
+                                                  <Text bold size="xLarge" className="text-red-600 leading-none">
+                                                      {total.toLocaleString()}đ
+                                                  </Text>
+                                              </Box>
                                           </Box>
+                                          <Button 
+                                              size="small" 
+                                              onClick={() => handleShareOrder(order)}
+                                              className="bg-[#14502e] text-white flex items-center space-x-1 h-7 px-3 rounded-lg border-none"
+                                          >
+                                              <CustomIcon icon="zi-share" size={12} />
+                                              <span className="text-[11px]">Chia sẻ Zalo</span>
+                                          </Button>
                                       </Box>
 
                                       {order.note && <Text size="xSmall" className="italic text-gray-500 mb-2 p-2 bg-yellow-50 rounded border border-yellow-100">Ghi chú: {order.note}</Text>}
@@ -1140,8 +1173,18 @@ export const BranchView: FC<BranchViewProps> = ({ userData, onLogout }) => {
                               </Box>
                               
                               <Box flex justifyContent="space-between" alignItems="center" pt={2} className="border-t border-gray-50">
-                                  <Text size="xSmall" className="text-gray-500">Thực thu:</Text>
-                                  <Text size="small" bold className="text-green-600">+{total.toLocaleString()}đ</Text>
+                                  <Box flex flexDirection="column" alignItems="flex-start">
+                                      <Text size="xxxxSmall" className="text-gray-500">Thực thu:</Text>
+                                      <Text size="small" bold className="text-green-600">+{total.toLocaleString()}đ</Text>
+                                  </Box>
+                                  <Button 
+                                      size="small" 
+                                      onClick={() => handleShareOrder(order)}
+                                      className="bg-[#14502e] text-white flex items-center space-x-1 h-7 px-3 rounded-lg border-none"
+                                  >
+                                      <CustomIcon icon="zi-share" size={12} />
+                                      <span className="text-[11px]">Chia sẻ Zalo</span>
+                                  </Button>
                               </Box>
                           </Box>
                       );

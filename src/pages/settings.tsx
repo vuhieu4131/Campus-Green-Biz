@@ -5,21 +5,26 @@ import { auth, db } from "../firebase";
 import { signOut, onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, collection, query, where, getDocs, orderBy } from "firebase/firestore";
 import { SectionBox } from "../components/section-box";
+import { openShareSheet } from "zmp-sdk/apis";
+import { useRecoilState } from "recoil";
+import { cartState } from "../state";
 
 interface UserPersonalMenuProps {
   onReferralClick: () => void;
   onShareClick: () => void;
   onChangePasswordClick: () => void;
   onSupportClick: () => void;
+  onMyOrdersClick: () => void;
 }
 
-const UserPersonalMenu: FC<UserPersonalMenuProps> = ({ onReferralClick, onShareClick, onChangePasswordClick, onSupportClick }) => {
+const UserPersonalMenu: FC<UserPersonalMenuProps> = ({ onReferralClick, onShareClick, onChangePasswordClick, onSupportClick, onMyOrdersClick }) => {
   const navigate = useNavigate();
   return (
     <SectionBox title="Cá nhân">
       <List>
         <List.Item onClick={() => navigate('/account-info')} title="Thông tin tài khoản" prefix={<CustomIcon icon="zi-user" className="text-gray-600" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
         <List.Item onClick={() => navigate('/notification')} title="Thông báo" prefix={<CustomIcon icon="zi-notif" className="text-blue-500" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
+        <List.Item onClick={onMyOrdersClick} title="Đơn hàng của tôi" prefix={<CustomIcon icon="zi-note" className="text-orange-500" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
         <List.Item onClick={onReferralClick} title="Người được giới thiệu" prefix={<CustomIcon icon="zi-group" className="text-gray-700" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
         <List.Item onClick={onShareClick} title="Chia sẻ ứng dụng" prefix={<CustomIcon icon="zi-share" className="text-gray-700" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
         <List.Item onClick={onChangePasswordClick} title="Đổi mật khẩu" prefix={<CustomIcon icon="zi-lock" className="text-gray-700" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
@@ -74,6 +79,73 @@ const SettingsPage: FC = () => {
   const [showWalletHistoryModal, setShowWalletHistoryModal] = useState(false);
   const [walletHistoryList, setWalletHistoryList] = useState<any[]>([]);
   const [loadingWalletHistory, setLoadingWalletHistory] = useState(false);
+
+  // My Orders states & functions
+  const [showMyOrdersModal, setShowMyOrdersModal] = useState(false);
+  const [myOrders, setMyOrders] = useState<any[]>([]);
+  const [loadingMyOrders, setLoadingMyOrders] = useState(false);
+  const [cart, setCart] = useRecoilState(cartState);
+  const [ordersTab, setOrdersTab] = useState<'cart' | 'history'>('cart');
+
+  const getStatusDisplay = (status: string) => {
+    switch(status) {
+        case 'pending': return { text: 'Chờ xác nhận', color: 'text-orange-500' };
+        case 'accepted':
+        case 'confirmed': return { text: 'Đã xác nhận', color: 'text-blue-500' };
+        case 'processing': return { text: 'Đang xử lý', color: 'text-blue-500' };
+        case 'shipping': return { text: 'Đang giao hàng', color: 'text-blue-500' };
+        case 'completed':
+        case 'success': return { text: 'Hoàn thành', color: 'text-green-500' };
+        case 'cancelled': return { text: 'Đã hủy', color: 'text-red-500' };
+        default: return { text: status || 'Chờ xác nhận', color: 'text-gray-500' };
+    }
+  };
+
+  const handleOpenMyOrders = async () => {
+    const userPhone = localStorage.getItem("user_phone");
+    if (!userPhone) return;
+    setLoadingMyOrders(true);
+    setShowMyOrdersModal(true);
+    try {
+      const q = query(
+        collection(db, "orders"),
+        where("userId", "==", userPhone)
+      );
+      const querySnapshot = await getDocs(q);
+      const docs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      docs.sort((a: any, b: any) => {
+        const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
+        const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
+        return timeB - timeA;
+      });
+      setMyOrders(docs);
+    } catch (error) {
+      console.error("Lỗi tải đơn hàng của tôi:", error);
+      setMyOrders([]);
+    } finally {
+      setLoadingMyOrders(false);
+    }
+  };
+
+  const handleShareOrder = async (order: any) => {
+    try {
+      const orderCode = order.orderCode || order.id.slice(0, 8).toUpperCase();
+      const orderTitle = order.productName || "Đơn hàng Green Biz";
+      const orderPrice = (order.totalAmount || order.totalPrice || order.total || 0).toLocaleString('vi-VN') + 'đ';
+      const statusText = getStatusDisplay(order.status).text;
+      
+      await openShareSheet({
+        type: "zmp_deep_link",
+        data: {
+          title: `Mã đơn hàng: #${orderCode} - Campus Green Biz`,
+          description: `Đơn hàng: ${orderTitle} (${orderPrice}). Trạng thái: ${statusText}. Ghé thăm Campus Green Biz nhé!`,
+          thumbnail: order.productImage || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png",
+        },
+      } as any);
+    } catch (err) {
+      console.error("Lỗi chia sẻ đơn hàng:", err);
+    }
+  };
 
   const handleOpenHistory = async () => {
     if (!userData?.id) return;
@@ -352,6 +424,7 @@ const SettingsPage: FC = () => {
         onShareClick={() => setShowShareModal(true)} 
         onChangePasswordClick={() => setShowPasswordModal(true)}
         onSupportClick={() => setShowSupportModal(true)}
+        onMyOrdersClick={handleOpenMyOrders}
       />
       <UserUtilities onLogout={handleLogout} />
 
@@ -551,6 +624,363 @@ const SettingsPage: FC = () => {
             ))
           ) : (
             <Text size="small" className="text-center text-gray-400 py-10">Không có dữ liệu giao dịch.</Text>
+          )}
+        </Box>
+      </Modal>
+      {/* Modal Đơn hàng của tôi */}
+      <Modal
+        visible={showMyOrdersModal}
+        title="Đơn hàng của tôi"
+        onClose={() => setShowMyOrdersModal(false)}
+        actions={[{ text: "Đóng", onClick: () => setShowMyOrdersModal(false), highLight: true }]}
+      >
+        <Box p={4} className="max-h-[60vh] overflow-y-auto hide-scroll space-y-3">
+          {/* Tab Selection */}
+          <Box flex className="border-b border-gray-150 mb-4 bg-gray-50 p-1.5 rounded-xl">
+            <button 
+              onClick={() => setOrdersTab('cart')}
+              className={`flex-1 py-2 text-center text-xs font-semibold rounded-lg transition-all cursor-pointer ${ordersTab === 'cart' ? 'bg-[#14502e] text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Giỏ hàng ({cart.length})
+            </button>
+            <button 
+              onClick={() => setOrdersTab('pending')}
+              className={`flex-1 py-2 text-center text-xs font-semibold rounded-lg transition-all cursor-pointer ${ordersTab === 'pending' ? 'bg-[#14502e] text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Đang chờ ({myOrders.filter(o => !['completed', 'success', 'cancelled'].includes(o.status)).length})
+            </button>
+            <button 
+              onClick={() => setOrdersTab('history')}
+              className={`flex-1 py-2 text-center text-xs font-semibold rounded-lg transition-all cursor-pointer ${ordersTab === 'history' ? 'bg-[#14502e] text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Lịch sử
+            </button>
+          </Box>
+
+          {ordersTab === 'cart' ? (
+            <Box className="space-y-3">
+              {cart.length > 0 ? (
+                <>
+                  <Box className="divide-y divide-gray-100 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                    {cart.map((item, idx) => {
+                      const optText = Object.entries(item.options || {})
+                        .map(([k, v]) => `${k}: ${v}`)
+                        .join(", ");
+                      
+                      const handleQtyChange = (delta: number) => {
+                        setCart(prev => {
+                          const newCart = [...prev];
+                          const newQty = item.quantity + delta;
+                          if (newQty <= 0) {
+                            newCart.splice(idx, 1);
+                          } else {
+                            newCart[idx] = { ...item, quantity: newQty };
+                          }
+                          return newCart;
+                        });
+                      };
+
+                      const handleRemove = () => {
+                        setCart(prev => {
+                          const newCart = [...prev];
+                          newCart.splice(idx, 1);
+                          return newCart;
+                        });
+                      };
+
+                      return (
+                        <Box key={idx} className="p-3 flex space-x-3">
+                          <img src={item.product.image || item.product.gallery?.[0] || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png"} className="w-16 h-16 object-cover rounded-lg border border-gray-100" alt="product" />
+                          <Box className="flex-1">
+                            <Box flex justifyContent="space-between" alignItems="start">
+                              <Text bold size="small" className="text-gray-900 leading-tight flex-1 line-clamp-2 pr-2">
+                                {item.product.title || item.product.name}
+                              </Text>
+                              <button 
+                                onClick={handleRemove}
+                                className="text-red-500 hover:text-red-700 p-1 active:scale-90 transition-transform cursor-pointer"
+                              >
+                                <Icon icon="zi-delete" size={18} />
+                              </button>
+                            </Box>
+                            {optText && (
+                              <Text className="text-gray-500 text-xs mt-0.5">
+                                {optText}
+                              </Text>
+                            )}
+                            <Box flex justifyContent="space-between" alignItems="center" className="mt-2 pt-1 border-t border-dashed border-gray-50">
+                              <Text bold className="text-[#14502e] text-sm">
+                                {Number(item.product.price || 0).toLocaleString("vi-VN")}đ
+                              </Text>
+                              
+                              <Box flex alignItems="center" className="space-x-2">
+                                <button 
+                                  onClick={() => handleQtyChange(-1)}
+                                  className="w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 active:scale-95 transition-transform flex items-center justify-center text-gray-600 font-bold cursor-pointer"
+                                >
+                                  -
+                                </button>
+                                <Text size="small" bold className="text-gray-800 w-6 text-center">
+                                  {item.quantity}
+                                </Text>
+                                <button 
+                                  onClick={() => handleQtyChange(1)}
+                                  className="w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 active:scale-95 transition-transform flex items-center justify-center text-gray-600 font-bold cursor-pointer"
+                                >
+                                  +
+                                </button>
+                              </Box>
+                            </Box>
+                          </Box>
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                  <Box className="pt-2">
+                    <Button 
+                      fullWidth 
+                      onClick={() => {
+                        setShowMyOrdersModal(false);
+                        navigate('/cart');
+                      }}
+                      className="bg-[#14502e] text-white rounded-xl font-bold py-2.5 text-sm"
+                    >
+                      Đến trang Thanh toán
+                    </Button>
+                  </Box>
+                </>
+              ) : (
+                <Box className="py-8 text-center bg-white rounded-xl border border-gray-100 shadow-sm">
+                  <Text size="small" className="text-gray-400">Giỏ hàng của bạn đang trống.</Text>
+                  <Button 
+                    size="small"
+                    onClick={() => {
+                      setShowMyOrdersModal(false);
+                      navigate('/store');
+                    }}
+                    className="mt-3 bg-[#14502e] text-white"
+                  >
+                    Mua sắm ngay
+                  </Button>
+                </Box>
+              )}
+            </Box>
+          ) : ordersTab === 'pending' ? (
+            <Box className="space-y-3">
+              {loadingMyOrders ? (
+                <Box className="flex justify-center items-center py-10">
+                  <Spinner />
+                </Box>
+              ) : myOrders.filter(o => !['completed', 'success', 'cancelled'].includes(o.status)).length > 0 ? (
+                myOrders.filter(o => !['completed', 'success', 'cancelled'].includes(o.status)).map((order, idx) => {
+                  const statusUI = getStatusDisplay(order.status);
+                  const orderCode = order.orderCode || order.id.slice(0, 8).toUpperCase();
+                  const totalAmount = order.totalAmount || order.totalPrice || order.total || 0;
+                  return (
+                    <Box key={idx} className="p-3 bg-gray-50 border border-gray-150 rounded-xl relative shadow-sm">
+                      <Box flex justifyContent="space-between" alignItems="center" className="border-b border-gray-200 pb-1.5 mb-2">
+                        <Text size="small" bold className="text-blue-600">#{orderCode}</Text>
+                        <Text size="xxSmall" bold className={statusUI.color}>{statusUI.text}</Text>
+                      </Box>
+                      
+                      <Box mb={2}>
+                        {order.shopName && (
+                          <Text size="xxSmall" className="text-gray-400 font-bold block mb-1">Shop: {order.shopName}</Text>
+                        )}
+                        
+                        {/* Danh sách sản phẩm trong đơn */}
+                        {(order.items || order.cartItems) && (order.items || order.cartItems).length > 0 ? (
+                          <Box className="bg-white p-2 rounded-xl border border-gray-100 mb-2 space-y-2">
+                            {(order.items || order.cartItems).map((item: any, i: number) => {
+                              const imgUrl = item.product?.image || item.product?.images?.[0] || "";
+                              return (
+                                <Box key={i} flex className="items-start space-x-2 py-1 first:pt-0 last:pb-0 border-b border-dashed border-gray-100 last:border-none">
+                                  <Box className="w-10 h-10 rounded bg-gray-100 overflow-hidden shrink-0 border border-gray-200 flex items-center justify-center">
+                                    {imgUrl ? (
+                                      <img src={imgUrl} className="w-full h-full object-cover" alt="" />
+                                    ) : (
+                                      <Icon icon="zi-image" size={16} className="text-gray-400" />
+                                    )}
+                                  </Box>
+                                  <Box className="flex-1 min-w-0">
+                                    <Text size="xSmall" bold className="text-gray-800 line-clamp-1">
+                                      {item.product?.title || item.product?.name || item.name}
+                                    </Text>
+                                    {item.options && Object.keys(item.options).length > 0 && (
+                                      <Text size="xxxxSmall" className="text-gray-500 italic mt-0.5">
+                                        {Object.entries(item.options).map(([k, v]) => `${k}: ${v}`).join(' | ')}
+                                      </Text>
+                                    )}
+                                    <Box flex justifyContent="space-between" className="mt-1 items-center">
+                                      <Text size="xxxxSmall" className="text-gray-400">Số lượng: {item.quantity}</Text>
+                                      <Text size="xxxxSmall" bold className="text-gray-700">{(item.product?.price || 0).toLocaleString('vi-VN')}đ</Text>
+                                    </Box>
+                                  </Box>
+                                </Box>
+                              );
+                            })}
+                          </Box>
+                        ) : (
+                          (() => {
+                            const singleImg = order.productImage || order.product?.image || order.product?.images?.[0] || "";
+                            return (
+                              <Box flex className="items-start space-x-2 mb-2 bg-white p-2 rounded-xl border border-gray-100">
+                                <Box className="w-10 h-10 rounded bg-gray-100 overflow-hidden shrink-0 border border-gray-200 flex items-center justify-center">
+                                  {singleImg ? (
+                                    <img src={singleImg} className="w-full h-full object-cover" alt="" />
+                                  ) : (
+                                    <Icon icon="zi-image" size={16} className="text-gray-400" />
+                                  )}
+                                </Box>
+                                <Box className="flex-1 min-w-0">
+                                  <Text size="xSmall" bold className="text-gray-800 line-clamp-1">{order.productName}</Text>
+                                  {order.selectedVariants && Object.keys(order.selectedVariants).length > 0 ? (
+                                    <Text size="xxxxSmall" className="text-gray-500 italic mt-0.5">
+                                      {Object.entries(order.selectedVariants).map(([k, v]) => `${k}: ${v}`).join(' | ')}
+                                    </Text>
+                                  ) : (order.bookingTime || order.bookingDate) ? (
+                                    <Text size="xxxxSmall" className="text-gray-500 mt-0.5">⏰ Lịch: {order.bookingTime} {order.bookingDate}</Text>
+                                  ) : null}
+                                  <Box flex justifyContent="space-between" className="mt-1 items-center">
+                                    <Text size="xxxxSmall" className="text-gray-400">Số lượng: 1</Text>
+                                    <Text size="xxxxSmall" bold className="text-gray-700">{(order.originalAmount || totalAmount).toLocaleString('vi-VN')}đ</Text>
+                                  </Box>
+                                </Box>
+                              </Box>
+                            );
+                          })()
+                        )}
+                      </Box>
+
+                      <Box flex justifyContent="space-between" alignItems="center" className="border-t border-gray-200 pt-2 mt-2">
+                        <Box>
+                          <Text size="xxSmall" className="text-gray-400 block">Tổng thanh toán</Text>
+                          <Text size="small" bold className="text-red-500">{totalAmount.toLocaleString('vi-VN')}đ</Text>
+                        </Box>
+                        <Button 
+                          size="small" 
+                          onClick={() => handleShareOrder(order)}
+                          className="bg-[#14502e] text-white flex items-center space-x-1"
+                        >
+                          <CustomIcon icon="zi-share" size={14} />
+                          <span className="text-xs">Chia sẻ Zalo</span>
+                        </Button>
+                      </Box>
+                    </Box>
+                  );
+                })
+              ) : (
+                <Text size="small" className="text-center text-gray-400 py-10">Không có đơn hàng nào đang chờ xử lý.</Text>
+              )}
+            </Box>
+          ) : (
+            <Box className="space-y-3">
+              {loadingMyOrders ? (
+                <Box className="flex justify-center items-center py-10">
+                  <Spinner />
+                </Box>
+              ) : myOrders.filter(o => ['completed', 'success', 'cancelled'].includes(o.status)).length > 0 ? (
+                myOrders.filter(o => ['completed', 'success', 'cancelled'].includes(o.status)).map((order, idx) => {
+                  const statusUI = getStatusDisplay(order.status);
+                  const orderCode = order.orderCode || order.id.slice(0, 8).toUpperCase();
+                  const totalAmount = order.totalAmount || order.totalPrice || order.total || 0;
+                  return (
+                    <Box key={idx} className="p-3 bg-gray-50 border border-gray-150 rounded-xl relative shadow-sm">
+                      <Box flex justifyContent="space-between" alignItems="center" className="border-b border-gray-200 pb-1.5 mb-2">
+                        <Text size="small" bold className="text-blue-600">#{orderCode}</Text>
+                        <Text size="xxSmall" bold className={statusUI.color}>{statusUI.text}</Text>
+                      </Box>
+                      
+                      <Box mb={2}>
+                        {order.shopName && (
+                          <Text size="xxSmall" className="text-gray-400 font-bold block mb-1">Shop: {order.shopName}</Text>
+                        )}
+                        
+                        {/* Danh sách sản phẩm trong đơn */}
+                        {(order.items || order.cartItems) && (order.items || order.cartItems).length > 0 ? (
+                          <Box className="bg-white p-2 rounded-xl border border-gray-100 mb-2 space-y-2">
+                            {(order.items || order.cartItems).map((item: any, i: number) => {
+                              const imgUrl = item.product?.image || item.product?.images?.[0] || "";
+                              return (
+                                <Box key={i} flex className="items-start space-x-2 py-1 first:pt-0 last:pb-0 border-b border-dashed border-gray-100 last:border-none">
+                                  <Box className="w-10 h-10 rounded bg-gray-100 overflow-hidden shrink-0 border border-gray-200 flex items-center justify-center">
+                                    {imgUrl ? (
+                                      <img src={imgUrl} className="w-full h-full object-cover" alt="" />
+                                    ) : (
+                                      <Icon icon="zi-image" size={16} className="text-gray-400" />
+                                    )}
+                                  </Box>
+                                  <Box className="flex-1 min-w-0">
+                                    <Text size="xSmall" bold className="text-gray-800 line-clamp-1">
+                                      {item.product?.title || item.product?.name || item.name}
+                                    </Text>
+                                    {item.options && Object.keys(item.options).length > 0 && (
+                                      <Text size="xxxxSmall" className="text-gray-500 italic mt-0.5">
+                                        {Object.entries(item.options).map(([k, v]) => `${k}: ${v}`).join(' | ')}
+                                      </Text>
+                                    )}
+                                    <Box flex justifyContent="space-between" className="mt-1 items-center">
+                                      <Text size="xxxxSmall" className="text-gray-400">Số lượng: {item.quantity}</Text>
+                                      <Text size="xxxxSmall" bold className="text-gray-700">{(item.product?.price || 0).toLocaleString('vi-VN')}đ</Text>
+                                    </Box>
+                                  </Box>
+                                </Box>
+                              );
+                            })}
+                          </Box>
+                        ) : (
+                          (() => {
+                            const singleImg = order.productImage || order.product?.image || order.product?.images?.[0] || "";
+                            return (
+                              <Box flex className="items-start space-x-2 mb-2 bg-white p-2 rounded-xl border border-gray-100">
+                                <Box className="w-10 h-10 rounded bg-gray-100 overflow-hidden shrink-0 border border-gray-200 flex items-center justify-center">
+                                  {singleImg ? (
+                                    <img src={singleImg} className="w-full h-full object-cover" alt="" />
+                                  ) : (
+                                    <Icon icon="zi-image" size={16} className="text-gray-400" />
+                                  )}
+                                </Box>
+                                <Box className="flex-1 min-w-0">
+                                  <Text size="xSmall" bold className="text-gray-800 line-clamp-1">{order.productName}</Text>
+                                  {order.selectedVariants && Object.keys(order.selectedVariants).length > 0 ? (
+                                    <Text size="xxxxSmall" className="text-gray-500 italic mt-0.5">
+                                      {Object.entries(order.selectedVariants).map(([k, v]) => `${k}: ${v}`).join(' | ')}
+                                    </Text>
+                                  ) : (order.bookingTime || order.bookingDate) ? (
+                                    <Text size="xxxxSmall" className="text-gray-500 mt-0.5">⏰ Lịch: {order.bookingTime} {order.bookingDate}</Text>
+                                  ) : null}
+                                  <Box flex justifyContent="space-between" className="mt-1 items-center">
+                                    <Text size="xxxxSmall" className="text-gray-400">Số lượng: 1</Text>
+                                    <Text size="xxxxSmall" bold className="text-gray-700">{(order.originalAmount || totalAmount).toLocaleString('vi-VN')}đ</Text>
+                                  </Box>
+                                </Box>
+                              </Box>
+                            );
+                          })()
+                        )}
+                      </Box>
+
+                      <Box flex justifyContent="space-between" alignItems="center" className="border-t border-gray-200 pt-2 mt-2">
+                        <Box>
+                          <Text size="xxSmall" className="text-gray-400 block">Tổng thanh toán</Text>
+                          <Text size="small" bold className="text-red-500">{totalAmount.toLocaleString('vi-VN')}đ</Text>
+                        </Box>
+                        <Button 
+                          size="small" 
+                          onClick={() => handleShareOrder(order)}
+                          className="bg-[#14502e] text-white flex items-center space-x-1"
+                        >
+                          <CustomIcon icon="zi-share" size={14} />
+                          <span className="text-xs">Chia sẻ Zalo</span>
+                        </Button>
+                      </Box>
+                    </Box>
+                  );
+                })
+              ) : (
+                <Text size="small" className="text-center text-gray-400 py-10">Bạn chưa có đơn hàng nào.</Text>
+              )}
+            </Box>
           )}
         </Box>
       </Modal>

@@ -137,6 +137,32 @@ const CartPage: FC = () => {
     return activeCartItems.reduce((sum, item) => sum + item.quantity, 0);
   }, [activeCartItems]);
 
+  const findCartIndex = (item: typeof cart[0]) => {
+    return cart.findIndex(
+      (c) => c.product.id === item.product.id && JSON.stringify(c.options) === JSON.stringify(item.options)
+    );
+  };
+
+  const handleUpdateQuantity = (globalIdx: number, delta: number) => {
+    if (globalIdx < 0) return;
+    setCart((prevCart) => {
+      const newCart = [...prevCart];
+      const targetItem = newCart[globalIdx];
+      if (!targetItem) return prevCart;
+
+      const newQty = targetItem.quantity + delta;
+      if (newQty <= 0) {
+        newCart.splice(globalIdx, 1);
+      } else {
+        newCart[globalIdx] = {
+          ...targetItem,
+          quantity: newQty,
+        };
+      }
+      return newCart;
+    });
+  };
+
   // Load Provinces on mount
   useEffect(() => {
     const loadProvinces = async () => {
@@ -302,8 +328,38 @@ const CartPage: FC = () => {
         ? specificAddress.trim()
         : `${specificAddress.trim()}, ${ward}, ${district}, ${province}`;
 
+      const generateOrderCode = () => {
+        const year = new Date().getFullYear().toString().slice(-2);
+        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        let suffix = "";
+        for (let i = 0; i < 6; i++) {
+          suffix += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return `${year}${suffix}`;
+      };
+
+      const userPhone = localStorage.getItem("user_phone") || recipientPhone.trim() || (auth.currentUser?.email || "").replace("@campus.com", "");
+
+      const targetProduct = activeCartItems[0]?.product;
+      let orderShopId = (targetProduct as any)?.providerId || (targetProduct as any)?.shopId || (targetProduct as any)?.ownerPhone || "";
+      if (!orderShopId && activeShop) {
+        try {
+          const qShop = query(collection(db, "shops"), where("name", "==", activeShop));
+          const shopSnap = await getDocs(qShop);
+          if (!shopSnap.empty) {
+            orderShopId = shopSnap.docs[0].data().phone || "";
+          }
+        } catch (e) {
+          console.error("Lỗi tìm thông tin shop:", e);
+        }
+      }
+
       // 1. Ghi đơn hàng vào Firestore cho các sản phẩm của shop hiện tại
       await addDoc(collection(db, "orders"), {
+        userId: userPhone,
+        orderCode: generateOrderCode(),
+        shopId: orderShopId,
+        providerId: orderShopId,
         items: activeCartItems.map(i => ({
           product: { 
             id: i.product.id, 
@@ -407,6 +463,8 @@ const CartPage: FC = () => {
                     .map(([k, v]) => `${k}: ${v}`)
                     .join(", ");
 
+                  const globalIdx = findCartIndex(item);
+
                   return (
                     <Box key={idx} className="p-4">
                       <Box flex className="space-x-3">
@@ -420,13 +478,31 @@ const CartPage: FC = () => {
                               {optText}
                             </Text>
                           )}
-                          <Box flex justifyContent="space-between" className="mt-1">
+                          <Box flex justifyContent="space-between" alignItems="center" className="mt-2 pt-1 border-t border-dashed border-gray-50">
                             <Text bold className="text-[#14502e] text-sm">
                               {item.product.price?.toLocaleString("vi-VN")}đ
                             </Text>
-                            <Text className="text-gray-500 text-xs font-semibold">
-                              x{item.quantity}
-                            </Text>
+                            <Box flex alignItems="center" className="space-x-2">
+                              <button 
+                                onClick={() => handleUpdateQuantity(globalIdx, -1)}
+                                className="w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 active:scale-95 transition-transform flex items-center justify-center text-gray-600 font-bold cursor-pointer"
+                              >
+                                {item.quantity === 1 ? (
+                                  <Icon icon="zi-delete" size={14} className="text-red-500" />
+                                ) : (
+                                  "-"
+                                )}
+                              </button>
+                              <Text size="small" bold className="text-gray-800 w-6 text-center">
+                                {item.quantity}
+                              </Text>
+                              <button 
+                                onClick={() => handleUpdateQuantity(globalIdx, 1)}
+                                className="w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 active:scale-95 transition-transform flex items-center justify-center text-gray-600 font-bold cursor-pointer"
+                              >
+                                +
+                              </button>
+                            </Box>
                           </Box>
                         </Box>
                       </Box>

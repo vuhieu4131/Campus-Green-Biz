@@ -6,11 +6,35 @@ import { db, auth, storage } from "../../firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 const { Option } = Select;
+import { openShareSheet } from "zmp-sdk/apis";
 // Hàm format ngày giờ
 const formatDate = (timestamp) => {
   if (!timestamp) return "";
   const date = timestamp.seconds ? new Date(timestamp.seconds * 1000) : new Date(timestamp);
   return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()} ${date.getHours()}:${date.getMinutes()}`;
+};
+
+const handleShareOrder = async (order) => {
+  try {
+    const orderCode = order.orderCode || order.id.slice(0, 8).toUpperCase();
+    const orderTitle = order.productName || "Đơn hàng Green Biz";
+    const orderPrice = Number(order.totalAmount || order.totalPrice || order.total || 0).toLocaleString('vi-VN') + 'đ';
+    let statusText = order.status || 'Chờ xác nhận';
+    if (order.status === 'completed' || order.status === 'success') statusText = 'Hoàn thành';
+    else if (order.status === 'cancelled') statusText = 'Đã hủy';
+    else statusText = 'Đang xử lý';
+    
+    await openShareSheet({
+      type: "zmp_deep_link",
+      data: {
+        title: `Mã đơn hàng: #${orderCode} - Campus Green Biz`,
+        description: `Đơn hàng: ${orderTitle} (${orderPrice}). Trạng thái: ${statusText}. Ghé thăm Campus Green Biz nhé!`,
+        thumbnail: order.productImage || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png",
+      },
+    });
+  } catch (err) {
+    console.error("Lỗi chia sẻ đơn hàng:", err);
+  }
 };
 
 interface AdminProps {
@@ -2135,14 +2159,24 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
 
                       {/* Tiền & Phí */}
                       <Box flex justifyContent="space-between" alignItems="center" mt={2} pt={2} className="border-t border-gray-50">
-                          <Text size="small" bold className="text-red-600">{total.toLocaleString()}đ</Text>
-                          {(order.status === 'completed' || order.status === 'success') ? (
-                              <Text size="xxSmall" className="text-red-600 bg-red-50 px-2 py-1 rounded-md font-medium border border-red-100">
-                                  Thu phí: {fee.toLocaleString()}đ
-                              </Text>
-                          ) : (
-                              <Text size="xxSmall" className="text-gray-400 italic">Chưa thu phí</Text>
-                          )}
+                          <Box flex flexDirection="column">
+                              <Text size="small" bold className="text-red-600">{total.toLocaleString()}đ</Text>
+                              {(order.status === 'completed' || order.status === 'success') ? (
+                                  <Text size="xxxxSmall" className="text-gray-500 font-semibold mt-0.5">
+                                      Phí: {fee.toLocaleString()}đ
+                                  </Text>
+                              ) : (
+                                  <Text size="xxxxSmall" className="text-gray-400 italic mt-0.5">Chưa thu phí</Text>
+                              )}
+                          </Box>
+                          <Button 
+                              size="small" 
+                              onClick={() => handleShareOrder(order)}
+                              className="bg-[#14502e] text-white flex items-center space-x-1 h-7 px-3 rounded-lg"
+                          >
+                              <CustomIcon icon="zi-share" size={12} />
+                              <span className="text-[11px]">Chia sẻ Zalo</span>
+                          </Button>
                       </Box>
                   </Box>
               );
@@ -2364,7 +2398,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                 {/* Ảnh chính */}
                 <Box className="rounded-xl overflow-hidden border border-gray-200 shadow-md mb-4 flex justify-center bg-gray-50">
                   <img 
-                    src={detailItem.image || (detailItem.images && detailItem.images[0]) || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png"} 
+                    src={detailItem.image || (detailItem.gallery && detailItem.gallery[0]) || (detailItem.images && detailItem.images[0]) || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png"} 
                     className="max-h-48 object-contain" 
                     alt="product" 
                   />
@@ -2573,12 +2607,21 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                         </Box>
 
                                         <Box flex justifyContent="space-between" alignItems="center" mt={2} pt={2} className="border-t border-gray-50">
-                                            <Text size="small" bold className="text-gray-800">Đơn: {Number(order.totalAmount || order.totalPrice || order.total || 0).toLocaleString()}đ</Text>
-                                            
-                                            {/* Huy hiệu hiển thị trạng thái Nợ / Đã thu của từng đơn */}
-                                            <Text size="small" bold className={`px-2 py-1 rounded-md border ${order.isFeePaid ? 'text-green-600 bg-green-50 border-green-100' : 'text-red-600 bg-red-50 border-red-100'}`}>
-                                                Phí: +{order.calculatedFee?.toLocaleString()}đ {order.isFeePaid ? '(Đã thu)' : '(Nợ)'}
-                                            </Text>
+                                            <Box flex flexDirection="column">
+                                                <Text size="small" bold className="text-gray-800">Đơn: {Number(order.totalAmount || order.totalPrice || order.total || 0).toLocaleString()}đ</Text>
+                                                {/* Huy hiệu hiển thị trạng thái Nợ / Đã thu của từng đơn */}
+                                                <Text size="xxSmall" className="text-gray-500 font-semibold mt-0.5">
+                                                    Phí: +{order.calculatedFee?.toLocaleString()}đ {order.isFeePaid ? '(Đã thu)' : '(Nợ)'}
+                                                </Text>
+                                            </Box>
+                                            <Button 
+                                                size="small" 
+                                                onClick={() => handleShareOrder(order)}
+                                                className="bg-[#14502e] text-white flex items-center space-x-1 h-7 px-3 rounded-lg"
+                                            >
+                                                <CustomIcon icon="zi-share" size={12} />
+                                                <span className="text-[11px]">Chia sẻ Zalo</span>
+                                            </Button>
                                         </Box>
                                     </Box>
                                 ))}

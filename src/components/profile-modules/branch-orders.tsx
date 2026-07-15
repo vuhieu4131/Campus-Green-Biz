@@ -4,10 +4,34 @@ import { Page, Header, Box, Text, Icon, Button, Input, useSnackbar, Spinner, Mod
 import { useNavigate } from "react-router-dom";
 import { doc, updateDoc, collection, query, where, getDocs, serverTimestamp, increment, getDoc } from "firebase/firestore";
 import { db } from "../../firebase"; // Đảm bảo đường dẫn này đúng với dự án của bạn
+import { openShareSheet } from "zmp-sdk/apis";
 
 const BranchOrdersPage: React.FC = () => {
   const navigate = useNavigate();
   const { openSnackbar } = useSnackbar();
+
+  const handleShareOrder = async (order) => {
+    try {
+      const orderCode = order.orderCode || order.id.slice(0, 8).toUpperCase();
+      const orderTitle = order.productName || "Đơn hàng Green Biz";
+      const orderPrice = Number(order.totalAmount || order.totalPrice || order.total || 0).toLocaleString('vi-VN') + 'đ';
+      let statusText = order.status || 'Chờ xác nhận';
+      if (order.status === 'completed' || order.status === 'success') statusText = 'Hoàn thành';
+      else if (order.status === 'cancelled') statusText = 'Đã hủy';
+      else statusText = 'Đang xử lý';
+      
+      await openShareSheet({
+        type: "zmp_deep_link",
+        data: {
+          title: `Mã đơn hàng: #${orderCode} - Campus Green Biz`,
+          description: `Đơn hàng: ${orderTitle} (${orderPrice}). Trạng thái: ${statusText}. Ghé thăm Campus Green Biz nhé!`,
+          thumbnail: order.productImage || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png",
+        },
+      });
+    } catch (err) {
+      console.error("Lỗi chia sẻ đơn hàng:", err);
+    }
+  };
 
   // Lấy SĐT của Quản lý từ bộ nhớ
   const userPhone = localStorage.getItem("user_phone") || "";
@@ -262,14 +286,24 @@ const BranchOrdersPage: React.FC = () => {
                                   )}
                               </Box>
 
-                              <Box flex flexDirection="column" alignItems="flex-end" mb={2} pt={2} className="border-t border-gray-100">
-                                  {discountAmount > 0 && (
-                                      <Text size="xSmall" className="text-green-600 font-medium mb-0.5">Voucher: -{discountAmount.toLocaleString()}đ</Text>
-                                  )}
-                                  <Box flex alignItems="baseline">
-                                      <Text size="small" className="text-gray-600 mr-2">Thực thu:</Text>
-                                      <Text bold size="large" className="text-red-600">{total.toLocaleString()}đ</Text>
+                              <Box flex justifyContent="space-between" alignItems="center" mb={2} pt={2} className="border-t border-gray-100">
+                                  <Box flex flexDirection="column" alignItems="flex-start">
+                                      {discountAmount > 0 && (
+                                          <Text size="xSmall" className="text-green-600 font-medium mb-0.5">Voucher: -{discountAmount.toLocaleString()}đ</Text>
+                                      )}
+                                      <Box flex alignItems="baseline">
+                                          <Text size="small" className="text-gray-600 mr-2">Thực thu:</Text>
+                                          <Text bold size="large" className="text-red-600">{total.toLocaleString()}đ</Text>
+                                      </Box>
                                   </Box>
+                                  <Button 
+                                      size="small" 
+                                      onClick={() => handleShareOrder(order)}
+                                      className="bg-[#14502e] text-white flex items-center space-x-1 h-7 px-3 rounded-lg border-none"
+                                  >
+                                      <CustomIcon icon="zi-share" size={12} />
+                                      <span className="text-[11px]">Chia sẻ Zalo</span>
+                                  </Button>
                               </Box>
                               {/* 👇 BỔ SUNG: Ghi chú của khách hàng 👇 */}
                               {order.note && (

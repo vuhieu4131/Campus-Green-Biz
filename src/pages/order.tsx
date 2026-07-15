@@ -303,9 +303,11 @@ const handleSelectVoucher = (voucher: any) => {
         orderType: isProductFlow ? "product" : "service", 
         productId: isFromCart ? "cart_group" : product?.id, 
         productName: displayTitle,
+        productImage: isFromCart ? (cartGroup.items[0]?.cartItem?.product?.image || "") : (product?.image || product?.images?.[0] || ""),
         selectedVariants: !isFromCart ? selectedVariants : null, // 👉 BỔ SUNG LƯU PHÂN LOẠI
         cartItems: isFromCart ? cartGroup.items.map((i:any) => i.cartItem) : null,
         shopId: shopIdToUse,
+        providerId: shopIdToUse,
         shopName: shopNameToUse,
         location: selectedLoc || null, 
         

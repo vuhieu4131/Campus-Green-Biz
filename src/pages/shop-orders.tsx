@@ -1,11 +1,35 @@
 import React, { FC, useState, useEffect } from "react";
-import { Page, Header, Box, Text, Icon, Spinner, Tabs } from "zmp-ui";
+import { Page, Header, Box, Text, Icon, Spinner, Tabs, Button } from "zmp-ui";
+import { openShareSheet } from "zmp-sdk/apis";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
 import { useLocation } from "react-router-dom";
 
 const ShopOrdersPage: FC = () => {
   const [orders, setOrders] = useState<any[]>([]);
+
+  const handleShareOrder = async (order: any) => {
+    try {
+      const orderCode = order.orderCode || order.id.slice(0, 8).toUpperCase();
+      const orderTitle = order.productName || (order.cartItems && order.cartItems[0]?.product?.title) || "Đơn hàng Green Biz";
+      const orderPrice = Number(order.totalAmount || order.totalPrice || order.total || 0).toLocaleString('vi-VN') + 'đ';
+      let statusText = order.status || 'Chờ xác nhận';
+      if (order.status === 'completed' || order.status === 'success') statusText = 'Hoàn thành';
+      else if (order.status === 'cancelled') statusText = 'Đã hủy';
+      else statusText = 'Đang xử lý';
+      
+      await openShareSheet({
+        type: "zmp_deep_link",
+        data: {
+          title: `Mã đơn hàng: #${orderCode} - Campus Green Biz`,
+          description: `Đơn hàng: ${orderTitle} (${orderPrice}). Trạng thái: ${statusText}. Ghé thăm Campus Green Biz nhé!`,
+          thumbnail: order.productImage || (order.cartItems && order.cartItems[0]?.product?.image) || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png",
+        },
+      });
+    } catch (err) {
+      console.error("Lỗi chia sẻ đơn hàng:", err);
+    }
+  };
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("pending");
   const routeLocation = useLocation();
@@ -186,8 +210,18 @@ const ShopOrdersPage: FC = () => {
                     </Box>
 
                     <Box flex justifyContent="space-between" alignItems="center" pt={3} className="border-t border-gray-100">
-                        <Text size="small" className="text-gray-500 font-medium">Tổng tiền</Text>
-                        <Text bold size="large" className="text-red-600">{total.toLocaleString()}đ</Text>
+                        <Box flex flexDirection="column" alignItems="flex-start">
+                            <Text size="xxxxSmall" className="text-gray-500 font-medium">Tổng tiền</Text>
+                            <Text bold size="large" className="text-red-600">{total.toLocaleString()}đ</Text>
+                        </Box>
+                        <Button 
+                            size="small" 
+                            onClick={() => handleShareOrder(order)}
+                            className="bg-[#14502e] text-white flex items-center space-x-1 h-7 px-3 rounded-lg border-none"
+                        >
+                            <Icon icon="zi-share" size={12} />
+                            <span className="text-[11px]">Chia sẻ Zalo</span>
+                        </Button>
                     </Box>
                 </Box>
                 )

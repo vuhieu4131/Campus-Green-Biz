@@ -6,6 +6,10 @@ import { db } from "../firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { useSetRecoilState } from "recoil";
 import { cartState } from "../state";
+import { Swiper, SwiperSlide } from "swiper/react";
+import { Pagination, Autoplay } from "swiper";
+import { saveImageToGallery, openShareSheet } from "zmp-sdk/apis";
+import { AuthOverlay } from "./auth";
 
 const ProductDetailPage: FC = () => {
   const navigate = useNavigate();
@@ -19,6 +23,10 @@ const ProductDetailPage: FC = () => {
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [showPrice, setShowPrice] = useState(true);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [fullscreenVisible, setFullscreenVisible] = useState(false);
+  const [activeImgIndex, setActiveImgIndex] = useState(0);
+  const [swiperInstance, setSwiperInstance] = useState<any>(null);
+  const [authVisible, setAuthVisible] = useState(false);
 
   const setCart = useSetRecoilState(cartState);
 
@@ -85,6 +93,18 @@ const ProductDetailPage: FC = () => {
 
   const handleAddToCart = () => {
     if (!product) return;
+    
+    const userPhone = localStorage.getItem("user_phone");
+    if (!userPhone) {
+      openSnackbar({
+        text: "Vui lòng đăng ký/đăng nhập để mua hàng!",
+        type: "warning",
+        position: "top"
+      });
+      setAuthVisible(true);
+      return;
+    }
+
     if (!validateOptions()) return;
 
     setCart(cart => {
@@ -103,6 +123,18 @@ const ProductDetailPage: FC = () => {
 
   const handleBuyNow = () => {
     if (!product) return;
+
+    const userPhone = localStorage.getItem("user_phone");
+    if (!userPhone) {
+      openSnackbar({
+        text: "Vui lòng đăng ký/đăng nhập để mua hàng!",
+        type: "warning",
+        position: "top"
+      });
+      setAuthVisible(true);
+      return;
+    }
+
     if (!validateOptions()) return;
 
     setCart(cart => {
@@ -137,6 +169,86 @@ const ProductDetailPage: FC = () => {
 
   const discountPercent = product.discountPercent || (product.originalPrice && product.price ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100) : 0);
 
+  const productImages = product.gallery && product.gallery.length > 0
+    ? product.gallery
+    : (product.images && product.images.length > 0
+      ? product.images
+      : (product.image ? [product.image] : ["https://via.placeholder.com/400"]));
+
+  const handleOpenFullscreen = (index: number) => {
+    setActiveImgIndex(index);
+    setFullscreenVisible(true);
+  };
+
+  const handleDownloadActiveImage = async () => {
+    const currentImgUrl = productImages[activeImgIndex];
+    if (!currentImgUrl) return;
+    
+    try {
+      openSnackbar({
+        text: "Đang tải ảnh về...",
+        type: "loading",
+        duration: 1500,
+        position: "top"
+      });
+      
+      await saveImageToGallery({
+        imageUrl: currentImgUrl,
+      });
+      
+      openSnackbar({
+        text: "Lưu ảnh thành công! 🎉",
+        type: "success",
+        position: "top"
+      });
+    } catch (error) {
+      console.error("Lỗi khi tải ảnh:", error);
+      openSnackbar({
+        text: "Tải ảnh thất bại. Vui lòng thử lại!",
+        type: "error",
+        position: "top"
+      });
+    }
+  };
+
+  const handleShareProduct = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!product) return;
+    
+    const productTitle = product.title || product.name || "Sản phẩm Green Biz";
+    const productPrice = Number(product.price || 0).toLocaleString('vi-VN') + 'đ';
+    const productPoints = product.points ? ` (+${product.points} Điểm Xanh)` : "";
+    const thumbImage = productImages[0] || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png";
+    const shareLink = `https://zalo.me/s/2196212719506893777/detail/${product.id}`;
+
+    try {
+      await openShareSheet({
+        type: "link",
+        title: productTitle,
+        subtitle: `Giá: ${productPrice}${productPoints} - Xem chi tiết trên Campus Green Biz!`,
+        link: shareLink,
+        thumb: thumbImage
+      });
+    } catch (error) {
+      console.warn("Zalo openShareSheet failed, falling back to copy to clipboard:", error);
+      try {
+        await navigator.clipboard.writeText(`${productTitle}\nGiá: ${productPrice}${productPoints}\nLink xem: ${shareLink}`);
+        openSnackbar({
+          text: "Đã sao chép thông tin sản phẩm vào bộ nhớ tạm! 🎉",
+          type: "success",
+          position: "top"
+        });
+      } catch (clipError) {
+        console.error("Copy to clipboard failed:", clipError);
+        openSnackbar({
+          text: "Không thể chia sẻ hoặc sao chép liên kết sản phẩm.",
+          type: "error",
+          position: "top"
+        });
+      }
+    }
+  };
+
   return (
     <Page className="bg-gray-50 flex flex-col h-screen relative">
       {/* Header */}
@@ -149,20 +261,39 @@ const ProductDetailPage: FC = () => {
 
       {/* Main Content */}
       <Box className="flex-1 overflow-y-auto pb-24">
-        {/* Product Image */}
-        <Box className="w-full bg-white relative pt-[100%] border-b border-gray-100 shadow-sm">
-          <img 
-            src={product.image || "https://via.placeholder.com/400"} 
-            className="absolute inset-0 w-full h-full object-cover" 
-            alt={product.title || product.name} 
-          />
+        {/* Product Images Slider */}
+        <Box className="w-full bg-white relative border-b border-gray-100 shadow-sm overflow-hidden" style={{ aspectRatio: '1/1' }}>
+          <Swiper
+            modules={[Pagination, Autoplay]}
+            pagination={{ clickable: true }}
+            autoplay={{ delay: 1500, disableOnInteraction: false }}
+            className="w-full h-full absolute inset-0"
+            loop={productImages.length > 1}
+          >
+            {productImages.map((imgUrl: string, index: number) => (
+              <SwiperSlide key={index} onClick={() => handleOpenFullscreen(index)}>
+                <img 
+                  src={imgUrl} 
+                  className="w-full h-full object-cover cursor-pointer" 
+                  alt={`${product.title || product.name} - ${index + 1}`} 
+                />
+              </SwiperSlide>
+            ))}
+          </Swiper>
           {/* Points Badge */}
           {product.points && (
-            <Box className="absolute top-4 right-4 bg-gradient-to-r from-yellow-500 to-amber-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md flex items-center space-x-1">
+            <Box className="absolute top-4 right-4 bg-gradient-to-r from-yellow-500 to-amber-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md flex items-center space-x-1 z-10">
               <CustomIcon icon="zi-star-solid" className="text-yellow-200" size={14} />
               <span>+{product.points} Điểm Xanh</span>
             </Box>
           )}
+          {/* Share Button */}
+          <Box 
+            onClick={handleShareProduct}
+            className="absolute bottom-4 right-4 bg-black/60 active:bg-black/80 text-white w-10 h-10 rounded-full flex items-center justify-center shadow-lg z-10 cursor-pointer backdrop-blur-sm transition-all"
+          >
+            <Icon icon="zi-share" className="text-white text-xl" />
+          </Box>
         </Box>
 
         {/* Pricing & Name Info */}
@@ -326,6 +457,83 @@ const ProductDetailPage: FC = () => {
           </Box>
         </Box>
       </Modal>
+
+      {/* Fullscreen Image Overlay/Viewer */}
+      {fullscreenVisible && (
+        <div className="fixed inset-0 bg-black/95 z-[9999] flex flex-col justify-between select-none">
+          {/* Header */}
+          <div className="flex justify-between items-center p-4 text-white z-10 w-full">
+            <button 
+              onClick={() => setFullscreenVisible(false)} 
+              className="flex items-center space-x-1.5 p-2 bg-white/10 active:bg-white/20 rounded-full px-3 py-1.5 transition-colors text-white cursor-pointer"
+            >
+              <Icon icon="zi-arrow-left" size={20} />
+              <span className="text-xs font-semibold">Quay lại</span>
+            </button>
+            <button 
+              onClick={handleDownloadActiveImage} 
+              className="flex items-center space-x-1.5 bg-white/10 active:bg-white/20 rounded-full px-3 py-1.5 transition-colors text-white cursor-pointer"
+            >
+              <Icon icon="zi-download" size={20} />
+              <span className="text-xs font-semibold">Tải về</span>
+            </button>
+          </div>
+          
+          {/* Slider */}
+          <div className="flex-1 flex items-center justify-center relative w-full h-full">
+            <Swiper
+              initialSlide={activeImgIndex}
+              onSwiper={setSwiperInstance}
+              onSlideChange={(swiper) => setActiveImgIndex(swiper.activeIndex)}
+              className="w-full h-full"
+            >
+              {productImages.map((imgUrl: string, index: number) => (
+                <SwiperSlide key={index} className="flex justify-center items-center h-full">
+                  <div className="w-full h-full flex justify-center items-center p-4">
+                    <img 
+                      src={imgUrl} 
+                      className="max-w-full max-h-[75vh] object-contain rounded-lg" 
+                      alt="" 
+                    />
+                  </div>
+                </SwiperSlide>
+              ))}
+            </Swiper>
+
+            {/* Left Floating Arrow */}
+            {activeImgIndex > 0 && (
+              <button
+                onClick={() => swiperInstance?.slidePrev()}
+                className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 active:scale-95 transition-all flex items-center justify-center text-white z-[10000] cursor-pointer"
+              >
+                <CustomIcon icon="zi-chevron-left" size={24} />
+              </button>
+            )}
+
+            {/* Right Floating Arrow */}
+            {activeImgIndex < productImages.length - 1 && (
+              <button
+                onClick={() => swiperInstance?.slideNext()}
+                className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 active:scale-95 transition-all flex items-center justify-center text-white z-[10000] cursor-pointer"
+              >
+                <CustomIcon icon="zi-chevron-right" size={24} />
+              </button>
+            )}
+          </div>
+
+          {/* Footer - Index Indicator */}
+          <div className="p-6 text-center text-white/70 text-sm font-semibold z-10">
+            {activeImgIndex + 1} / {productImages.length}
+          </div>
+        </div>
+      )}
+      {/* Lớp phủ đăng nhập/đăng ký */}
+      <React.Suspense fallback={null}>
+        <AuthOverlay
+          visible={authVisible}
+          onClose={() => setAuthVisible(false)}
+        />
+      </React.Suspense>
     </Page>
   );
 };
