@@ -18,6 +18,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
   const navigate = useNavigate();
   const { openSnackbar } = useSnackbar();
   const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
+  const isRealUser = currentUser && currentUser.email !== "guest@campus.com";
   
   React.useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => setCurrentUser(user));
@@ -65,7 +66,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
   }, [showComments, data.id]);
 
   const handleLike = async () => {
-    if (!currentUser) {
+    if (!isRealUser) {
       setShowAuth(true);
       return;
     }
@@ -87,7 +88,11 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
   };
 
   const handleSendComment = async () => {
-    if (!currentUser) return openSnackbar({ text: "Vui lòng đăng nhập", type: "error" });
+    if (!isRealUser) {
+      setShowComments(false);
+      setShowAuth(true);
+      return;
+    }
     if (!commentText.trim()) return;
 
     try {
@@ -253,6 +258,12 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
                   Chờ duyệt
                 </span>
               )}
+              {data.status === "rejected" && (
+                <span className="inline-flex items-center bg-red-50 text-red-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-red-200 ml-1.5 shrink-0">
+                  <span className="w-1.5 h-1.5 bg-red-500 rounded-full mr-1" />
+                  Bị từ chối
+                </span>
+              )}
             </Box>
             {isEditing ? (
               <Box className="flex items-center mt-1 bg-gray-100 rounded-md px-2 py-0.5 border border-gray-200">
@@ -270,8 +281,18 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
               <Text size="xxSmall" className="text-gray-500">
                 {timeString} • {data.privacy || "Công khai"}
                 {data.authorId === currentUser?.uid && (
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ml-2 ${data.status === 'pending' ? 'bg-yellow-500 text-white' : 'bg-green-600 text-white'}`}>
-                    {data.status === 'pending' ? 'Chờ duyệt' : 'Đã duyệt'}
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ml-2 ${
+                    data.status === 'pending' 
+                      ? 'bg-yellow-500 text-white' 
+                      : data.status === 'rejected'
+                        ? 'bg-red-600 text-white'
+                        : 'bg-green-600 text-white'
+                  }`}>
+                    {data.status === 'pending' 
+                      ? 'Chờ duyệt' 
+                      : data.status === 'rejected'
+                        ? 'Bị từ chối'
+                        : 'Đã duyệt'}
                   </span>
                 )}
               </Text>
@@ -341,7 +362,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
 
       {/* Actions */}
       <Box className="flex justify-around items-center px-2">
-        <Box className="flex flex-1 justify-center items-center space-x-2 py-2 rounded-lg cursor-pointer active:bg-gray-50" onClick={() => currentUser ? handleLike() : setShowAuth(true)}>
+        <Box className="flex flex-1 justify-center items-center space-x-2 py-2 rounded-lg cursor-pointer active:bg-gray-50" onClick={() => isRealUser ? handleLike() : setShowAuth(true)}>
           <Icon icon={liked ? "zi-heart-solid" : "zi-heart"} className={liked ? "text-red-500 text-xl" : "text-gray-500 text-xl"} />
           <Text size="small" className={`font-medium ${liked ? "text-red-500" : "text-gray-500"}`}>Thích</Text>
         </Box>
@@ -401,7 +422,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
                     </Box>
                   </Box>
                   <Box className="flex justify-around items-center px-2 pb-2 border-t border-white/20 pt-2">
-                    <Box className="flex flex-1 justify-center items-center space-x-2 py-2 cursor-pointer active:bg-white/10 rounded-lg" onClick={(e) => { e.stopPropagation(); currentUser ? handleLike() : setShowAuth(true); }}>
+                    <Box className="flex flex-1 justify-center items-center space-x-2 py-2 cursor-pointer active:bg-white/10 rounded-lg" onClick={(e) => { e.stopPropagation(); isRealUser ? handleLike() : setShowAuth(true); }}>
                       <Icon icon={liked ? "zi-heart-solid" : "zi-heart"} className={liked ? "text-red-500 text-xl" : "text-white text-xl"} />
                       <Text size="small" className={`font-medium ${liked ? "text-red-500" : "text-white"}`}>Thích</Text>
                     </Box>
@@ -462,8 +483,17 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
               placeholder="Viết bình luận..."
               onKeyDown={(e) => e.key === 'Enter' && handleSendComment()}
             />
-            <CustomIcon icon="zi-send-solid" className={`text-xl ml-2 cursor-pointer ${commentText.trim() ? "text-[#14502e]" : "text-gray-300"}`} onClick={handleSendComment} />
           </Box>
+          <button
+            onClick={handleSendComment}
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
+              commentText.trim() 
+                ? "bg-[#14502e] text-white shadow-sm active:scale-95" 
+                : "bg-gray-100 text-gray-400 cursor-not-allowed"
+            }`}
+          >
+            <CustomIcon icon="zi-send-solid" size={16} />
+          </button>
         </Box>
       </Sheet>
 

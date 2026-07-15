@@ -25,38 +25,42 @@ const CreatePostPage: FC = () => {
   React.useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
-      if (user) {
-        const phoneFromEmail = user.email ? user.email.replace("@campus.com", "") : "";
-        const localPhone = localStorage.getItem("user_phone");
-        const finalPhone = phoneFromEmail || localPhone;
+      if (!user || user.email === "guest@campus.com") {
+        openSnackbar({ text: "Vui lòng đăng nhập để tạo bài đăng!", type: "warning" });
+        navigate(-1);
+        return;
+      }
 
-        if (finalPhone) {
-          try {
-            const qShop = query(collection(db, "shops"), where("phone", "==", finalPhone));
-            const shopSnap = await getDocs(qShop);
-            if (!shopSnap.empty) {
-              setUserRole("provider");
-              return;
-            }
-          } catch (e) {
-            console.error(e);
+      const phoneFromEmail = user.email ? user.email.replace("@campus.com", "") : "";
+      const localPhone = localStorage.getItem("user_phone");
+      const finalPhone = phoneFromEmail || localPhone;
+
+      if (finalPhone) {
+        try {
+          const qShop = query(collection(db, "shops"), where("phone", "==", finalPhone));
+          const shopSnap = await getDocs(qShop);
+          if (!shopSnap.empty) {
+            setUserRole("provider");
+            return;
           }
+        } catch (e) {
+          console.error(e);
         }
-        
-        const docRef = doc(db, "users", user.uid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists() && docSnap.data().role) {
-          setUserRole(docSnap.data().role);
-        } else {
-          setUserRole("user");
-        }
+      }
+      
+      const docRef = doc(db, "users", user.uid);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists() && docSnap.data().role) {
+        setUserRole(docSnap.data().role);
+      } else {
+        setUserRole("user");
       }
     });
     return unsub;
   }, []);
 
   const handleCreatePost = async () => {
-    if (!currentUser) {
+    if (!currentUser || currentUser.email === "guest@campus.com") {
       openSnackbar({ text: "Lỗi: Không tìm thấy tài khoản (Bạn chưa đăng nhập dự án mới)", type: "error" });
       return;
     }
@@ -92,7 +96,7 @@ const CreatePostPage: FC = () => {
         const authorName = currentUser?.displayName || currentUser?.email?.split('@')[0] || "Người dùng";
         const authorAvatar = currentUser?.photoURL || "https://i.pravatar.cc/150?img=11"; // Ảnh mặc định nếu user chưa có avatar
         // 2. Thực hiện lưu dữ liệu (giữ nguyên cấu trúc của bạn)
-        await addDoc(collection(db, "posts"), {
+        const postRef = await addDoc(collection(db, "posts"), {
           authorId: currentUser.uid,
           authorName: authorName,
           authorAvatar: authorAvatar,
@@ -104,8 +108,9 @@ const CreatePostPage: FC = () => {
           commentsCount: 0,
           status: "pending"
         });
-        openSnackbar({ text: "Đã đăng bài thành công!", type: "success" });
-      navigate(-1);
+
+        openSnackbar({ text: "Bài đăng của bạn đã được gửi xét duyệt", type: "success" });
+        navigate("/profile");
     } catch (error) {
       console.error("Lỗi đăng bài/sản phẩm:", error);
       openSnackbar({ text: "Lỗi lưu dữ liệu. Xin thử lại.", type: "error" });

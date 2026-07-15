@@ -12,6 +12,7 @@ import {
   Sheet,
   useSnackbar,
   Modal,
+  Spinner,
 } from "zmp-ui";
 import { useLocation } from "react-router-dom";
 import subscriptionDecor from "static/subscription-decor.svg";
@@ -20,7 +21,7 @@ import { AuthOverlay } from "./auth";
 // IMPORT CÔNG CỤ FIREBASE
 import { auth, db, storage } from "../firebase";
 import { onAuthStateChanged, signOut, User } from "firebase/auth";
-import { doc, getDoc, collection, query, where, getDocs, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, updateDoc, arrayUnion, arrayRemove, orderBy } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { PostItem } from "../components/post-item";
 import { RawPost } from "../utils/edgeRanker";
@@ -90,11 +91,11 @@ const Subscription: FC<{ onOpenAuth: () => void }> = ({ onOpenAuth }) => {
 // --- COMPONENT MỚI CHO GIAO DIỆN PROFILE ---
 const calculateMemberRankInfo = (points: number) => {
   const p = points || 0;
-  if (p < 5) return { name: "Thành viên mới", sub: "KHÁCH HÀNG", target: 5 };
-  if (p <= 100)
-    return { name: "Hạng Đồng", sub: "KHÁCH HÀNG THÂN THIẾT", target: 101 };
-  if (p <= 300) return { name: "Hạng Bạc", sub: "SILVER STATUS", target: 301 };
-  return { name: "Hạng Vàng", sub: "ELITE STATUS", target: 1000 };
+  if (p < 100) return { name: "Thành viên mới", sub: "NEW MEMBER", target: 100 };
+  if (p < 500) return { name: "Hạng Đồng", sub: "KHÁCH HÀNG THÂN THIẾT", target: 500 };
+  if (p < 1000) return { name: "Hạng Bạc", sub: "SILVER STATUS", target: 1000 };
+  if (p < 2000) return { name: "Hạng Vàng", sub: "ELITE STATUS", target: 2000 };
+  return { name: "Hạng Kim Cương", sub: "DIAMOND STATUS", target: 999999 };
 };
 
 const NewMemberView: FC<{ 
@@ -112,6 +113,8 @@ const NewMemberView: FC<{
   const { openSnackbar } = useSnackbar();
   const [activeTab, setActiveTab] = useState<'posts' | 'saved' | 'tagged'>('posts');
   const rankInfo = calculateMemberRankInfo(points);
+  
+
   
   const [showFollowingOptions, setShowFollowingOptions] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
@@ -345,6 +348,11 @@ const NewMemberView: FC<{
                     Chờ duyệt
                   </Box>
                 )}
+                {!isOtherProfile && post.status === "rejected" && (
+                  <Box className="absolute bottom-1 right-1 bg-red-600 text-white text-[9px] px-1 py-0.5 rounded font-bold shadow-md z-10">
+                    Bị từ chối
+                  </Box>
+                )}
               </Box>
             ))
           )}
@@ -503,7 +511,7 @@ const ProfilePage: FC = () => {
   // Lắng nghe trạng thái đăng nhập từ Firebase
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
+      if (user && user.email !== "guest@campus.com") {
         setCurrentUser(user);
         
         // Lấy SĐT từ email

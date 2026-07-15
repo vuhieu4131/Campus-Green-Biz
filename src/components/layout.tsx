@@ -17,11 +17,14 @@ import AccountInfoPage from "pages/account-info";
 import WalletPage from "pages/wallet";
 import CreatePostPage from "pages/create-post";
 import PostDetailPage from "pages/post-detail";
+import ProductDetailPage from "pages/product-detail";
 import { getSystemInfo } from "zmp-sdk";
 import { ScrollRestoration } from "./scroll-restoration";
 import { useHandlePayment } from "hooks";
 import ShopPublicView from '../pages/ShopPublicView';
 import PostPage from '../pages/post';
+import { auth } from "../firebase";
+import { onAuthStateChanged, signInWithEmailAndPassword } from "firebase/auth";
 
 if (import.meta.env.DEV) {
   document.body.style.setProperty("--zaui-safe-area-inset-top", "24px");
@@ -37,6 +40,20 @@ if (import.meta.env.DEV) {
 
 export const Layout: FC = () => {
   useHandlePayment();
+
+  React.useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        try {
+          await signInWithEmailAndPassword(auth, "guest@campus.com", "guestpassword123");
+          console.log("Guest login auto-completed.");
+        } catch (error) {
+          console.error("Failed to login automatically as guest:", error);
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   return (
     <Box flex flexDirection="column" className="h-screen">
@@ -67,6 +84,7 @@ export const Layout: FC = () => {
             <Route path="/wallet" element={<WalletPage />} />
             <Route path="/create-post" element={<CreatePostPage />} />
             <Route path="/post-detail" element={<PostDetailPage />} />
+            <Route path="/detail/:id" element={<ProductDetailPage />} />
           </Routes>
         </Suspense>
         {/* Kết thúc bọc Suspense */}

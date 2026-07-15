@@ -1,9 +1,10 @@
 import React, { FC, useState, useEffect, useRef } from "react";
 import { Box, Text, Spinner } from "zmp-ui";
 import { PostItem } from "../../components/post-item";
-import { RawPost, sortPostsOnEdge } from "../../utils/edgeRanker";
-import { db } from "../../firebase";
+import { RawPost } from "../../utils/edgeRanker";
+import { db, auth } from "../../firebase";
 import { collection, query, getDocs, orderBy, limit, startAfter } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 
 const mockPosts: RawPost[] = [
   {
@@ -36,7 +37,7 @@ export const FeedList: FC = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [lastDoc, setLastDoc] = useState<any>(null);
   const [hasMore, setHasMore] = useState(true);
-  const sentinelRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<any>(null);
 
   const fetchInitialPosts = async () => {
     try {
@@ -51,12 +52,9 @@ export const FeedList: FC = () => {
         ...doc.data()
       })) as RawPost[];
 
-      // Lọc bỏ bài viết đang chờ duyệt (bảo toàn bài viết cũ không có trường status)
-      const approvedPosts = rawData.filter(post => post.status !== "pending");
-
-      // Xếp hạng bằng Edge Ranker tại Client
-      const sorted = sortPostsOnEdge(approvedPosts);
-      setPosts(sorted);
+      // Bài viết đẩy lên luôn Trang chủ (cả approved và pending)
+      const approvedPosts = rawData;
+      setPosts(approvedPosts);
 
       if (docs.length > 0) {
         setLastDoc(docs[docs.length - 1]);
@@ -83,12 +81,12 @@ export const FeedList: FC = () => {
         ...doc.data()
       })) as RawPost[];
 
-      const approvedPosts = rawData.filter(post => post.status !== "pending");
-      const sortedNew = sortPostsOnEdge(approvedPosts);
+      // Bài viết đẩy lên luôn Trang chủ (cả approved và pending)
+      const approvedPosts = rawData;
 
       setPosts(prev => {
         const existingIds = new Set(prev.map(p => p.id));
-        const filteredNew = sortedNew.filter(p => !existingIds.has(p.id));
+        const filteredNew = approvedPosts.filter(p => !existingIds.has(p.id));
         return [...prev, ...filteredNew];
       });
 
@@ -104,7 +102,12 @@ export const FeedList: FC = () => {
   };
 
   useEffect(() => {
-    fetchInitialPosts();
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        fetchInitialPosts();
+      }
+    });
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {

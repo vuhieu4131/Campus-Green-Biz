@@ -4,6 +4,8 @@ import { useLocation, useNavigate } from "react-router";
 import { MenuItem } from "types/menu";
 import { BottomNavigation, Icon, Box } from "zmp-ui";
 import { CartIcon } from "./cart-icon";
+import { auth } from "../firebase";
+import { AuthOverlay } from "../pages/auth";
 
 const StoreIcon = ({ active }: { active?: boolean }) => {
   if (active) {
@@ -88,36 +90,55 @@ const tabs: Record<string, MenuItem> = {
 
 export type TabKeys = keyof typeof tabs;
 
-export const NO_BOTTOM_NAVIGATION_PAGES = ["/search", "/category", "/result", "/create-post"];
+export const NO_BOTTOM_NAVIGATION_PAGES = ["/search", "/category", "/result", "/create-post", "/cart"];
 
 export const Navigation: FC = () => {
   const keyboardVisible = useVirtualKeyboardVisible();
   const navigate = useNavigate();
   const location = useLocation();
+  const [showAuth, setShowAuth] = useState(false);
 
   const noBottomNav = useMemo(() => {
+    if (location.pathname.startsWith("/detail")) {
+      return true;
+    }
     return NO_BOTTOM_NAVIGATION_PAGES.includes(location.pathname);
   }, [location]);
+
+  const handleTabChange = (path: string) => {
+    if (path === "/create-post") {
+      const currentUser = auth.currentUser;
+      const isRealUser = currentUser && currentUser.email !== "guest@campus.com";
+      if (!isRealUser) {
+        setShowAuth(true);
+        return;
+      }
+    }
+    navigate(path);
+  };
 
   if (noBottomNav || keyboardVisible) {
     return <></>;
   }
 
   return (
-    <BottomNavigation
-      id="footer"
-      activeKey={location.pathname}
-      onChange={navigate}
-      className="z-50"
-    >
-      {Object.keys(tabs).map((path: TabKeys) => (
-        <BottomNavigation.Item
-          key={path}
-          label={tabs[path].label}
-          icon={tabs[path].icon}
-          activeIcon={tabs[path].activeIcon}
-        />
-      ))}
-    </BottomNavigation>
+    <>
+      <BottomNavigation
+        id="footer"
+        activeKey={location.pathname}
+        onChange={handleTabChange}
+        className="z-50"
+      >
+        {Object.keys(tabs).map((path: TabKeys) => (
+          <BottomNavigation.Item
+            key={path}
+            label={tabs[path].label}
+            icon={tabs[path].icon}
+            activeIcon={tabs[path].activeIcon}
+          />
+        ))}
+      </BottomNavigation>
+      <AuthOverlay visible={showAuth} onClose={() => setShowAuth(false)} />
+    </>
   );
 };

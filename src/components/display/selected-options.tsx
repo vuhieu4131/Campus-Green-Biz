@@ -36,7 +36,12 @@ export const DisplaySelectedOptions: FC<{
           }
         });
     }
+    if (variants.length === 0 && options && Object.keys(options).length > 0) {
+      return Object.entries(options)
+        .map(([key, val]) => `${key}: ${val}`)
+        .join(". ");
+    }
     return variants.join(". ");
-  }, [children]);
+  }, [children, options]);
   return <>{description}</>;
 };

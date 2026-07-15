@@ -6,10 +6,11 @@ import { db } from "../../firebase";
 
 const calculateMemberRankInfo = (points: number) => {
   const p = points || 0;
-  if (p < 5) return { name: "Thành viên mới", icon: "zi-user", target: 5 };
-  if (p <= 100) return { name: "Hạng Đồng", icon: "zi-star", target: 101 };
-  if (p <= 300) return { name: "Hạng Bạc", icon: "zi-star-solid", target: 301 };
-  return { name: "Hạng Vàng", icon: "zi-star-solid", target: 1000 };
+  if (p < 100) return { name: "Thành viên mới", icon: "zi-user", target: 100 };
+  if (p < 500) return { name: "Hạng Đồng", icon: "zi-star", target: 500 };
+  if (p < 1000) return { name: "Hạng Bạc", icon: "zi-star-solid", target: 1000 };
+  if (p < 2000) return { name: "Hạng Vàng", icon: "zi-star-solid", target: 2000 };
+  return { name: "Hạng Kim Cương", icon: "zi-star-solid", target: 999999 };
 };
 
 export const MemberView: FC<{ user: any; points: number }> = ({ user, points }) => {

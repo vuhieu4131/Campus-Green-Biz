@@ -1,9 +1,9 @@
 import CustomIcon from '../components/custom-icon';
 import React, { FC, useState, useEffect } from "react";
-import { Page, Header, Box, Text, List, Icon, useNavigate, Modal, Button, Input } from "zmp-ui";
+import { Page, Header, Box, Text, List, Icon, useNavigate, Modal, Button, Input, Spinner } from "zmp-ui";
 import { auth, db } from "../firebase";
 import { signOut, onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, orderBy } from "firebase/firestore";
 import { SectionBox } from "../components/section-box";
 
 interface UserPersonalMenuProps {
@@ -42,6 +42,15 @@ const UserUtilities: FC<{ onLogout: () => void }> = ({ onLogout }) => {
   );
 };
 
+const calculateMemberRankInfo = (points: number) => {
+  const p = points || 0;
+  if (p < 100) return { name: "Thành viên mới", sub: "NEW MEMBER", target: 100, nextName: "Hạng Đồng" };
+  if (p < 500) return { name: "Hạng Đồng", sub: "KHÁCH HÀNG THÂN THIẾT", target: 500, nextName: "Hạng Bạc" };
+  if (p < 1000) return { name: "Hạng Bạc", sub: "SILVER STATUS", target: 1000, nextName: "Hạng Vàng" };
+  if (p < 2000) return { name: "Hạng Vàng", sub: "ELITE STATUS", target: 2000, nextName: "Hạng Kim Cương" };
+  return { name: "Hạng Kim Cương", sub: "DIAMOND STATUS", target: 999999, nextName: "" };
+};
+
 const SettingsPage: FC = () => {
   const navigate = useNavigate();
   const [showShareModal, setShowShareModal] = useState(false);
@@ -57,22 +66,111 @@ const SettingsPage: FC = () => {
   // Mã giới thiệu động lấy từ Firebase
   const [referralCode, setReferralCode] = useState("Đang tải...");
 
+  // Wallet states
+  const [userData, setUserData] = useState<any>(null);
+  const [points, setPoints] = useState(0);
+  const [isWalletExpanded, setIsWalletExpanded] = useState(true);
+  const [activeWalletTab, setActiveWalletTab] = useState<'rank' | 'promo'>('rank');
+  const [showWalletHistoryModal, setShowWalletHistoryModal] = useState(false);
+  const [walletHistoryList, setWalletHistoryList] = useState<any[]>([]);
+  const [loadingWalletHistory, setLoadingWalletHistory] = useState(false);
+
+  const handleOpenHistory = async () => {
+    if (!userData?.id) return;
+    setLoadingWalletHistory(true);
+    setShowWalletHistoryModal(true);
+    try {
+      const q = query(
+        collection(db, "point_transactions"),
+        where("userId", "==", userData.id),
+        where("walletType", "==", activeWalletTab === 'rank' ? 'main' : 'promo'),
+        orderBy("createdAt", "desc")
+      );
+      const querySnapshot = await getDocs(q);
+      const docs = querySnapshot.docs.map(doc => doc.data());
+      setWalletHistoryList(docs);
+    } catch (error) {
+      console.error("Lỗi tải lịch sử giao dịch:", error);
+      setWalletHistoryList([]);
+    } finally {
+      setLoadingWalletHistory(false);
+    }
+  };
+
+  const handleRankClick = () => {
+    const info = calculateMemberRankInfo(points);
+    if (!info.nextName) {
+      alert("Bạn đang ở hạng thành viên cao nhất (Hạng Kim Cương)!");
+    } else {
+      const diff = info.target - points;
+      alert(`Bạn cần ${diff} điểm để lên ${info.nextName} tiếp theo.`);
+    }
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        // Cố gắng lấy SĐT từ Firestore
-        const docRef = doc(db, "users", user.uid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists() && docSnap.data().phone) {
-          setReferralCode(docSnap.data().phone);
+      if (user && user.email !== "guest@campus.com") {
+        // Cố gắng lấy thông tin
+        const phoneFromEmail = user.email ? user.email.replace("@campus.com", "") : "";
+        const localPhone = localStorage.getItem("user_phone");
+        const finalPhone = phoneFromEmail || localPhone;
+
+        let foundData = null;
+
+        if (finalPhone) {
+          try {
+            const qShop = query(collection(db, "shops"), where("phone", "==", finalPhone));
+            const shopSnap = await getDocs(qShop);
+            if (!shopSnap.empty) {
+              const shopData = shopSnap.docs[0].data();
+              foundData = { id: shopSnap.docs[0].id, ...shopData, role: "provider" };
+            }
+          } catch (e) {
+            console.error("Lỗi lấy dữ liệu shop:", e);
+          }
+        }
+
+        if (!foundData) {
+          try {
+            const docRef = doc(db, "users", user.uid);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+              foundData = { id: docSnap.id, ...data, role: data.role || "user" };
+            }
+          } catch (e) {
+            console.error("Lỗi lấy dữ liệu user:", e);
+          }
+        }
+
+        // Fallback nếu không tìm thấy document nào trong DB
+        if (!foundData) {
+          foundData = {
+            id: user.uid,
+            phone: finalPhone || user.phoneNumber || "",
+            fullName: user.displayName || "Thành viên",
+            role: "user",
+            rankPoints: 0,
+            spendingPoints: 0
+          };
+        }
+
+        setUserData(foundData);
+        setPoints(foundData.rankPoints || 0);
+
+        if (foundData.phone) {
+          setReferralCode(foundData.phone);
         } else if (user.phoneNumber) {
           setReferralCode(user.phoneNumber);
         } else if (user.email) {
-          // Lấy username từ email (ví dụ: 0989022120@campus.com -> 0989022120)
           setReferralCode(user.email.split('@')[0]);
         } else {
-          setReferralCode(user.uid.substring(0, 10)); // Dự phòng
+          setReferralCode(user.uid.substring(0, 10));
         }
+      } else {
+        setUserData(null);
+        setPoints(0);
+        setReferralCode("Đang tải...");
       }
     });
     return () => unsubscribe();
@@ -95,6 +193,160 @@ const SettingsPage: FC = () => {
   return (
     <Page className="overflow-y-auto">
       <Header title="Cài đặt" showBackIcon={true} />
+      
+      {/* Ví điểm & Thành viên */}
+      {userData && (
+        <Box className="mx-4 mt-4 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          {/* Header */}
+          <Box 
+            flex 
+            alignItems="center" 
+            justifyContent="space-between" 
+            className="p-4 cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors"
+            onClick={() => setIsWalletExpanded(!isWalletExpanded)}
+          >
+            <Box flex alignItems="center" className="space-x-3">
+              <Box className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center text-orange-500">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="18 15 12 9 6 15"></polyline>
+                </svg>
+              </Box>
+              <Box>
+                <Text bold size="normal" className="text-gray-800">Ví điểm & Thành viên</Text>
+                <Text size="xSmall" className="text-gray-500">
+                  {points.toLocaleString()} điểm - {calculateMemberRankInfo(points).name}
+                </Text>
+              </Box>
+            </Box>
+            <Box flex alignItems="center" className="text-[#14502e] font-semibold text-sm">
+              <span>{isWalletExpanded ? "Thu gọn" : "Mở rộng"}</span>
+              <Icon icon={isWalletExpanded ? "zi-chevron-up" : "zi-chevron-down"} className="ml-1" size={16} />
+            </Box>
+          </Box>
+
+          {/* Content */}
+          {isWalletExpanded && (
+            <Box className="px-4 pb-4 border-t border-gray-50 pt-4 bg-transparent">
+              {/* Wallet Selectors */}
+              <Box flex className="space-x-3 mb-4">
+                <button 
+                  className={`flex-1 py-2 px-3 rounded-xl border flex flex-col items-center justify-center transition-all ${
+                    activeWalletTab === 'rank' 
+                      ? 'border-orange-400 bg-orange-50/30 text-orange-600 font-semibold' 
+                      : 'border-gray-200 bg-white text-gray-500'
+                  }`}
+                  onClick={() => setActiveWalletTab('rank')}
+                >
+                  <Icon icon="zi-poll" className="mb-1 text-lg" />
+                  <span className="text-[12px]">Ví Tính Hạng</span>
+                </button>
+
+                <button 
+                  className={`flex-1 py-2 px-3 rounded-xl border flex flex-col items-center justify-center transition-all ${
+                    activeWalletTab === 'promo' 
+                      ? 'border-blue-400 bg-blue-50/30 text-blue-600 font-semibold' 
+                      : 'border-gray-200 bg-white text-gray-500'
+                  }`}
+                  onClick={() => setActiveWalletTab('promo')}
+                >
+                  <Icon icon="zi-star" className="mb-1 text-lg" />
+                  <span className="text-[12px]">Ví Ưu Đãi</span>
+                </button>
+              </Box>
+
+              {/* Wallet Card */}
+              {activeWalletTab === 'rank' ? (
+                <Box className="bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl p-5 text-white shadow-md relative overflow-hidden">
+                  <Box flex justifyContent="space-between" alignItems="flex-start" className="mb-6">
+                    <Box className="cursor-pointer active:opacity-75" onClick={handleRankClick}>
+                      <Text size="xxSmall" className="opacity-80 uppercase tracking-wider">Hạng Thành Viên</Text>
+                      <Box flex alignItems="center" className="mt-1">
+                        <Icon icon="zi-star-solid" size={20} className="mr-1 text-yellow-300" />
+                        <Text bold size="large" className="text-white">{calculateMemberRankInfo(points).name}</Text>
+                      </Box>
+                    </Box>
+                    <Box className="text-right">
+                      <Text size="xxSmall" className="opacity-80">Điểm Trọn Đời</Text>
+                      <Text bold size="xLarge" className="text-white mt-1 block">{points.toLocaleString()}</Text>
+                    </Box>
+                  </Box>
+
+                  {/* Progress Bar */}
+                  <Box className="mb-4">
+                    <Box className="w-full h-1.5 bg-white/20 rounded-full overflow-hidden">
+                      <Box 
+                        className="h-full bg-white rounded-full" 
+                        style={{ width: `${Math.min(100, (points / calculateMemberRankInfo(points).target) * 100)}%` }} 
+                      />
+                    </Box>
+                    <Box flex justifyContent="space-between" className="mt-1.5 opacity-80 text-[10px]">
+                      <span>0</span>
+                      <span>Mục tiêu: {calculateMemberRankInfo(points).target} điểm</span>
+                    </Box>
+                  </Box>
+
+                  <Box flex justifyContent="space-between" alignItems="center" className="border-t border-white/20 pt-3 mt-1">
+                    <Text size="xxSmall" className="italic opacity-85">* Điểm hạng chỉ bị trừ khi bị Admin phạt.</Text>
+                    <Box 
+                      flex 
+                      alignItems="center" 
+                      className="cursor-pointer active:opacity-75 text-[11px] font-bold bg-white/10 px-2.5 py-1 rounded-full border border-white/10"
+                      onClick={handleOpenHistory}
+                    >
+                      <Icon icon="zi-clock-1" className="mr-1" size={12} />
+                      <span>Xem lịch sử giao dịch</span>
+                    </Box>
+                  </Box>
+                </Box>
+              ) : (
+                <Box className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-5 text-white shadow-md relative overflow-hidden">
+                  <Box flex justifyContent="space-between" alignItems="flex-start" className="mb-6">
+                    <Box>
+                      <Text size="xxSmall" className="opacity-80 uppercase tracking-wider">Ưu Đãi Thành Viên</Text>
+                      <Box flex alignItems="center" className="mt-1">
+                        <Icon icon="zi-star" size={20} className="mr-1 text-blue-200" />
+                        <Text bold size="large" className="text-white">Ví Ưu Đãi</Text>
+                      </Box>
+                    </Box>
+                    <Box className="text-right">
+                      <Text size="xxSmall" className="opacity-80">Số Dư Hiện Tại</Text>
+                      <Text bold size="xLarge" className="text-white mt-1 block">{(userData.spendingPoints || 0).toLocaleString()}</Text>
+                    </Box>
+                  </Box>
+
+                  {/* Progress Bar */}
+                  <Box className="mb-4">
+                    <Box className="w-full h-1.5 bg-white/20 rounded-full overflow-hidden">
+                      <Box 
+                        className="h-full bg-white rounded-full" 
+                        style={{ width: `${Math.min(100, ((userData.spendingPoints || 0) / 1000) * 100)}%` }} 
+                      />
+                    </Box>
+                    <Box flex justifyContent="space-between" className="mt-1.5 opacity-80 text-[10px]">
+                      <span>0</span>
+                      <span>1,000 điểm</span>
+                    </Box>
+                  </Box>
+
+                  <Box flex justifyContent="space-between" alignItems="center" className="border-t border-white/20 pt-3 mt-1">
+                    <Text size="xxSmall" className="italic opacity-85">* Điểm tiêu dùng dùng để đổi Voucher.</Text>
+                    <Box 
+                      flex 
+                      alignItems="center" 
+                      className="cursor-pointer active:opacity-75 text-[11px] font-bold bg-white/10 px-2.5 py-1 rounded-full border border-white/10"
+                      onClick={handleOpenHistory}
+                    >
+                      <Icon icon="zi-clock-1" className="mr-1" size={12} />
+                      <span>Xem lịch sử giao dịch</span>
+                    </Box>
+                  </Box>
+                </Box>
+              )}
+            </Box>
+          )}
+        </Box>
+      )}
+
       <UserPersonalMenu 
         onReferralClick={() => setShowRefModal(true)} 
         onShareClick={() => setShowShareModal(true)} 
@@ -268,6 +520,38 @@ const SettingsPage: FC = () => {
           >
             Đóng bảng hỗ trợ
           </Box>
+        </Box>
+      </Modal>
+
+      {/* Wallet History Modal */}
+      <Modal
+        visible={showWalletHistoryModal}
+        title={activeWalletTab === 'rank' ? "Lịch sử Ví Tính Hạng" : "Lịch sử Ví Ưu Đãi"}
+        onClose={() => setShowWalletHistoryModal(false)}
+        actions={[{ text: "Đóng", onClick: () => setShowWalletHistoryModal(false), highLight: true }]}
+      >
+        <Box p={4} className="max-h-[60vh] overflow-y-auto hide-scroll">
+          {loadingWalletHistory ? (
+            <Box className="flex justify-center items-center py-10">
+              <Spinner />
+            </Box>
+          ) : walletHistoryList.length > 0 ? (
+            walletHistoryList.map((item, idx) => (
+              <Box key={idx} className="mb-3 pb-3 border-b border-gray-100 flex justify-between items-center">
+                <Box>
+                  <Text size="small" bold className="text-gray-800">{item.description}</Text>
+                  <Text size="xxSmall" className="text-gray-400">
+                    {item.createdAt ? (item.createdAt.toDate ? item.createdAt.toDate().toLocaleString() : new Date(item.createdAt.seconds * 1000).toLocaleString()) : 'N/A'}
+                  </Text>
+                </Box>
+                <Text size="small" bold className={item.type === 'plus' ? "text-green-600" : "text-red-600"}>
+                  {item.type === 'plus' ? '+' : '-'}{item.amount?.toLocaleString()}
+                </Text>
+              </Box>
+            ))
+          ) : (
+            <Text size="small" className="text-center text-gray-400 py-10">Không có dữ liệu giao dịch.</Text>
+          )}
         </Box>
       </Modal>
     </Page>

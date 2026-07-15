@@ -100,6 +100,12 @@ export const AdminView: FC<AdminProps> = ({ userData, onLogout }) => {
   const [selectedFeedback, setSelectedFeedback] = useState<any>(null);
   const [adminNote, setAdminNote] = useState("");
 
+  // States for post reject / warning delete
+  const [rejectPostModalVisible, setRejectPostModalVisible] = useState(false);
+  const [deletePostModalVisible, setDeletePostModalVisible] = useState(false);
+  const [selectedPostForAction, setSelectedPostForAction] = useState<any>(null);
+  const [postActionReason, setPostActionReason] = useState("");
+
   // STATE TỪ CHỐI VIP
   const [showRejectVipModal, setShowRejectVipModal] = useState(false);
   const [selectedVipRequest, setSelectedVipRequest] = useState<any>(null);
@@ -526,11 +532,157 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
       const isApproved = post.status === "approved" || !post.status;
       const newStatus = isApproved ? "pending" : "approved";
       const colName = selectedFeature === "community_posts" ? "posts" : "services";
+      
+      // 1. Cập nhật trạng thái bài viết/dịch vụ
       await updateDoc(doc(db, colName, post.id), { status: newStatus });
+
+      // 2. Nếu duyệt Bài viết MXH thành công, tiến hành cộng điểm cho tác giả và thông báo
+      if (selectedFeature === "community_posts" && newStatus === "approved" && post.authorId) {
+        const pointsToAdd = 10;
+        const userRef = doc(db, "users", post.authorId);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          // Cộng điểm thưởng vào ví tích lũy và ví tiêu dùng
+          await updateDoc(userRef, {
+            spendingPoints: increment(pointsToAdd),
+            rankPoints: increment(pointsToAdd)
+          });
+          
+          // Gửi thông báo đến người viết bài
+          await addDoc(collection(db, "notifications"), {
+            userId: post.authorId,
+            title: "Bài viết được duyệt & Tích điểm 🎉",
+            content: `Bài đăng của bạn đã được phê duyệt! Bạn nhận được +${pointsToAdd} điểm vào ví.`,
+            isRead: false,
+            type: "post_approved_notification",
+            createdAt: serverTimestamp()
+          });
+        }
+      }
+
       openSnackbar({ text: "Đã cập nhật trạng thái!", type: "success" });
       fetchData(selectedFeature!); 
-    } catch (error) { openSnackbar({ text: "Lỗi", type: "error" }); }
+    } catch (error) { 
+      console.error("Lỗi khi duyệt bài:", error);
+      openSnackbar({ text: "Lỗi cập nhật", type: "error" }); 
+    }
   };
+
+  const handleConfirmRejectPost = async () => {
+    if (!selectedPostForAction) return;
+    if (!postActionReason.trim()) {
+      openSnackbar({ text: "Vui lòng nhập lý do từ chối!", type: "warning" });
+      return;
+    }
+    try {
+      // 1. Cập nhật trạng thái bài viết
+      await updateDoc(doc(db, "posts", selectedPostForAction.id), {
+        status: "rejected"
+      });
+
+      // 2. Gửi thông báo đến người đăng
+      await addDoc(collection(db, "notifications"), {
+        userId: selectedPostForAction.authorId,
+        title: "Bài viết bị từ chối duyệt ❌",
+        content: `Bài viết của bạn đã bị từ chối. Lý do: ${postActionReason.trim()}`,
+        isRead: false,
+        type: "post_rejected_notification",
+        createdAt: serverTimestamp()
+      });
+
+      openSnackbar({ text: "Đã từ chối bài viết!", type: "success" });
+      setRejectPostModalVisible(false);
+      fetchData("community_posts");
+    } catch (error) {
+      console.error("Lỗi khi từ chối bài viết:", error);
+      openSnackbar({ text: "Lỗi hệ thống khi từ chối!", type: "error" });
+    }
+  };
+
+  const handleConfirmDeletePost = async () => {
+    if (!selectedPostForAction) return;
+    if (!postActionReason.trim()) {
+      openSnackbar({ text: "Vui lòng nhập lý do xóa!", type: "warning" });
+      return;
+    }
+    try {
+      const authorId = selectedPostForAction.authorId;
+      const contentSnippet = selectedPostForAction.content?.substring(0, 30) || "không có nội dung";
+
+      // 1. Xóa bài viết khỏi cơ sở dữ liệu
+      await deleteDoc(doc(db, "posts", selectedPostForAction.id));
+
+      // 2. Tăng số lần cảnh cáo và trừ điểm người dùng
+      if (authorId) {
+        const userRef = doc(db, "users", authorId);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          const userData = userSnap.data();
+          const newWarningCount = (userData.warningCount || 0) + 1;
+
+          // Cập nhật số lần cảnh cáo trước
+          await updateDoc(userRef, { warningCount: newWarningCount });
+
+          const currentSpending = userData.spendingPoints || 0;
+          const currentRank = userData.rankPoints || 0;
+
+          if (newWarningCount === 1) {
+            // Cảnh cáo lần 1: Trừ 20 điểm
+            await updateDoc(userRef, {
+              spendingPoints: Math.max(0, currentSpending - 20),
+              rankPoints: Math.max(0, currentRank - 20)
+            });
+
+            await addDoc(collection(db, "notifications"), {
+              userId: authorId,
+              title: "Cảnh cáo lần 1 ⚠️ Bài viết bị xóa",
+              content: `Bài viết "${contentSnippet}..." của bạn đã bị xóa do vi phạm quy chuẩn. Lý do: ${postActionReason.trim()}. Bạn bị cảnh cáo lần 1 và trừ 20 điểm vào ví.`,
+              isRead: false,
+              type: "post_warning_notification",
+              createdAt: serverTimestamp()
+            });
+          } else if (newWarningCount === 2) {
+            // Cảnh cáo lần 2: Trừ 40 điểm
+            await updateDoc(userRef, {
+              spendingPoints: Math.max(0, currentSpending - 40),
+              rankPoints: Math.max(0, currentRank - 40)
+            });
+
+            await addDoc(collection(db, "notifications"), {
+              userId: authorId,
+              title: "Cảnh cáo lần 2 ⚠️ Bài viết bị xóa",
+              content: `Bài viết "${contentSnippet}..." của bạn đã bị xóa do vi phạm quy chuẩn. Lý do: ${postActionReason.trim()}. Bạn bị cảnh cáo lần 2 và trừ 40 điểm vào ví.`,
+              isRead: false,
+              type: "post_warning_notification",
+              createdAt: serverTimestamp()
+            });
+          } else if (newWarningCount >= 3) {
+            // Cảnh cáo lần 3: Khóa tài khoản
+            await updateDoc(userRef, {
+              status: "banned"
+            });
+
+            await addDoc(collection(db, "notifications"), {
+              userId: authorId,
+              title: "Khóa tài khoản 🚫 Cảnh cáo lần 3",
+              content: `Bài viết "${contentSnippet}..." của bạn đã bị xóa. Lý do: ${postActionReason.trim()}. Bạn bị cảnh cáo lần 3: Khóa tài khoản và phối hợp đưa ra cơ quan Pháp luật để xử lý.`,
+              isRead: false,
+              type: "post_banned_notification",
+              createdAt: serverTimestamp()
+            });
+          }
+        }
+      }
+
+      openSnackbar({ text: "Đã xóa bài viết và gửi cảnh cáo!", type: "success" });
+      setDeletePostModalVisible(false);
+      fetchData("community_posts");
+    } catch (error) {
+      console.error("Lỗi khi xóa bài viết và cảnh cáo:", error);
+      openSnackbar({ text: "Lỗi hệ thống khi xóa!", type: "error" });
+    }
+  };
+
   // 👉 BƯỚC 2: HÀM GỬI THÔNG BÁO TÙY CHỈNH CHO USER/SHOP
   const handleSendPrivateNotification = async () => {
     if (!notifyTitle.trim() || !notifyContent.trim()) {
@@ -1142,12 +1294,35 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                       </Box>
                     </Box>
                     <Box flex justifyContent="space-between" alignItems="center">
-                      <Text size="xxSmall" className="text-red-500 cursor-pointer" onClick={() => handleDeleteItem("posts", p.id)}>
-                        <CustomIcon icon="zi-delete"/> Xóa
+                      <Text 
+                        size="xxSmall" 
+                        className="text-red-500 cursor-pointer flex items-center" 
+                        onClick={() => {
+                          setSelectedPostForAction(p);
+                          setPostActionReason("");
+                          setDeletePostModalVisible(true);
+                        }}
+                      >
+                        <CustomIcon icon="zi-delete" className="mr-1"/> Xóa
                       </Text>
-                      <Button size="small" variant={(p.status==="approved" || !p.status)?"secondary":"primary"} onClick={() => handleApprovePost(p)}>
-                        {(p.status==="approved" || !p.status)?"Ẩn":"Duyệt"}
-                      </Button>
+                      <Box flex className="space-x-2">
+                        {p.status === "pending" && (
+                          <Button 
+                            size="small" 
+                            className="bg-red-50 text-red-600 border border-red-200 active:bg-red-100 font-semibold"
+                            onClick={() => {
+                              setSelectedPostForAction(p);
+                              setPostActionReason("");
+                              setRejectPostModalVisible(true);
+                            }}
+                          >
+                            Từ chối
+                          </Button>
+                        )}
+                        <Button size="small" variant={(p.status==="approved" || !p.status)?"secondary":"primary"} onClick={() => handleApprovePost(p)}>
+                          {(p.status==="approved" || !p.status)?"Ẩn":"Duyệt"}
+                        </Button>
+                      </Box>
                     </Box>
                   </Box>
                 );
@@ -2413,6 +2588,54 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                 </Box>
             </Box>
         </Modal>
+
+      {/* MODAL TỪ CHỐI DUYỆT BÀI VIẾT MXH */}
+      <Modal 
+        visible={rejectPostModalVisible} 
+        title="Lý do từ chối bài viết" 
+        onClose={() => setRejectPostModalVisible(false)}
+        actions={[
+          { text: "Hủy", onClick: () => setRejectPostModalVisible(false) },
+          { text: "Từ chối", onClick: handleConfirmRejectPost, highLight: true }
+        ]}
+      >
+        <Box p={4}>
+          <Input
+            label="Lý do từ chối"
+            placeholder="Ví dụ: Nội dung phản cảm, hình ảnh không phù hợp..."
+            value={postActionReason}
+            onChange={(e) => setPostActionReason(e.target.value)}
+            clearable
+          />
+        </Box>
+      </Modal>
+
+      {/* MODAL XÓA BÀI VIẾT MXH & CẢNH CÁO TÁC GIẢ */}
+      <Modal 
+        visible={deletePostModalVisible} 
+        title="Xóa bài viết & Cảnh cáo người dùng" 
+        onClose={() => setDeletePostModalVisible(false)}
+        actions={[
+          { text: "Hủy", onClick: () => setDeletePostModalVisible(false) },
+          { text: "Xóa & Cảnh cáo", onClick: handleConfirmDeletePost, highLight: true }
+        ]}
+      >
+        <Box p={4}>
+          <Text size="xSmall" className="text-red-500 mb-4 italic leading-relaxed">
+            * Hệ thống sẽ tự động cộng dồn số lần cảnh cáo đối với tài khoản này:<br/>
+            - Lần 1: Trừ 20 điểm.<br/>
+            - Lần 2: Trừ 40 điểm.<br/>
+            - Lần 3: Khóa tài khoản vĩnh viễn và phối hợp cơ quan Pháp luật xử lý.
+          </Text>
+          <Input
+            label="Lý do xóa bài viết"
+            placeholder="Nhập lý do vi phạm chi tiết..."
+            value={postActionReason}
+            onChange={(e) => setPostActionReason(e.target.value)}
+            clearable
+          />
+        </Box>
+      </Modal>
     </Box>
   );
 };

@@ -113,6 +113,9 @@ const ShopDetailPage: React.FunctionComponent = () => {
         const snapName = await getDocs(qName);
         list = snapName.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       }
+      
+      list = list.filter((item: any) => item.status !== "pending" && item.status !== "rejected" && item.status !== "deleted");
+      
       // 👇 Sửa .category thành .productCategory 👇
 const extractedCategories = Array.from(new Set(list.map((item: any) => item.productCategory).filter(Boolean)));
 setCategories(['Tất cả', ...extractedCategories as string[]]);

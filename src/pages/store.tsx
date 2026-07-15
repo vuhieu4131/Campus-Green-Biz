@@ -107,89 +107,45 @@ const StoreBanner: FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const q = query(collection(db, "banners"));
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const bannerList = querySnapshot.docs
-        .map((doc) => ({ id: doc.id, ...doc.data() } as any))
-        .filter((b) => (b.type === "store" || !b.type) && b.active !== false)
-        .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-      setBanners(bannerList);
-      setLoading(false);
-    }, (error) => {
-      console.error("Lỗi khi tải banners:", error);
-      setLoading(false);
+    let unsubscribe: (() => void) | undefined;
+
+    const authUnsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        if (unsubscribe) unsubscribe();
+
+        const q = query(collection(db, "banners"));
+        unsubscribe = onSnapshot(q, (querySnapshot) => {
+          const bannerList = querySnapshot.docs
+            .map((doc) => ({ id: doc.id, ...doc.data() } as any))
+            .filter((b) => (b.type === "store" || !b.type) && b.active !== false)
+            .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+          setBanners(bannerList);
+          setLoading(false);
+        }, (error) => {
+          console.error("Lỗi khi tải banners:", error);
+          setLoading(false);
+        });
+      }
     });
-    return () => unsubscribe();
+
+    return () => {
+      authUnsubscribe();
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
-  if (loading || banners.length === 0) {
+  if (loading) {
     return (
-      <Box className="bg-transparent mt-6" pb={2}>
-        <Swiper
-          modules={[Pagination, Autoplay]}
-          pagination={{ clickable: true }}
-          autoplay={{ delay: 2500, disableOnInteraction: false }}
-          loop
-        >
-          {/* Slide 1 */}
-          <SwiperSlide className="px-4">
-            <Box className="bg-gradient-to-r from-[#14502e] to-[#22c55e] rounded-2xl p-4 flex justify-between items-center text-white relative overflow-hidden shadow-md aspect-[2.3/1]">
-              <Box className="relative z-10 w-2/3">
-                <Text className="font-bold text-base leading-tight mb-1">Ưu Đãi Đặc Biệt<br/>Tháng 10</Text>
-                <Text className="text-white/80 text-[10px] mb-2 block">Giảm 25% cho sản phẩm Xanh</Text>
-                <Box className="bg-white text-[#14502e] inline-block px-3 py-1 rounded-full text-[10px] font-bold shadow-md cursor-pointer">
-                  Mua Ngay
-                </Box>
-              </Box>
-              <Box className="w-1/3 flex justify-end relative z-10">
-                <Box className="w-12 h-12 bg-white/20 rounded-xl backdrop-blur-sm border border-white/30 flex items-center justify-center">
-                  <CustomIcon icon="zi-poll" className="text-white text-2xl" />
-                </Box>
-              </Box>
-              <Box className="absolute -bottom-4 -right-4 w-24 h-24 bg-white/10 rounded-full blur-md" />
-            </Box>
-          </SwiperSlide>
-
-          {/* Slide 2 */}
-          <SwiperSlide className="px-4">
-            <Box className="bg-gradient-to-r from-purple-600 to-indigo-700 rounded-2xl p-4 flex justify-between items-center text-white relative overflow-hidden shadow-md aspect-[2.3/1]">
-              <Box className="relative z-10 w-2/3">
-                <Text className="font-bold text-base leading-tight mb-1">Ví Điểm Đẩy VIP<br/>Nâng Tầm Shop</Text>
-                <Text className="text-white/80 text-[10px] mb-2 block">Đăng sản phẩm Hot thu hút ngàn lượt xem</Text>
-                <Box className="bg-white text-purple-700 inline-block px-3 py-1 rounded-full text-[10px] font-bold shadow-md cursor-pointer" onClick={() => navigate('/profile')}>
-                  Nạp ngay
-                </Box>
-              </Box>
-              <Box className="w-1/3 flex justify-end relative z-10">
-                <Box className="w-12 h-12 bg-white/20 rounded-xl backdrop-blur-sm border border-white/30 flex items-center justify-center">
-                  <CustomIcon icon="zi-star-solid" className="text-white text-2xl" />
-                </Box>
-              </Box>
-              <Box className="absolute -bottom-4 -right-4 w-24 h-24 bg-white/10 rounded-full blur-md" />
-            </Box>
-          </SwiperSlide>
-
-          {/* Slide 3 */}
-          <SwiperSlide className="px-4">
-            <Box className="bg-gradient-to-r from-amber-500 to-orange-600 rounded-2xl p-4 flex justify-between items-center text-white relative overflow-hidden shadow-md aspect-[2.3/1]">
-              <Box className="relative z-10 w-2/3">
-                <Text className="font-bold text-base leading-tight mb-1">Mua Bán Dễ Dàng<br/>Tích Lũy Điểm Xanh</Text>
-                <Text className="text-white/80 text-[10px] mb-2 block">Nhận 1 điểm Xanh cho mỗi 10.000đ mua sắm</Text>
-                <Box className="bg-white text-orange-600 inline-block px-3 py-1 rounded-full text-[10px] font-bold shadow-md cursor-pointer">
-                  Khám Phá
-                </Box>
-              </Box>
-              <Box className="w-1/3 flex justify-end relative z-10">
-                <Box className="w-12 h-12 bg-white/20 rounded-xl backdrop-blur-sm border border-white/30 flex items-center justify-center">
-                  <CustomIcon icon="zi-user" className="text-white text-2xl" />
-                </Box>
-              </Box>
-              <Box className="absolute -bottom-4 -right-4 w-24 h-24 bg-white/10 rounded-full blur-md" />
-            </Box>
-          </SwiperSlide>
-        </Swiper>
+      <Box className="px-4 mt-6 pb-2">
+        <Box className="w-full rounded-2xl aspect-[2.3/1] bg-gray-200 animate-pulse shadow-md" />
       </Box>
     );
+  }
+
+  const validBanners = banners.filter(b => b.image && b.image.trim() !== "");
+
+  if (validBanners.length === 0) {
+    return null;
   }
 
   return (
@@ -203,22 +159,11 @@ const StoreBanner: FC = () => {
           delay: 2000,
           disableOnInteraction: false,
         }}
-        loop
+        loop={validBanners.length > 1}
       >
-        {banners.map((banner, i) => {
-          // Tính toán mã hash đơn giản từ id để chọn ảnh và đường dẫn cố định, tránh bị đổi ngẫu nhiên mỗi lần render
-          const seed = banner.id ? banner.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) : i;
-          
-          // Link ảnh ngẫu nhiên nếu không điền
-          const bannerImage = banner.image && banner.image.trim() !== "" 
-            ? banner.image 
-            : `https://stc-zmp.zadn.vn/templates/zaui-coffee/dummy/banner-${(seed % 5) + 1}.webp`;
-
-          // Link điều hướng ngẫu nhiên nếu không điền
-          const fallbackRoutes = ["/profile", "/notification", "/cart", "/wallet", "/"];
-          const bannerLink = banner.link && banner.link.trim() !== "" 
-            ? banner.link 
-            : fallbackRoutes[seed % fallbackRoutes.length];
+        {validBanners.map((banner, i) => {
+          const bannerImage = banner.image;
+          const bannerLink = banner.link || "";
 
           return (
             <SwiperSlide key={banner.id || i} className="px-4">
@@ -330,7 +275,7 @@ const mockProducts = [
   },
 ];
 
-const HotProducts: FC<{ products: any[]; onProductClick: (product: any) => void }> = ({ products, onProductClick }) => {
+const HotProducts: FC<{ products: any[]; onProductClick: (product: any) => void; showPrice: boolean }> = ({ products, onProductClick, showPrice }) => {
   return (
     <Box className="mt-6 mb-4">
       <Text.Title className="font-bold text-base text-[#14502e] mb-3 px-4">Sản phẩm Hot 🔥</Text.Title>
@@ -350,7 +295,11 @@ const HotProducts: FC<{ products: any[]; onProductClick: (product: any) => void 
               style={{ backgroundImage: `url('${p.image || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png"}')` }}
             />
             <Text className="font-semibold text-gray-800 text-xs line-clamp-2 min-h-[32px] leading-tight mb-1">{p.name || p.title}</Text>
-            <Text className="font-bold text-[#14502e] text-xs">{(p.price || 0).toLocaleString('vi-VN')}đ</Text>
+            {showPrice ? (
+              <Text className="font-bold text-[#14502e] text-xs">{(p.price || 0).toLocaleString('vi-VN')}đ</Text>
+            ) : (
+              <Text className="text-blue-500 italic text-[11px] font-medium leading-normal block">Liên hệ báo giá</Text>
+            )}
             <Box className="flex text-yellow-400 mt-1 space-x-0.5">
               {[...Array(5)].map((_, idx) => (
                 <CustomIcon key={idx} icon={idx < (p.stars || 5) ? "zi-star-solid" : "zi-star"} className="text-[10px]" />
@@ -363,7 +312,7 @@ const HotProducts: FC<{ products: any[]; onProductClick: (product: any) => void 
   );
 };
 
-const ProductsForYou: FC<{ products: any[]; onProductClick: (product: any) => void }> = ({ products, onProductClick }) => {
+const ProductsForYou: FC<{ products: any[]; onProductClick: (product: any) => void; showPrice: boolean }> = ({ products, onProductClick, showPrice }) => {
   return (
     <Box className="px-4 mt-4 mb-6">
       <Text.Title className="font-bold text-base text-[#14502e] mb-4">Sản phẩm dành cho bạn ✨</Text.Title>
@@ -375,7 +324,11 @@ const ProductsForYou: FC<{ products: any[]; onProductClick: (product: any) => vo
               style={{ backgroundImage: `url('${p.image || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png"}')` }}
             />
             <Text className="font-semibold text-gray-800 text-sm line-clamp-2 min-h-[40px] leading-tight mb-1">{p.name || p.title}</Text>
-            <Text className="font-bold text-[#14502e] text-sm">{(p.price || 0).toLocaleString('vi-VN')}đ</Text>
+            {showPrice ? (
+              <Text className="font-bold text-[#14502e] text-sm">{(p.price || 0).toLocaleString('vi-VN')}đ</Text>
+            ) : (
+              <Text className="text-blue-500 italic text-xs font-medium leading-normal block">Liên hệ báo giá</Text>
+            )}
             <Box className="flex text-yellow-400 mt-1 space-x-0.5">
               {[...Array(5)].map((_, idx) => (
                 <CustomIcon key={idx} icon={idx < (p.stars || 5) ? "zi-star-solid" : "zi-star"} className="text-[12px]" />
@@ -397,13 +350,26 @@ const ConsumerStorePage: FC = () => {
 
   const [dbServices, setDbServices] = useState<any[]>([]);
   const [loadingServices, setLoadingServices] = useState(true);
+  const [showPrice, setShowPrice] = useState(true);
 
   useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const configSnap = await getDoc(doc(db, "system_config", "admin_settings"));
+        if (configSnap.exists() && configSnap.data().showPrice !== undefined) {
+          setShowPrice(configSnap.data().showPrice);
+        }
+      } catch (e) {
+        console.error("Lỗi khi tải cấu hình hiển thị giá:", e);
+      }
+    };
+    fetchConfig();
+
     const q = query(collection(db, "services"));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const list = querySnapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as any))
-        .filter(item => item.status !== "deleted" && item.status !== "rejected");
+        .filter(item => item.status === "approved" || !item.status);
       setDbServices(list);
       setLoadingServices(false);
     }, (error) => {
@@ -440,9 +406,7 @@ const ConsumerStorePage: FC = () => {
   }, []);
 
   const handleProductClick = (product: any) => {
-    setSelectedProduct(product);
-    setQuantity(1);
-    setSheetVisible(true);
+    navigate(`/detail/${product.id}`, { state: { product } });
   };
 
   const setCart = useSetRecoilState(cartState);
@@ -481,8 +445,8 @@ const ConsumerStorePage: FC = () => {
       <StoreWelcome />
       <StoreBanner />
       <StoreCategories />
-      <HotProducts products={finalHotList} onProductClick={handleProductClick} />
-      <ProductsForYou products={finalForYouList} onProductClick={handleProductClick} />
+      <HotProducts products={finalHotList} onProductClick={handleProductClick} showPrice={showPrice} />
+      <ProductsForYou products={finalForYouList} onProductClick={handleProductClick} showPrice={showPrice} />
 
       <Sheet
         visible={sheetVisible}

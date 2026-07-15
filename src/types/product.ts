@@ -35,7 +35,7 @@ export interface MultipleOptionVariant extends BaseVariant {
 export type Variant = SingleOptionVariant | MultipleOptionVariant;
 
 export interface Product {
-  id: number;
+  id: any;
   name: string;
   image: string;
   price: number;
@@ -43,4 +43,18 @@ export interface Product {
   description?: string;
   sale?: Sale;
   variants?: Variant[];
+  title?: string;
+  shopName?: string;
+  locationAddress?: string;
+  points?: number;
+  originalPrice?: number;
+  discountPercent?: number;
+  attributes?: any[];
+  status?: string;
+  hidePrice?: boolean;
+  stars?: number;
+  hasVariants?: boolean;
+  ownerPhone?: string;
+  providerId?: string;
+  createdAt?: any;
 }
