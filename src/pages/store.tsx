@@ -1,11 +1,16 @@
 import CustomIcon from '../components/custom-icon';
 import React, { FC, useState } from "react";
-import { useSetRecoilState } from 'recoil';
+import { useSetRecoilState, useRecoilValue } from 'recoil';
 import { cartState } from 'state';
 import { Page, Box, Text, Avatar, Icon, Input, useNavigate, Sheet, Button, useSnackbar } from "zmp-ui";
 
 const StoreWelcome: FC = () => {
   const navigate = useNavigate();
+  const cart = useRecoilValue(cartState);
+  
+  // Tính tổng số lượng sản phẩm trong giỏ hàng
+  const totalQuantity = cart.reduce((total, item) => total + item.quantity, 0);
+
   return (
     <Box className="bg-[#14502e] rounded-b-[40px] pt-12 pb-16 px-4 relative">
       <Box className="flex justify-between items-center">
@@ -32,9 +37,11 @@ const StoreWelcome: FC = () => {
             <line x1="3" y1="6" x2="21" y2="6"></line>
             <path d="M16 10a4 4 0 0 1-8 0"></path>
           </svg>
-          <Box className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full border border-[#14502e] font-bold">
-            2
-          </Box>
+          {totalQuantity > 0 && (
+            <Box className="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] min-w-[16px] px-1 h-4 flex items-center justify-center rounded-full border border-[#14502e] font-bold">
+              {totalQuantity > 99 ? '99+' : totalQuantity}
+            </Box>
+          )}
         </Box>
       </Box>
     </Box>
@@ -98,62 +105,87 @@ const StoreCategories: FC = () => {
   );
 };
 
-const products = [
-  { 
-    id: 991,
-    name: "Bình nước tre", 
-    image: "https://images.unsplash.com/photo-1606115915090-be18fea23ce7?w=500&fit=crop", 
-    stars: 5,
-    price: 120000,
-    description: "Bình nước giữ nhiệt làm từ tre tự nhiên 100%, an toàn cho sức khỏe và thân thiện với môi trường."
-  },
-  { 
-    id: 992,
-    name: "Túi vải canvas", 
-    image: "https://images.unsplash.com/photo-1597484661643-2f5fef640dd1?w=500&fit=crop", 
-    stars: 4,
-    price: 85000,
-    description: "Túi tote vải canvas phong cách tối giản, bền chắc, dùng đi học hay đi chơi đều phù hợp."
-  },
-  { 
-    id: 993,
-    name: "Xà phòng hữu cơ", 
-    image: "https://images.unsplash.com/photo-1600857062241-98e5dba7f214?w=500&fit=crop", 
-    stars: 5,
-    price: 55000,
-    description: "Xà phòng handmade chiết xuất từ thiên nhiên, làm sạch dịu nhẹ, không gây kích ứng da."
-  },
-  { 
-    id: 994,
-    name: "Sổ tay tái chế", 
-    image: "https://images.unsplash.com/photo-1544816155-12df9643f363?w=500&fit=crop", 
-    stars: 5,
-    price: 45000,
-    description: "Sổ tay A5 bìa kraft làm từ giấy tái chế, thân thiện môi trường."
-  },
-];
+import { collection, getDocs, query, orderBy, limit } from "firebase/firestore";
+import { db } from "../firebase";
 
 const StoreRecommend: FC<{ onProductClick: (product: any) => void }> = ({ onProductClick }) => {
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  React.useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        let allProducts: any[] = [];
+        
+        // Fetch from services
+        const qServices = query(collection(db, "services"), orderBy("createdAt", "desc"), limit(20));
+        const snapServices = await getDocs(qServices);
+        snapServices.docs.forEach(doc => allProducts.push({ id: doc.id, ...doc.data() }));
+
+        // Fetch from products (fallback for older items)
+        const qProducts = query(collection(db, "products"), orderBy("createdAt", "desc"), limit(20));
+        const snapProducts = await getDocs(qProducts);
+        snapProducts.docs.forEach(doc => allProducts.push({ id: doc.id, ...doc.data() }));
+
+        // Deduplicate just in case
+        const uniqueIds = new Set();
+        const uniqueProducts = allProducts.filter(p => {
+          if (uniqueIds.has(p.id)) return false;
+          uniqueIds.add(p.id);
+          return true;
+        });
+
+        // Sort by time
+        uniqueProducts.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+
+        // Format to match UI
+        const formatted = uniqueProducts.map(p => ({
+          ...p,
+          name: p.name || p.title || "Sản phẩm",
+          price: Number(p.price || 0),
+          image: p.image || (p.images && p.images[0]) || "https://via.placeholder.com/500",
+          stars: 5,
+          description: p.description || ""
+        }));
+
+        setProducts(formatted);
+      } catch (error) {
+        console.error("Lỗi lấy danh sách sản phẩm:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProducts();
+  }, []);
+
+  if (loading) {
+    return <Box className="px-4 mt-8 mb-6 text-center text-gray-500">Đang tải sản phẩm...</Box>;
+  }
+
   return (
     <Box className="px-4 mt-8 mb-6">
       <Text.Title className="font-bold text-lg text-[#14502e] mb-4">Gợi ý cho bạn</Text.Title>
-      <Box className="grid grid-cols-2 gap-4">
-        {products.map((p) => (
-          <Box key={p.id} className="flex flex-col bg-white rounded-2xl p-3 shadow-md active:scale-95 transition-transform cursor-pointer" onClick={() => onProductClick(p)}>
-            <Box 
-              className="w-full aspect-[4/3] rounded-xl bg-cover bg-center mb-2"
-              style={{ backgroundImage: `url('${p.image}')` }}
-            />
-            <Text className="font-semibold text-gray-800 text-sm line-clamp-2 min-h-[40px] leading-tight mb-1">{p.name}</Text>
-            <Text className="font-bold text-[#14502e] text-sm">{p.price.toLocaleString('vi-VN')}đ</Text>
-            <Box className="flex text-yellow-400 mt-1 space-x-0.5">
-              {[...Array(5)].map((_, idx) => (
-                <CustomIcon key={idx} icon={idx < p.stars ? "zi-star-solid" : "zi-star"} className="text-[12px]" />
-              ))}
+      {products.length === 0 ? (
+        <Text className="text-gray-500 text-center">Chưa có sản phẩm nào được đăng.</Text>
+      ) : (
+        <Box className="grid grid-cols-2 gap-4">
+          {products.map((p) => (
+            <Box key={p.id} className="flex flex-col bg-white rounded-2xl p-3 shadow-md active:scale-95 transition-transform cursor-pointer" onClick={() => onProductClick(p)}>
+              <Box 
+                className="w-full aspect-[4/3] rounded-xl bg-cover bg-center mb-2"
+                style={{ backgroundImage: `url('${p.image}')` }}
+              />
+              <Text className="font-semibold text-gray-800 text-sm line-clamp-2 min-h-[40px] leading-tight mb-1">{p.name}</Text>
+              <Text className="font-bold text-[#14502e] text-sm">{p.price.toLocaleString('vi-VN')}đ</Text>
+              <Box className="flex text-yellow-400 mt-1 space-x-0.5">
+                {[...Array(5)].map((_, idx) => (
+                  <CustomIcon key={idx} icon={idx < p.stars ? "zi-star-solid" : "zi-star"} className="text-[12px]" />
+                ))}
+              </Box>
             </Box>
-          </Box>
-        ))}
-      </Box>
+          ))}
+        </Box>
+      )}
     </Box>
   );
 };

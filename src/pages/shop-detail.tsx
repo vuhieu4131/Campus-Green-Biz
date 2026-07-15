@@ -113,6 +113,13 @@ const ShopDetailPage: React.FunctionComponent = () => {
         const snapName = await getDocs(qName);
         list = snapName.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       }
+
+      // Lấy thêm từ collection "products" (cho các bài đăng cũ lỡ lưu nhầm)
+      const qProducts = query(collection(db, "products"), where("shopId", "==", shop.id || id));
+      const snapProducts = await getDocs(qProducts);
+      const productList = snapProducts.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      list = [...list, ...productList];
       // 👇 Sửa .category thành .productCategory 👇
 const extractedCategories = Array.from(new Set(list.map((item: any) => item.productCategory).filter(Boolean)));
 setCategories(['Tất cả', ...extractedCategories as string[]]);
@@ -250,7 +257,7 @@ const filteredServices = selectedCategory === 'Tất cả'
                                 className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100 active:opacity-70 flex flex-col"
                             >
                                 <Box className="relative pt-[100%]">
-                                    <img src={item.image || "https://via.placeholder.com/150"} className="absolute inset-0 w-full h-full object-cover" alt="Product" />
+                                    <img src={item.image || (item.images && item.images[0]) || "https://via.placeholder.com/150"} className="absolute inset-0 w-full h-full object-cover" alt="Product" />
                                     
                                     {item.points && (
                                         <div className="absolute top-2 left-2 bg-yellow-400 text-white px-2 py-0.5 rounded text-[10px] font-bold shadow-sm z-10">

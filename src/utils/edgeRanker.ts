@@ -33,6 +33,7 @@ export const sortPostsOnEdge = (posts: RawPost[]): RawPost[] => {
       const hasTags = post.hasShoppableTags || false;
 
       // 3. Algorithm weights
+      const baseScore = 10;
       const engagementScore = (likes * 1) + (comments * 3) + (shares * 5);
       const commercialBonus = hasTags ? 50 : 0;
       
@@ -40,7 +41,7 @@ export const sortPostsOnEdge = (posts: RawPost[]): RawPost[] => {
       const timeDecay = 1 / Math.pow(hoursElapsed + 2, 1.5);
 
       // 4. Final Score
-      let finalScore = (engagementScore + commercialBonus) * timeDecay;
+      let finalScore = (baseScore + engagementScore + commercialBonus) * timeDecay;
       
       // Bonus for pinned post
       if (post.isPinned) {

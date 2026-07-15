@@ -100,11 +100,13 @@ const CreatePostPage: FC = () => {
       }
 
       if (userRole === "provider") {
-        await addDoc(collection(db, "products"), {
+        await addDoc(collection(db, "services"), {
           shopId: currentUser.uid,
           name: productName.trim(),
+          title: productName.trim(), // Tương thích với cấu trúc cũ
           price: Number(productPrice),
           images: uploadedImageUrls,
+          image: uploadedImageUrls[0] || "", // Tương thích với cấu trúc cũ
           status: "active",
           createdAt: serverTimestamp(),
         });
@@ -133,32 +135,10 @@ const CreatePostPage: FC = () => {
           privacy: privacy,
           createdAt: serverTimestamp(),
           likesCount: 0,
-          commentsCount: 0,
-          status: "pending"
+          commentsCount: 0
         });
 
-        // Gửi thông báo đến tất cả các Admin
-        try {
-          const qAdmins = query(collection(db, "users"), where("role", "==", "admin"));
-          const adminSnap = await getDocs(qAdmins);
-          
-          const notifyPromises = adminSnap.docs.map(adminDoc => {
-            return addDoc(collection(db, "notifications"), {
-              userId: adminDoc.id,
-              title: "Bài viết mới chờ duyệt 📝",
-              content: `Người dùng "${authorName}" vừa tạo bài đăng mới (ID: ${postRef.id}) cần kiểm duyệt.`,
-              isRead: false,
-              type: "post_approval",
-              postId: postRef.id,
-              createdAt: serverTimestamp()
-            });
-          });
-          await Promise.all(notifyPromises);
-        } catch (err) {
-          console.error("Lỗi gửi thông báo cho admin:", err);
-        }
-
-        openSnackbar({ text: "Đã đăng bài thành công! Vui lòng chờ duyệt.", type: "success" });
+        openSnackbar({ text: "Đã đăng bài thành công!", type: "success" });
       }
       navigate(-1);
     } catch (error) {

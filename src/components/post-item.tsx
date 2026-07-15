@@ -245,12 +245,6 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
                 {data.authorName || "Người dùng"}
               </Text.Title>
               {data.isPinned && <CustomIcon icon="zi-star-solid" size={12} className="text-[#a68c4d]" />}
-              {data.status === "pending" && (
-                <span className="inline-flex items-center bg-yellow-50 text-yellow-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-yellow-200 ml-1.5 shrink-0">
-                  <span className="w-1.5 h-1.5 bg-yellow-500 rounded-full mr-1 animate-pulse" />
-                  Chờ duyệt
-                </span>
-              )}
             </Box>
             {isEditing ? (
               <Box className="flex items-center mt-1 bg-gray-100 rounded-md px-2 py-0.5 border border-gray-200">

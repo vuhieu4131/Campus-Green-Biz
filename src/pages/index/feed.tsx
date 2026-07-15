@@ -3,7 +3,7 @@ import { Box, Text, Spinner } from "zmp-ui";
 import { PostItem } from "../../components/post-item";
 import { RawPost, sortPostsOnEdge } from "../../utils/edgeRanker";
 import { db } from "../../firebase";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 
 export const FeedList: FC = () => {
   const [posts, setPosts] = useState<RawPost[]>([]);
@@ -14,23 +14,17 @@ export const FeedList: FC = () => {
       setLoading(true);
       const postsRef = collection(db, "posts");
       
-      // Tính mốc thời gian 7 ngày trước
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-      const q = query(postsRef, where("createdAt", ">=", sevenDaysAgo));
-      
-      const querySnapshot = await getDocs(q);
+      // Lấy tất cả bài viết (không dùng orderBy để tránh sót các bài cũ không có trường createdAt)
+      // Thuật toán edgeRanker bên dưới sẽ tự động sắp xếp lại một cách thông minh
+      const querySnapshot = await getDocs(postsRef);
       const rawData = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as RawPost[];
 
-      // Lọc bỏ bài viết đang chờ duyệt (bảo toàn bài viết cũ không có trường status)
-      const approvedPosts = rawData.filter(post => post.status !== "pending");
-
+      // Không lọc bài viết chờ duyệt nữa, cho hiển thị tất cả
       // Xếp hạng bằng Edge Ranker tại Client
-      const sorted = sortPostsOnEdge(approvedPosts);
+      const sorted = sortPostsOnEdge(rawData);
       setPosts(sorted);
     } catch (error) {
       console.error("Lỗi tải bảng tin:", error);
