@@ -27,25 +27,75 @@ const StoreWelcome: FC = () => {
   const cartQuantity = useRecoilValue(totalQuantityState);
 
   const [userData, setUserData] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const setCart = useSetRecoilState(cartState);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        const docRef = doc(db, "users", user.uid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setUserData(docSnap.data());
+      setCurrentUser(user);
+      if (user && user.email !== "guest@campus.com") {
+        const phoneFromEmail = user.email ? user.email.replace("@campus.com", "") : "";
+        const localPhone = localStorage.getItem("user_phone");
+        const finalPhone = phoneFromEmail || localPhone;
+
+        let foundData = null;
+
+        if (finalPhone) {
+          try {
+            const qShop = query(collection(db, "shops"), where("phone", "==", finalPhone));
+            const shopSnap = await getDocs(qShop);
+            if (!shopSnap.empty) {
+              foundData = { ...shopSnap.docs[0].data(), id: shopSnap.docs[0].id, role: "provider" };
+            }
+          } catch (e) {
+            console.error(e);
+          }
         }
+
+        if (!foundData) {
+          try {
+            const docRef = doc(db, "users", user.uid);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+              foundData = { ...docSnap.data(), id: docSnap.id, role: docSnap.data().role || "user" };
+            } else if (finalPhone) {
+              const qUser = query(collection(db, "users"), where("phone", "==", finalPhone));
+              const userSnap = await getDocs(qUser);
+              if (!userSnap.empty) {
+                foundData = { ...userSnap.docs[0].data(), id: userSnap.docs[0].id, role: userSnap.docs[0].data().role || "member" };
+              }
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+
+        setUserData(foundData);
       } else {
         setUserData(null);
+        setCart([]); // Clear cart for guest/unlogged users!
       }
     });
     return () => unsubscribe();
   }, []);
 
-  const avatar = userInfo?.avatar || userData?.avatar || "https://i.pravatar.cc/150?img=11";
-  const name = userInfo?.name || userData?.fullName || userData?.name || "Đức";
-  const points = userData?.spendingPoints ?? userData?.points ?? 150;
+  const isRealUser = currentUser && currentUser.email !== "guest@campus.com";
+  const avatar = isRealUser 
+    ? (userData?.avatar || userInfo?.avatar || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png") 
+    : (userInfo?.avatar || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png");
+  const name = isRealUser 
+    ? (userData?.fullName || userData?.name || userInfo?.name || "Khách") 
+    : (userInfo?.name || "Khách");
+  const rankPoints = userData?.rankPoints || 0;
+  const spendingPoints = userData?.spendingPoints ?? userData?.points ?? 0;
+  
+  const getRankName = (p: number) => {
+    if (p < 500) return "Hạng Đồng";
+    if (p < 1000) return "Hạng Bạc";
+    if (p < 2000) return "Hạng Vàng";
+    return "Hạng Kim Cương";
+  };
+  const rankName = getRankName(rankPoints);
   const greeting = getGreeting();
 
   return (
@@ -62,10 +112,23 @@ const StoreWelcome: FC = () => {
               <Text className="text-white/80 text-xs">{greeting}</Text>
               <Text className="text-white font-bold text-sm truncate max-w-[120px]">{name}</Text>
             </Box>
-            <Box className="bg-white/25 backdrop-blur-md rounded-full px-2 py-0.5 flex items-center w-fit border border-white/20 shadow-sm">
-              <CustomIcon icon="zi-star-solid" className="text-yellow-400 text-[10px] mr-1" />
-              <Text size="xxxxSmall" className="text-white font-bold text-[10px]">{points} Điểm Xanh</Text>
-            </Box>
+            {isRealUser ? (
+              <Box className="bg-white/25 backdrop-blur-md rounded-full px-2 py-0.5 flex items-center w-fit border border-white/20 shadow-sm">
+                <CustomIcon icon="zi-star-solid" className="text-yellow-400 text-[10px] mr-1" />
+                <Text size="xxxxSmall" className="text-white font-bold text-[10px]">{rankName} | {spendingPoints} Điểm Xanh</Text>
+              </Box>
+            ) : (
+              <Box 
+                className="bg-yellow-500/90 rounded-full px-2 py-0.5 flex items-center w-fit border border-yellow-400/20 shadow-sm hover:bg-yellow-600 transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate('/profile');
+                }}
+              >
+                <CustomIcon icon="zi-user" className="text-white text-[10px] mr-1" />
+                <Text size="xxxxSmall" className="text-white font-bold text-[10px]">Đăng nhập ngay</Text>
+              </Box>
+            )}
           </Box>
         </Box>
 

@@ -2,9 +2,10 @@ import CustomIcon from '../custom-icon';
 import React, { FC, useState, useEffect } from "react";
 import { Box, Text, Icon, Button, Avatar, List, Modal, Input, Spinner, useSnackbar, Progress, Select } from "zmp-ui";
 import { useNavigate } from "react-router-dom";
-import { collection, query, where, getDocs, doc, updateDoc, addDoc, setDoc, serverTimestamp, orderBy, limit, getDoc, onSnapshot } from "firebase/firestore";
-import { db, storage } from "../../firebase"; 
+import { collection, query, where, getDocs, doc, updateDoc, addDoc, setDoc, serverTimestamp, orderBy, limit, getDoc, onSnapshot, increment } from "firebase/firestore";
+import { db, storage, auth } from "../../firebase"; 
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
 import { openShareSheet } from "zmp-sdk/apis";
 
 const { Item } = List;
@@ -134,6 +135,8 @@ export const ProviderView: FC<ProviderProps> = ({ userData, onBackToProfile, onL
   const [editDescription, setEditDescription] = useState(userData.description || "");
   const [editAvatar, setEditAvatar] = useState(userData.avatar || "");
   const [editCover, setEditCover] = useState(userData.cover || "");
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
   const [showLocationsModal, setShowLocationsModal] = useState(false);
   const [locations, setLocations] = useState<any[]>(userData.locations || []);
   const [newLocName, setNewLocName] = useState("");
@@ -234,10 +237,30 @@ export const ProviderView: FC<ProviderProps> = ({ userData, onBackToProfile, onL
       if(!userData.phone) return;
       setShowReferralModal(true); setReferralLoading(true);
       try {
-          const q = query(collection(db, "users"), where("referrer", "==", userData.phone));
-          const snapshot = await getDocs(q);
-          setReferralList(snapshot.docs.map(doc => doc.data()));
-      } catch (error) { openSnackbar({ text: "Lỗi tải dữ liệu", type: "error" }); } finally { setReferralLoading(false); }
+          const uq1 = query(collection(db, "users"), where("referrer", "==", userData.phone));
+          const uq2 = query(collection(db, "users"), where("referralCode", "==", userData.phone));
+          const sq1 = query(collection(db, "shops"), where("referrer", "==", userData.phone));
+          const sq2 = query(collection(db, "shops"), where("referralCode", "==", userData.phone));
+          
+          const [usnap1, usnap2, ssnap1, ssnap2] = await Promise.all([
+              getDocs(uq1),
+              getDocs(uq2),
+              getDocs(sq1),
+              getDocs(sq2)
+          ]);
+          
+          const mergedMap = new Map();
+          usnap1.docs.forEach(doc => mergedMap.set(doc.id, { ...doc.data(), referredType: "user" }));
+          usnap2.docs.forEach(doc => mergedMap.set(doc.id, { ...doc.data(), referredType: "user" }));
+          ssnap1.docs.forEach(doc => mergedMap.set(doc.id, { ...doc.data(), referredType: "shop" }));
+          ssnap2.docs.forEach(doc => mergedMap.set(doc.id, { ...doc.data(), referredType: "shop" }));
+          
+          const mergedList = Array.from(mergedMap.values());
+          setReferralList(mergedList);
+      } catch (error) { 
+          console.error("Lỗi tải khách hàng giới thiệu:", error);
+          openSnackbar({ text: "Lỗi tải dữ liệu", type: "error" }); 
+      } finally { setReferralLoading(false); }
   };
 
   // 👉 3. LẤY LỊCH SỬ TIÊU DÙNG (GIẢM ĐIỂM)
@@ -307,9 +330,115 @@ export const ProviderView: FC<ProviderProps> = ({ userData, onBackToProfile, onL
   //👉 5. Hàm cập nhật trạng thái đơn hàng
 const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
-        await updateDoc(doc(db, "orders", orderId), { status: newStatus });
+        const orderRef = doc(db, "orders", orderId);
+        const orderSnap = await getDoc(orderRef);
+        const orderData = orderSnap.exists() ? orderSnap.data() : null;
+
+        let updateData: any = { status: newStatus };
+
+        if (newStatus === 'completed' && orderData) {
+            const totalAmount = Number(orderData.totalAmount || orderData.totalPrice || orderData.total || 0);
+
+            // 1. TÍNH CHI PHÍ NỀN TẢNG
+            let platformFeeRate = 10;
+            try {
+                const configRef = doc(db, "system_config", "admin_settings");
+                const configSnap = await getDoc(configRef);
+                if (configSnap.exists() && configSnap.data().platformFeeRate !== undefined) {
+                    platformFeeRate = Number(configSnap.data().platformFeeRate);
+                }
+            } catch (e) { console.log("Lỗi lấy tỷ lệ phí Admin:", e); }
+
+            const platformFee = Math.floor(totalAmount * (platformFeeRate / 100));
+            updateData.platformFee = platformFee;
+            updateData.platformFeeRate = platformFeeRate;
+
+            // 2. CỘNG ĐIỂM TÍCH LŨY (10.000đ = 1 điểm)
+            const pointsEarned = Math.floor(totalAmount / 10000); 
+            if (pointsEarned > 0) {
+                if (orderData.userId) {
+                    try {
+                        let userRef = null;
+                        let userDocId = "";
+                        
+                        const qUser = query(collection(db, "users"), where("phone", "==", orderData.userId));
+                        const userSnap = await getDocs(qUser);
+                        if (!userSnap.empty) {
+                            userRef = doc(db, "users", userSnap.docs[0].id);
+                            userDocId = userSnap.docs[0].id;
+                        } else {
+                            const directRef = doc(db, "users", orderData.userId);
+                            const directSnap = await getDoc(directRef);
+                            if (directSnap.exists()) {
+                                userRef = directRef;
+                                userDocId = orderData.userId;
+                            }
+                        }
+                        
+                        if (userRef) {
+                            await updateDoc(userRef, { 
+                                spendingPoints: increment(pointsEarned), 
+                                rankPoints: increment(pointsEarned) 
+                            });
+                            
+                            await addDoc(collection(db, "point_transactions"), { 
+                                userId: userDocId, 
+                                type: "plus", 
+                                amount: pointsEarned, 
+                                description: `Tích điểm từ đơn hàng #${orderData.orderCode || orderId.slice(0,6).toUpperCase()}`, 
+                                walletType: "main", 
+                                createdAt: serverTimestamp() 
+                            });
+                        }
+                    } catch (e) {
+                        console.error("Lỗi cộng điểm khách hàng:", e);
+                    }
+                }
+                if (orderData.shopId) {
+                    try {
+                        const shopRef = doc(db, "shops", orderData.shopId);
+                        await updateDoc(shopRef, { 
+                            spendingPoints: increment(pointsEarned), 
+                            rankPoints: increment(pointsEarned) 
+                        });
+                    } catch (e) {
+                        console.error("Lỗi cộng điểm shop:", e);
+                    }
+                }
+            }
+        }
+
+        await updateDoc(orderRef, updateData);
+
+        // TẠO THÔNG BÁO CHO KHÁCH HÀNG
+        if (orderData && orderData.userId) {
+            let notifTitle = "Cập nhật đơn hàng";
+            let notifContent = `Đơn hàng #${orderData.orderCode || orderId.slice(0, 6).toUpperCase()} của bạn đã thay đổi trạng thái.`;
+            if (newStatus === "confirmed" || newStatus === "processing") {
+                notifTitle = "Xác nhận đơn hàng";
+                notifContent = `Đơn hàng #${orderData.orderCode || orderId.slice(0, 6).toUpperCase()} đã được cửa hàng xác nhận và đang chuẩn bị.`;
+            } else if (newStatus === "shipping") {
+                notifTitle = "Đơn hàng đang giao";
+                notifContent = `Tài xế đang trên đường giao đơn hàng #${orderData.orderCode || orderId.slice(0, 6).toUpperCase()} cho bạn. Vui lòng chú ý điện thoại.`;
+            } else if (newStatus === "completed") {
+                notifTitle = "Giao hàng thành công";
+                notifContent = `Đơn hàng #${orderData.orderCode || orderId.slice(0, 6).toUpperCase()} đã được giao đến bạn. Chúc bạn một ngày vui vẻ!`;
+            } else if (newStatus === "cancelled") {
+                notifTitle = "Đơn hàng đã hủy";
+                notifContent = `Đơn hàng #${orderData.orderCode || orderId.slice(0, 6).toUpperCase()} của bạn đã bị hủy.`;
+            }
+            await addDoc(collection(db, "notifications"), {
+                userId: orderData.userId,
+                title: notifTitle,
+                content: notifContent,
+                type: newStatus,
+                createdAt: serverTimestamp(),
+                isRead: false
+            }).catch(e => console.log("Lỗi tạo thông báo:", e));
+        }
+
         // Cập nhật lại state giao diện
-        setOrderList(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+        setOrderList(prev => prev.map(o => o.id === orderId ? { ...o, ...updateData } : o));
         openSnackbar({ text: "Đã cập nhật trạng thái!", type: "success" });
     } catch (error) {
         openSnackbar({ text: "Lỗi cập nhật", type: "error" });
@@ -637,13 +766,53 @@ useEffect(() => {
       if (!userData.phone) return;
       if (!oldPass || !newPass || !confirmPass) return openSnackbar({ text: "Nhập đủ thông tin", type: "warning" });
       if (newPass !== confirmPass) return openSnackbar({ text: "Mật khẩu không khớp", type: "error" });
-      if (oldPass !== userData.password) return openSnackbar({ text: "Mật khẩu cũ sai", type: "error" });
+      
       setPassLoading(true);
       try {
-          await updateDoc(doc(db, "users", userData.phone), { password: newPass });
+          const user = auth.currentUser;
+          let isVerified = false;
+          
+          if (user && user.email && user.email !== "guest@campus.com") {
+              try {
+                  const credential = EmailAuthProvider.credential(user.email, oldPass);
+                  await reauthenticateWithCredential(user, credential);
+                  isVerified = true;
+              } catch (authErr) {
+                  console.warn("Firebase Auth verification failed, checking Firestore fallback", authErr);
+              }
+          }
+          
+          if (!isVerified) {
+              if (userData.password && oldPass === userData.password) {
+                  isVerified = true;
+              } else if (!userData.password && oldPass === "123456") {
+                  isVerified = true;
+              }
+          }
+          
+          if (!isVerified) {
+              openSnackbar({ text: "Mật khẩu cũ không chính xác!", type: "error" });
+              setPassLoading(false);
+              return;
+          }
+          
+          if (user && user.email && user.email !== "guest@campus.com") {
+              try {
+                  await updatePassword(user, newPass);
+              } catch (authUpdateErr) {
+                  console.error("Auth update error:", authUpdateErr);
+              }
+          }
+          
+          const targetDocId = userData.id || user?.uid || userData.phone;
+          await updateDoc(doc(db, "shops", targetDocId), { password: newPass });
+          
           openSnackbar({ text: "Đổi mật khẩu thành công!", type: "success" });
           setShowChangePassModal(false); setOldPass(""); setNewPass(""); setConfirmPass("");
-      } catch (error) { openSnackbar({ text: "Lỗi hệ thống", type: "error" }); } finally { setPassLoading(false); }
+      } catch (error) { 
+          console.error("Lỗi hệ thống khi đổi mật khẩu:", error);
+          openSnackbar({ text: "Lỗi hệ thống", type: "error" }); 
+      } finally { setPassLoading(false); }
   };
 
   const handleSendFeedback = async () => {
@@ -692,15 +861,66 @@ useEffect(() => {
         setLoadingFeedbacks(false);
     }
   };
+  const handleUploadAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      setUploadingAvatar(true);
+      try {
+          const filename = `shop_avatars/${userData.id || 'guest'}_${Date.now()}_${file.name}`;
+          const storageRef = ref(storage, filename);
+          await uploadBytes(storageRef, file);
+          const url = await getDownloadURL(storageRef);
+          setEditAvatar(url);
+          openSnackbar({ text: "Tải ảnh đại diện thành công!", type: "success" });
+      } catch (error) {
+          console.error("Lỗi khi tải ảnh đại diện:", error);
+          openSnackbar({ text: "Lỗi tải ảnh lên. Vui lòng thử lại.", type: "error" });
+      } finally {
+          setUploadingAvatar(false);
+      }
+  };
+
+  const handleUploadCover = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      setUploadingCover(true);
+      try {
+          const filename = `shop_covers/${userData.id || 'guest'}_${Date.now()}_${file.name}`;
+          const storageRef = ref(storage, filename);
+          await uploadBytes(storageRef, file);
+          const url = await getDownloadURL(storageRef);
+          setEditCover(url);
+          openSnackbar({ text: "Tải ảnh bìa thành công!", type: "success" });
+      } catch (error) {
+          console.error("Lỗi khi tải ảnh bìa:", error);
+          openSnackbar({ text: "Lỗi tải ảnh lên. Vui lòng thử lại.", type: "error" });
+      } finally {
+          setUploadingCover(false);
+      }
+  };
+
   const handleUpdateShopInfo = async () => {
       if (!editName.trim()) return openSnackbar({ text: "Tên Shop không được để trống", type: "warning" });
       setUpdatingInfo(true);
       try {
-          await updateDoc(doc(db, "users", userData.phone), { name: editName, address: editAddress, managerName: editManager, description: editDescription, avatar: editAvatar, cover: editCover });
+          const targetDocId = userData.id || userData.phone;
+          await updateDoc(doc(db, "shops", targetDocId), { 
+              name: editName, 
+              address: editAddress, 
+              managerName: editManager, 
+              description: editDescription, 
+              avatar: editAvatar, 
+              cover: editCover 
+          });
           openSnackbar({ text: "Cập nhật thành công!", type: "success" });
           setShowShopInfoModal(false);
           window.dispatchEvent(new Event("authStateChanged"));
-      } catch (error) { openSnackbar({ text: "Lỗi cập nhật", type: "error" }); } finally { setUpdatingInfo(false); }
+      } catch (error) { 
+          console.error("Lỗi cập nhật Shop:", error);
+          openSnackbar({ text: "Lỗi cập nhật", type: "error" }); 
+      } finally { 
+          setUpdatingInfo(false); 
+      }
   };
 
  // --- 1. TẠO ĐƯỜNG LINK CHUẨN ZALO MINI APP VÀO TRANG SHOP ---
@@ -1002,7 +1222,7 @@ useEffect(() => {
               </Box>
 
               {/* 👉 BƯỚC 2: BỘ LỌC CƠ SỞ */}
-              {locations.length > 0 && (
+              {locations.length > 1 && (
                   <Box flex alignItems="center" className="bg-blue-50/50 p-2 rounded-lg border border-blue-100">
                       <CustomIcon icon="zi-location" size={16} className="text-blue-500 mr-2" />
                       <Box className="flex-1">
@@ -1365,11 +1585,68 @@ useEffect(() => {
               <Box mb={4}>
                   <TextArea label="Giới thiệu Shop" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} placeholder="Nhập lời giới thiệu ngắn về cửa hàng của bạn..." rows={3} />
               </Box>
-              <Box mb={4}>
-                  <Input label="Link ảnh đại diện (Avatar)" value={editAvatar} onChange={(e) => setEditAvatar(e.target.value)} clearable placeholder="Nhập URL ảnh định dạng http..." />
+              <Box mb={4} className="border border-gray-100 rounded-xl p-3 bg-gray-50/50">
+                  <Text size="small" bold className="text-gray-700 mb-2">Ảnh đại diện (Avatar)</Text>
+                  <Box flex alignItems="center" style={{ gap: '16px' }}>
+                      {editAvatar ? (
+                          <img src={editAvatar} className="w-16 h-16 rounded-full border border-gray-200 object-cover shadow-sm bg-white" alt="Avatar preview" />
+                      ) : (
+                          <div className="w-16 h-16 rounded-full border border-dashed border-gray-300 flex items-center justify-center text-gray-400 bg-white">
+                              <Icon icon="zi-plus" />
+                          </div>
+                      )}
+                      <Box className="flex-1">
+                          <input 
+                              type="file" 
+                              accept="image/*" 
+                              id="shop-avatar-upload" 
+                              style={{ display: "none" }} 
+                              onChange={handleUploadAvatar} 
+                          />
+                          <Button 
+                              size="small" 
+                              variant="secondary" 
+                              loading={uploadingAvatar}
+                              onClick={() => document.getElementById("shop-avatar-upload")?.click()}
+                              prefixIcon={<Icon icon="zi-camera" />}
+                          >
+                              Tải ảnh Avatar
+                          </Button>
+                          <Text size="xxxxSmall" className="text-gray-500 mt-1">Gợi ý tỉ lệ: 1:1 (ảnh vuông)</Text>
+                      </Box>
+                  </Box>
               </Box>
-              <Box mb={4}>
-                  <Input label="Link ảnh bìa (Banner)" value={editCover} onChange={(e) => setEditCover(e.target.value)} clearable placeholder="Nhập URL ảnh định dạng http..." />
+              
+              <Box mb={4} className="border border-gray-100 rounded-xl p-3 bg-gray-50/50">
+                  <Text size="small" bold className="text-gray-700 mb-2">Ảnh bìa (Banner)</Text>
+                  <Box flex flexDirection="column" style={{ gap: '12px' }}>
+                      {editCover ? (
+                          <img src={editCover} className="w-full h-24 rounded-lg border border-gray-200 object-cover shadow-sm bg-white" alt="Cover preview" />
+                      ) : (
+                          <div className="w-full h-24 rounded-lg border border-dashed border-gray-300 flex items-center justify-center text-gray-400 bg-white">
+                              <Text size="xSmall" className="text-gray-400">Chưa có ảnh bìa</Text>
+                          </div>
+                      )}
+                      <Box flex alignItems="center" justifyContent="space-between">
+                          <input 
+                              type="file" 
+                              accept="image/*" 
+                              id="shop-cover-upload" 
+                              style={{ display: "none" }} 
+                              onChange={handleUploadCover} 
+                          />
+                          <Button 
+                              size="small" 
+                              variant="secondary" 
+                              loading={uploadingCover}
+                              onClick={() => document.getElementById("shop-cover-upload")?.click()}
+                              prefixIcon={<Icon icon="zi-camera" />}
+                          >
+                              Tải ảnh bìa
+                          </Button>
+                          <Text size="xxxxSmall" className="text-gray-500">Gợi ý tỉ lệ: 16:9 hoặc 3:1</Text>
+                      </Box>
+                  </Box>
               </Box>
               <Button fullWidth loading={updatingInfo} onClick={handleUpdateShopInfo}>Lưu thay đổi</Button>
           </Box>
@@ -1426,7 +1703,7 @@ useEffect(() => {
       {/* CÁC MODAL KHÁC GIỮ NGUYÊN */}
       <Modal visible={showReferralModal} title="Khách hàng giới thiệu" onClose={() => setShowReferralModal(false)} actions={[{ text: "Đóng", onClick: () => setShowReferralModal(false) }]}>
           <Box p={4} style={{ maxHeight: '60vh', overflowY: 'auto' }}>
-              {referralLoading ? <Box flex justifyContent="center"><Spinner /></Box> : referralList.length > 0 ? <Box><Box className="bg-blue-50 p-2 rounded-lg text-center mb-4 border border-blue-100"><Text bold className="text-blue-600">Tổng cộng: {referralList.length} khách</Text></Box>{referralList.map((cus, idx) => (<Box key={idx} flex alignItems="center" className="mb-3 pb-3 border-b border-gray-100 last:border-0"><Avatar src={cus.avatar} size={40} className="border" /><Box ml={3}><Text size="small" bold>{cus.name}</Text><Text size="xxSmall" className="text-gray-500">{cus.phone}</Text></Box></Box>))}</Box> : <Text className="text-center text-gray-400 mt-10 p-4 bg-gray-50 rounded italic">Chưa giới thiệu được khách nào.</Text>}
+              {referralLoading ? <Box flex justifyContent="center"><Spinner /></Box> : referralList.length > 0 ? <Box><Box className="bg-blue-50 p-2 rounded-lg text-center mb-4 border border-blue-100"><Text bold className="text-blue-600">Tổng cộng: {referralList.length} thành viên</Text></Box>{referralList.map((cus, idx) => (<Box key={idx} flex alignItems="center" justifyContent="space-between" className="mb-3 pb-3 border-b border-gray-100 last:border-0"><Box flex alignItems="center"><Avatar src={cus.avatar || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png"} size={40} className="border" /><Box ml={3}><Text size="small" bold>{cus.fullName || cus.name || "Thành viên"}</Text><Text size="xxSmall" className="text-gray-500">{cus.phone}</Text></Box></Box><Box>{cus.referredType === "shop" ? (<span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-orange-100 text-orange-600 border border-orange-200">Shop</span>) : (<span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-blue-100 text-blue-600 border border-blue-200">Khách</span>)}</Box></Box>))}</Box> : <Text className="text-center text-gray-400 mt-10 p-4 bg-gray-50 rounded italic">Chưa giới thiệu được thành viên nào.</Text>}
           </Box>
       </Modal>
 
@@ -1696,8 +1973,13 @@ useEffect(() => {
       `}</style>
 
       {/* 👉 BƯỚC 3 & 4: MODAL QUẢN LÝ ĐƠN HÀNG PRO */}
-      <Modal visible={showOrdersModal} title="Quản lý đơn hàng" onClose={() => setShowOrdersModal(false)}>
-          <Box className="bg-gray-50 flex flex-col" style={{ height: '75vh' }}>
+      <Modal 
+          visible={showOrdersModal} 
+          title="Quản lý đơn hàng" 
+          onClose={() => setShowOrdersModal(false)}
+          modalClassName="order-management-modal"
+      >
+          <Box className="bg-gray-50 flex flex-col flex-1" style={{ height: '100%' }}>
               {/* THANH TAB CHUYỂN ĐỔI */}
               <Box flex className="bg-white border-b border-gray-200 px-2 pt-2 shrink-0">
                   <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${orderTab==="pending"?"border-orange-500 text-orange-600 font-bold":"border-transparent text-gray-500"}`} onClick={()=>setOrderTab("pending")}>
@@ -1735,11 +2017,16 @@ useEffect(() => {
                                       onClick={() => setSelectedOrderDetail(order)}
                                       className="bg-white p-3 rounded-xl mb-3 border border-gray-200 shadow-md animate-fade-in-up active:scale-[0.98] active:bg-gray-50 transition-all cursor-pointer"
                                   >
-                                      <Box flex justifyContent="space-between" className="border-b border-gray-100 pb-2 mb-2">
+                                      <Box flex justifyContent="space-between" alignItems="center" className="border-b border-gray-100 pb-2 mb-2">
                                           <Text size="small" bold className="text-blue-600">#{order.orderCode || order.id.slice(0, 8).toUpperCase()}</Text>
-                                          <Text size="xSmall" bold className={order.status === 'pending' ? 'text-orange-500' : order.status === 'cancelled' ? 'text-red-500' : 'text-green-500'}>
-                                              {order.status === 'pending' ? 'Mới' : order.status === 'confirmed' ? 'Đã chốt' : order.status === 'cancelled' ? 'Đã hủy' : 'Hoàn thành'}
-                                          </Text>
+                                          <Box flex alignItems="center" className="space-x-2">
+                                              <span className="text-[10px] text-blue-500 hover:text-blue-700 underline font-medium cursor-pointer mr-1">
+                                                  Xem chi tiết
+                                              </span>
+                                              <Text size="xSmall" bold className={order.status === 'pending' ? 'text-orange-500' : order.status === 'cancelled' ? 'text-red-500' : 'text-green-500'}>
+                                                  {order.status === 'pending' ? 'Mới' : order.status === 'confirmed' ? 'Đã chốt' : order.status === 'cancelled' ? 'Đã hủy' : 'Hoàn thành'}
+                                              </Text>
+                                          </Box>
                                       </Box>
                                       {/* 👉 THÊM MỚI: HIỂN THỊ LÝ DO HỦY ĐƠN */}
                                       {order.status === 'cancelled' && order.cancelReason && (
@@ -1822,14 +2109,31 @@ useEffect(() => {
                                                   <Text bold size="small" className="text-red-600">{total.toLocaleString()}đ</Text>
                                               </Box>
                                           </Box>
-                                          <Button 
-                                              size="small" 
-                                              onClick={(e) => { e.stopPropagation(); handleShareOrder(order); }}
-                                              className="bg-[#14502e] text-white flex items-center space-x-1 h-7 px-3 rounded-lg"
-                                          >
-                                              <CustomIcon icon="zi-share" size={12} />
-                                              <span className="text-[11px]">Chia sẻ Zalo</span>
-                                          </Button>
+                                          {order.status === 'pending' ? (
+                                              <Button 
+                                                  size="small" 
+                                                  onClick={async (e) => { 
+                                                      e.stopPropagation(); 
+                                                      await handleUpdateOrderStatus(order.id, "confirmed"); 
+                                                  }}
+                                                  className="bg-[#14502e] text-white flex items-center space-x-1 h-7 px-3 rounded-lg border-none"
+                                              >
+                                                  <CustomIcon icon="zi-check-circle" size={12} />
+                                                  <span className="text-[11px]">Duyệt nhanh</span>
+                                              </Button>
+                                          ) : (order.status === 'confirmed' || order.status === 'processing' || order.status === 'shipping') ? (
+                                              <Button 
+                                                  size="small" 
+                                                  onClick={async (e) => { 
+                                                      e.stopPropagation(); 
+                                                      await handleUpdateOrderStatus(order.id, "completed"); 
+                                                  }}
+                                                  className="bg-blue-600 text-white flex items-center space-x-1 h-7 px-3 rounded-lg border-none"
+                                              >
+                                                  <CustomIcon icon="zi-check" size={12} />
+                                                  <span className="text-[11px]">Giao xong</span>
+                                              </Button>
+                                          ) : null}
                                       </Box>
                                   </Box>
                               )

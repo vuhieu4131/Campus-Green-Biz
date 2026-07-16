@@ -1,9 +1,9 @@
 import CustomIcon from '../components/custom-icon';
 import React, { FC, useState, useEffect } from "react";
-import { Page, Header, Box, Text, List, Icon, useNavigate, Modal, Button, Input, Spinner } from "zmp-ui";
+import { Page, Header, Box, Text, List, Icon, useNavigate, Modal, Button, Input, Spinner, Avatar } from "zmp-ui";
 import { auth, db } from "../firebase";
-import { signOut, onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, collection, query, where, getDocs, orderBy } from "firebase/firestore";
+import { signOut, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
+import { doc, getDoc, collection, query, where, getDocs, orderBy, updateDoc, increment, addDoc } from "firebase/firestore";
 import { SectionBox } from "../components/section-box";
 import { openShareSheet } from "zmp-sdk/apis";
 import { useRecoilState } from "recoil";
@@ -68,13 +68,15 @@ const SettingsPage: FC = () => {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  // Mã giới thiệu động lấy từ Firebase
   const [referralCode, setReferralCode] = useState("Đang tải...");
+  const [passLoading, setPassLoading] = useState(false);
+  const [referredList, setReferredList] = useState<any[]>([]);
+  const [loadingReferred, setLoadingReferred] = useState(false);
 
   // Wallet states
   const [userData, setUserData] = useState<any>(null);
   const [points, setPoints] = useState(0);
-  const [isWalletExpanded, setIsWalletExpanded] = useState(true);
+  const [isWalletExpanded, setIsWalletExpanded] = useState(false);
   const [activeWalletTab, setActiveWalletTab] = useState<'rank' | 'promo'>('rank');
   const [showWalletHistoryModal, setShowWalletHistoryModal] = useState(false);
   const [walletHistoryList, setWalletHistoryList] = useState<any[]>([]);
@@ -82,6 +84,8 @@ const SettingsPage: FC = () => {
 
   // My Orders states & functions
   const [showMyOrdersModal, setShowMyOrdersModal] = useState(false);
+  const [showOrderDetailModal, setShowOrderDetailModal] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [myOrders, setMyOrders] = useState<any[]>([]);
   const [loadingMyOrders, setLoadingMyOrders] = useState(false);
   const [cart, setCart] = useRecoilState(cartState);
@@ -154,12 +158,25 @@ const SettingsPage: FC = () => {
     try {
       const q = query(
         collection(db, "point_transactions"),
-        where("userId", "==", userData.id),
-        where("walletType", "==", activeWalletTab === 'rank' ? 'main' : 'promo'),
-        orderBy("createdAt", "desc")
+        where("userId", "==", userData.id)
       );
       const querySnapshot = await getDocs(q);
-      const docs = querySnapshot.docs.map(doc => doc.data());
+      let docs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      docs = docs.filter((tx: any) => {
+        const type = tx.walletType || 'main';
+        if (activeWalletTab === 'rank') {
+          return type === 'main' || type === 'all';
+        } else {
+          return type === 'promo' || type === 'main' || type === 'all';
+        }
+      });
+      
+      docs.sort((a: any, b: any) => {
+        const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
+        const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
+        return timeB - timeA;
+      });
       setWalletHistoryList(docs);
     } catch (error) {
       console.error("Lỗi tải lịch sử giao dịch:", error);
@@ -209,6 +226,13 @@ const SettingsPage: FC = () => {
             if (docSnap.exists()) {
               const data = docSnap.data();
               foundData = { id: docSnap.id, ...data, role: data.role || "user" };
+            } else if (finalPhone) {
+              const qUser = query(collection(db, "users"), where("phone", "==", finalPhone));
+              const userSnap = await getDocs(qUser);
+              if (!userSnap.empty) {
+                const data = userSnap.docs[0].data();
+                foundData = { id: userSnap.docs[0].id, ...data, role: data.role || "member" };
+              }
             }
           } catch (e) {
             console.error("Lỗi lấy dữ liệu user:", e);
@@ -230,6 +254,233 @@ const SettingsPage: FC = () => {
         setUserData(foundData);
         setPoints(foundData.rankPoints || 0);
 
+        // 👉 ĐÃ BỔ SUNG: Đồng bộ điểm thưởng quá khứ (Retroactive points sync)
+        const syncRetroactivePoints = async (userId: string, userPhone: string, userRole: string, currentData: any) => {
+          try {
+            let totalPointsToAward = 0;
+            let dbUpdated = false;
+
+            // Fetch existing notifications to avoid duplicates
+            const qNotifs = query(collection(db, "notifications"), where("userId", "==", userId));
+            const notifsSnap = await getDocs(qNotifs);
+            const notifContents = new Set(notifsSnap.docs.map(doc => doc.data().content));
+            
+            // 1. Đồng bộ các đơn hàng đã Hoàn thành trong quá khứ
+            if (userPhone) {
+              const qOrders = query(collection(db, "orders"), where("userId", "==", userPhone), where("status", "==", "completed"));
+              const ordersSnap = await getDocs(qOrders);
+              
+              for (const orderDoc of ordersSnap.docs) {
+                const order = orderDoc.data();
+                const orderId = orderDoc.id;
+                const orderCodeStr = order.orderCode || orderId.slice(0, 6).toUpperCase();
+                const totalAmount = Number(order.totalAmount || order.totalPrice || order.total || 0);
+                const pointsEarned = Math.floor(totalAmount / 10000);
+                
+                const qTx = query(
+                  collection(db, "point_transactions"),
+                  where("userId", "==", userId),
+                  where("description", "==", `Tích điểm từ đơn hàng #${orderCodeStr}`)
+                );
+                const txSnap = await getDocs(qTx);
+                if (txSnap.empty) {
+                  if (pointsEarned > 0) {
+                    totalPointsToAward += pointsEarned;
+                    await addDoc(collection(db, "point_transactions"), {
+                      userId: userId,
+                      type: "plus",
+                      amount: pointsEarned,
+                      description: `Tích điểm từ đơn hàng #${orderCodeStr}`,
+                      walletType: "main",
+                      createdAt: new Date()
+                    });
+                    dbUpdated = true;
+                  }
+                }
+
+                // Retroactive notification write
+                if (pointsEarned > 0) {
+                  const expectedContent = `Bạn được cộng +${pointsEarned} điểm xanh từ đơn hàng #${orderCodeStr}.`;
+                  if (!notifContents.has(expectedContent)) {
+                    await addDoc(collection(db, "notifications"), {
+                      userId: userId,
+                      title: "Tích điểm đơn hàng thành công",
+                      content: expectedContent,
+                      type: "completed",
+                      createdAt: new Date(),
+                      isRead: false
+                    });
+                    notifContents.add(expectedContent);
+                  }
+                }
+              }
+            }
+            
+            // 2. Đồng bộ điểm từ danh sách thành viên đã giới thiệu thành công
+            if (userPhone) {
+              const uq1 = query(collection(db, "users"), where("referrer", "==", userPhone));
+              const uq2 = query(collection(db, "users"), where("referralCode", "==", userPhone));
+              const sq1 = query(collection(db, "shops"), where("referrer", "==", userPhone));
+              const sq2 = query(collection(db, "shops"), where("referralCode", "==", userPhone));
+              
+              const [usnap1, usnap2, ssnap1, ssnap2] = await Promise.all([
+                getDocs(uq1), getDocs(uq2), getDocs(sq1), getDocs(sq2)
+              ]);
+              
+              const referredMap = new Map();
+              usnap1.docs.forEach(doc => referredMap.set(doc.id, doc.data()));
+              usnap2.docs.forEach(doc => referredMap.set(doc.id, doc.data()));
+              ssnap1.docs.forEach(doc => referredMap.set(doc.id, doc.data()));
+              ssnap2.docs.forEach(doc => referredMap.set(doc.id, doc.data()));
+              
+              for (const [refDocId, refData] of referredMap.entries()) {
+                const rPhone = (refData as any).phone || "";
+                const rName = (refData as any).fullName || (refData as any).name || "Khách";
+                
+                const qTx = query(
+                  collection(db, "point_transactions"),
+                  where("userId", "==", userId),
+                  where("description", "==", `Thưởng giới thiệu thành viên mới: ${rName} (${rPhone})`)
+                );
+                const txSnap = await getDocs(qTx);
+                if (txSnap.empty) {
+                  totalPointsToAward += 10;
+                  await addDoc(collection(db, "point_transactions"), {
+                    userId: userId,
+                    type: "plus",
+                    amount: 10,
+                    description: `Thưởng giới thiệu thành viên mới: ${rName} (${rPhone})`,
+                    walletType: "main",
+                    createdAt: new Date()
+                  });
+                  dbUpdated = true;
+                }
+
+                // Retroactive notification write
+                const expectedContent = `Bạn được cộng +10 điểm xanh từ việc giới thiệu thành viên ${rName} (${rPhone}) thành công!`;
+                if (!notifContents.has(expectedContent)) {
+                  await addDoc(collection(db, "notifications"), {
+                    userId: userId,
+                    title: "Nhận điểm giới thiệu thành công",
+                    content: expectedContent,
+                    type: "success",
+                    createdAt: new Date(),
+                    isRead: false
+                  });
+                  notifContents.add(expectedContent);
+                }
+              }
+            }
+
+            // 3. Đồng bộ điểm thưởng khi nhập mã giới thiệu lúc đăng ký
+            if (currentData?.referralCode) {
+              const refCodeStr = String(currentData.referralCode).trim();
+              if (refCodeStr) {
+                const qTx = query(
+                  collection(db, "point_transactions"),
+                  where("userId", "==", userId),
+                  where("description", "==", `Thưởng nhập mã giới thiệu từ: ${refCodeStr}`)
+                );
+                const txSnap = await getDocs(qTx);
+                if (txSnap.empty) {
+                  totalPointsToAward += 5;
+                  await addDoc(collection(db, "point_transactions"), {
+                    userId: userId,
+                    type: "plus",
+                    amount: 5,
+                    description: `Thưởng nhập mã giới thiệu từ: ${refCodeStr}`,
+                    walletType: "main",
+                    createdAt: new Date()
+                  });
+                  dbUpdated = true;
+                }
+
+                // Retroactive notification write
+                const expectedContent = `Bạn được tặng +5 điểm xanh khi nhập mã giới thiệu từ ${refCodeStr}.`;
+                if (!notifContents.has(expectedContent)) {
+                  await addDoc(collection(db, "notifications"), {
+                    userId: userId,
+                    title: "Thưởng thành viên mới",
+                    content: expectedContent,
+                    type: "success",
+                    createdAt: new Date(),
+                    isRead: false
+                  });
+                  notifContents.add(expectedContent);
+                }
+              }
+            }
+            
+            // 4. Sửa sai số điểm tích lũy của đơn hàng nếu tỷ lệ quy đổi bị sai (ví dụ 1.000đ thay vì 10.000đ)
+            if (userPhone) {
+              const qOrders = query(collection(db, "orders"), where("userId", "==", userPhone), where("status", "==", "completed"));
+              const ordersSnap = await getDocs(qOrders);
+              
+              for (const orderDoc of ordersSnap.docs) {
+                const order = orderDoc.data();
+                const orderId = orderDoc.id;
+                const orderCodeStr = order.orderCode || orderId.slice(0, 6).toUpperCase();
+                
+                const qTx = query(
+                  collection(db, "point_transactions"),
+                  where("userId", "==", userId),
+                  where("description", "==", `Tích điểm từ đơn hàng #${orderCodeStr}`)
+                );
+                const txSnap = await getDocs(qTx);
+                if (!txSnap.empty) {
+                  const txDoc = txSnap.docs[0];
+                  const txData = txDoc.data();
+                  const totalAmount = Number(order.totalAmount || order.totalPrice || order.total || 0);
+                  const correctPoints = Math.floor(totalAmount / 10000);
+                  
+                  if (txData.amount !== correctPoints) {
+                    await updateDoc(doc(db, "point_transactions", txDoc.id), {
+                      amount: correctPoints
+                    });
+                    dbUpdated = true;
+                  }
+                }
+              }
+            }
+            
+            // 5. Tự động tính toán lại tổng điểm ví thực tế từ danh sách giao dịch để đồng bộ
+            const qAllTx = query(collection(db, "point_transactions"), where("userId", "==", userId));
+            const allTxSnap = await getDocs(qAllTx);
+            let calculatedTotal = 0;
+            allTxSnap.docs.forEach(doc => {
+              const tx = doc.data();
+              if (tx.type === "plus") {
+                calculatedTotal += Number(tx.amount || 0);
+              } else if (tx.type === "minus") {
+                calculatedTotal -= Number(tx.amount || 0);
+              }
+            });
+            
+            if (calculatedTotal < 0) calculatedTotal = 0;
+            
+            const currentPointsInDb = Number(currentData?.rankPoints || 0);
+            if (dbUpdated || calculatedTotal !== currentPointsInDb) {
+              const collectionName = userRole === "provider" ? "shops" : "users";
+              const userRef = doc(db, collectionName, userId);
+              await updateDoc(userRef, {
+                spendingPoints: calculatedTotal,
+                rankPoints: calculatedTotal
+              });
+              
+              setPoints(calculatedTotal);
+              setUserData((prev: any) => prev ? {
+                ...prev,
+                spendingPoints: calculatedTotal,
+                rankPoints: calculatedTotal
+              } : null);
+            }
+          } catch (err) {
+            console.error("Lỗi đồng bộ điểm thưởng:", err);
+          }
+        };
+
+        syncRetroactivePoints(foundData.id, foundData.phone, foundData.role, foundData);
+
         if (foundData.phone) {
           setReferralCode(foundData.phone);
         } else if (user.phoneNumber) {
@@ -247,6 +498,96 @@ const SettingsPage: FC = () => {
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    const fetchReferredList = async () => {
+      if (!userData?.phone || !showRefModal) return;
+      setLoadingReferred(true);
+      try {
+        const uq1 = query(collection(db, "users"), where("referrer", "==", userData.phone));
+        const uq2 = query(collection(db, "users"), where("referralCode", "==", userData.phone));
+        const sq1 = query(collection(db, "shops"), where("referrer", "==", userData.phone));
+        const sq2 = query(collection(db, "shops"), where("referralCode", "==", userData.phone));
+        
+        const [usnap1, usnap2, ssnap1, ssnap2] = await Promise.all([
+          getDocs(uq1),
+          getDocs(uq2),
+          getDocs(sq1),
+          getDocs(sq2)
+        ]);
+        
+        const mergedMap = new Map();
+        usnap1.docs.forEach(doc => mergedMap.set(doc.id, { ...doc.data(), referredType: "user" }));
+        usnap2.docs.forEach(doc => mergedMap.set(doc.id, { ...doc.data(), referredType: "user" }));
+        ssnap1.docs.forEach(doc => mergedMap.set(doc.id, { ...doc.data(), referredType: "shop" }));
+        ssnap2.docs.forEach(doc => mergedMap.set(doc.id, { ...doc.data(), referredType: "shop" }));
+        
+        const list = Array.from(mergedMap.values());
+        setReferredList(list);
+      } catch (err) {
+        console.error("Lỗi tải danh sách người giới thiệu:", err);
+      } finally {
+        setLoadingReferred(false);
+      }
+    };
+    
+    fetchReferredList();
+  }, [userData, showRefModal]);
+
+  const handleUpdatePassword = async () => {
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      alert("Vui lòng nhập đầy đủ thông tin!");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      alert("Mật khẩu mới và xác nhận không khớp!");
+      return;
+    }
+
+    setPassLoading(true);
+    try {
+      const user = auth.currentUser;
+      if (!user || !user.email) {
+        alert("Lỗi phiên đăng nhập. Vui lòng đăng nhập lại.");
+        setPassLoading(false);
+        return;
+      }
+
+      // 1. Re-authenticate
+      const credential = EmailAuthProvider.credential(user.email, oldPassword);
+      await reauthenticateWithCredential(user, credential);
+
+      // 2. Update password in Firebase Auth
+      await updatePassword(user, newPassword);
+
+      // 3. Update in Firestore collection (users or shops)
+      const targetColl = userData?.role === "provider" ? "shops" : "users";
+      const targetId = userData?.id || user.uid;
+      const docRef = doc(db, targetColl, targetId);
+      
+      await updateDoc(docRef, { password: newPassword });
+
+      alert("Đổi mật khẩu thành công!");
+      setShowPasswordModal(false);
+      setOldPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error: any) {
+      console.error("Lỗi đổi mật khẩu:", error);
+      if (error.code === "auth/invalid-credential" || error.code === "auth/wrong-password") {
+        alert("Mật khẩu cũ không chính xác!");
+      } else {
+        alert("Có lỗi xảy ra khi đổi mật khẩu! Chi tiết: " + (error.message || error));
+      }
+    } finally {
+      setPassLoading(false);
+    }
+  };
+
+  const handleOpenOrderDetail = (order: any) => {
+    setSelectedOrder(order);
+    setShowOrderDetailModal(true);
+  };
 
   const handleLogout = async () => {
     try {
@@ -472,10 +813,40 @@ const SettingsPage: FC = () => {
         onClose={() => setShowRefModal(false)}
         actions={[{ text: "Đóng", onClick: () => setShowRefModal(false), highLight: true }]}
       >
-        <Box className="flex flex-col items-center py-4">
-          <Box className="bg-blue-50 w-full py-4 rounded-xl text-center mb-4">
-            <Text className="text-blue-600 font-medium">Tổng số: 0 người</Text>
-          </Box>
+        <Box p={2} style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+          {loadingReferred ? (
+            <Box flex justifyContent="center" py={4}><Spinner /></Box>
+          ) : referredList.length > 0 ? (
+            <Box>
+              <Box className="bg-blue-50 p-2 rounded-lg text-center mb-4 border border-blue-100">
+                <Text bold className="text-blue-600">Tổng số: {referredList.length} người</Text>
+              </Box>
+              {referredList.map((cus, idx) => (
+                <Box key={idx} flex alignItems="center" justifyContent="space-between" className="mb-3 pb-3 border-b border-gray-100 last:border-0">
+                  <Box flex alignItems="center">
+                    <Avatar 
+                      src={cus.avatar || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png"} 
+                      size={40} 
+                      className="border" 
+                    />
+                    <Box ml={3}>
+                      <Text size="small" bold>{cus.fullName || cus.name || "Khách hàng"}</Text>
+                      <Text size="xxSmall" className="text-gray-500">{cus.phone}</Text>
+                    </Box>
+                  </Box>
+                  <Box>
+                    {cus.referredType === "shop" ? (
+                      <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-orange-100 text-orange-600 border border-orange-200">Shop</span>
+                    ) : (
+                      <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-blue-100 text-blue-600 border border-blue-200">Khách</span>
+                    )}
+                  </Box>
+                </Box>
+              ))}
+            </Box>
+          ) : (
+            <Text className="text-center text-gray-400 mt-10 p-4 bg-gray-50 rounded italic">Bạn chưa giới thiệu người nào.</Text>
+          )}
         </Box>
       </Modal>
 
@@ -512,20 +883,11 @@ const SettingsPage: FC = () => {
           </Box>
           
           <Box 
-            className="w-full bg-[#14502e] text-black py-3 rounded-xl text-center font-bold mt-4 cursor-pointer shadow-md"
-            onClick={() => {
-              if (newPassword !== confirmPassword) {
-                alert("Mật khẩu xác nhận không khớp!");
-                return;
-              }
-              alert("Đổi mật khẩu thành công!");
-              setShowPasswordModal(false);
-              setOldPassword("");
-              setNewPassword("");
-              setConfirmPassword("");
-            }}
+            className="w-full bg-[#14502e] text-white py-3 rounded-xl text-center font-bold mt-4 cursor-pointer shadow-md flex items-center justify-center space-x-2"
+            onClick={() => !passLoading && handleUpdatePassword()}
+            style={{ opacity: passLoading ? 0.7 : 1 }}
           >
-            Cập nhật
+            {passLoading ? <Spinner size="small" /> : "Cập nhật"}
           </Box>
         </Box>
       </Modal>
@@ -609,19 +971,31 @@ const SettingsPage: FC = () => {
               <Spinner />
             </Box>
           ) : walletHistoryList.length > 0 ? (
-            walletHistoryList.map((item, idx) => (
-              <Box key={idx} className="mb-3 pb-3 border-b border-gray-100 flex justify-between items-center">
-                <Box>
-                  <Text size="small" bold className="text-gray-800">{item.description}</Text>
-                  <Text size="xxSmall" className="text-gray-400">
-                    {item.createdAt ? (item.createdAt.toDate ? item.createdAt.toDate().toLocaleString() : new Date(item.createdAt.seconds * 1000).toLocaleString()) : 'N/A'}
+            walletHistoryList.map((item, idx) => {
+              const isPlus = item.type === 'plus';
+              const displayDate = item.createdAt 
+                ? (item.createdAt.toDate ? item.createdAt.toDate().toLocaleString('vi-VN') : new Date(item.createdAt.seconds * 1000).toLocaleString('vi-VN')) 
+                : 'N/A';
+              
+              return (
+                <Box 
+                  key={idx} 
+                  className="mb-4 pb-3 border-b border-gray-100/70 flex justify-between items-start space-x-3"
+                >
+                  <Box className="flex-1 min-w-0">
+                    <Text className="text-gray-800 font-medium text-xs leading-normal">
+                      {item.description}
+                    </Text>
+                    <Text className="text-gray-400 text-[10px] mt-1 block">
+                      {displayDate}
+                    </Text>
+                  </Box>
+                  <Text className={`text-xs font-bold flex-shrink-0 ${isPlus ? "text-green-600" : "text-red-500"}`}>
+                    {isPlus ? '+' : '-'}{item.amount?.toLocaleString()}
                   </Text>
                 </Box>
-                <Text size="small" bold className={item.type === 'plus' ? "text-green-600" : "text-red-600"}>
-                  {item.type === 'plus' ? '+' : '-'}{item.amount?.toLocaleString()}
-                </Text>
-              </Box>
-            ))
+              );
+            })
           ) : (
             <Text size="small" className="text-center text-gray-400 py-10">Không có dữ liệu giao dịch.</Text>
           )}
@@ -633,8 +1007,9 @@ const SettingsPage: FC = () => {
         title="Đơn hàng của tôi"
         onClose={() => setShowMyOrdersModal(false)}
         actions={[{ text: "Đóng", onClick: () => setShowMyOrdersModal(false), highLight: true }]}
+        modalClassName="order-management-modal"
       >
-        <Box p={4} className="max-h-[60vh] overflow-y-auto hide-scroll space-y-3">
+        <Box className="bg-gray-50 flex flex-col flex-1 hide-scroll p-4 space-y-3" style={{ height: '100%', overflowY: 'auto' }}>
           {/* Tab Selection */}
           <Box flex className="border-b border-gray-150 mb-4 bg-gray-50 p-1.5 rounded-xl">
             <button 
@@ -777,7 +1152,7 @@ const SettingsPage: FC = () => {
                   const orderCode = order.orderCode || order.id.slice(0, 8).toUpperCase();
                   const totalAmount = order.totalAmount || order.totalPrice || order.total || 0;
                   return (
-                    <Box key={idx} className="p-3 bg-gray-50 border border-gray-150 rounded-xl relative shadow-sm">
+                    <Box key={idx} className="p-3 bg-white border border-gray-150 rounded-xl relative shadow-sm cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors" onClick={() => handleOpenOrderDetail(order)}>
                       <Box flex justifyContent="space-between" alignItems="center" className="border-b border-gray-200 pb-1.5 mb-2">
                         <Text size="small" bold className="text-blue-600">#{orderCode}</Text>
                         <Text size="xxSmall" bold className={statusUI.color}>{statusUI.text}</Text>
@@ -885,7 +1260,7 @@ const SettingsPage: FC = () => {
                   const orderCode = order.orderCode || order.id.slice(0, 8).toUpperCase();
                   const totalAmount = order.totalAmount || order.totalPrice || order.total || 0;
                   return (
-                    <Box key={idx} className="p-3 bg-gray-50 border border-gray-150 rounded-xl relative shadow-sm">
+                    <Box key={idx} className="p-3 bg-white border border-gray-150 rounded-xl relative shadow-sm cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors" onClick={() => handleOpenOrderDetail(order)}>
                       <Box flex justifyContent="space-between" alignItems="center" className="border-b border-gray-200 pb-1.5 mb-2">
                         <Text size="small" bold className="text-blue-600">#{orderCode}</Text>
                         <Text size="xxSmall" bold className={statusUI.color}>{statusUI.text}</Text>
@@ -983,6 +1358,158 @@ const SettingsPage: FC = () => {
             </Box>
           )}
         </Box>
+      </Modal>
+
+      {/* Modal Chi tiết đơn hàng */}
+      <Modal
+        visible={showOrderDetailModal}
+        title="Chi tiết đơn hàng"
+        onClose={() => setShowOrderDetailModal(false)}
+        actions={[{ text: "Đóng", onClick: () => setShowOrderDetailModal(false), highLight: true }]}
+      >
+        {selectedOrder && (() => {
+          const statusUI = getStatusDisplay(selectedOrder.status);
+          const orderCode = selectedOrder.orderCode || selectedOrder.id.slice(0, 8).toUpperCase();
+          const totalAmount = selectedOrder.totalAmount || selectedOrder.totalPrice || selectedOrder.total || 0;
+          const dateObj = selectedOrder.createdAt?.toDate ? selectedOrder.createdAt.toDate() : 
+                         (selectedOrder.createdAt?.seconds ? new Date(selectedOrder.createdAt.seconds * 1000) : new Date(selectedOrder.createdAt));
+          
+          return (
+            <Box p={4} className="max-h-[70vh] overflow-y-auto hide-scroll space-y-4 text-left">
+              {/* Header Info */}
+              <Box className="bg-gray-50 p-3 rounded-xl border border-gray-200">
+                <Box flex justifyContent="space-between" className="mb-2">
+                  <Text size="small" className="text-gray-500">Mã đơn hàng:</Text>
+                  <Text size="small" bold className="text-blue-600">#{orderCode}</Text>
+                </Box>
+                <Box flex justifyContent="space-between" className="mb-2">
+                  <Text size="small" className="text-gray-500">Trạng thái:</Text>
+                  <Text size="small" bold className={statusUI.color}>{statusUI.text}</Text>
+                </Box>
+                <Box flex justifyContent="space-between" className="mb-2">
+                  <Text size="small" className="text-gray-500">Thời gian đặt:</Text>
+                  <Text size="small" bold className="text-gray-800">
+                    {dateObj ? dateObj.toLocaleString('vi-VN') : "Gần đây"}
+                  </Text>
+                </Box>
+                {selectedOrder.shopName && (
+                  <Box flex justifyContent="space-between">
+                    <Text size="small" className="text-gray-500">Cửa hàng:</Text>
+                    <Text size="small" bold className="text-gray-800">{selectedOrder.shopName}</Text>
+                  </Box>
+                )}
+              </Box>
+
+              {/* Customer Delivery Info */}
+              <Box className="bg-white p-3 rounded-xl border border-gray-150 space-y-2">
+                <Text bold size="small" className="text-gray-800 border-b border-gray-100 pb-1.5 block">Thông tin giao hàng</Text>
+                <Box flex justifyContent="space-between">
+                  <Text size="xSmall" className="text-gray-500">Người nhận:</Text>
+                  <Text size="xSmall" bold className="text-gray-800">{selectedOrder.customerName || selectedOrder.fullName || "Khách hàng"}</Text>
+                </Box>
+                <Box flex justifyContent="space-between">
+                  <Text size="xSmall" className="text-gray-500">Số điện thoại:</Text>
+                  <Text size="xSmall" bold className="text-gray-800">{selectedOrder.customerPhone || selectedOrder.phone || "Không có"}</Text>
+                </Box>
+                <Box flex justifyContent="space-between" className="items-start">
+                  <Text size="xSmall" className="text-gray-500 shrink-0">Địa chỉ:</Text>
+                  <Text size="xSmall" bold className="text-gray-800 text-right max-w-[70%]">{selectedOrder.customerAddress || selectedOrder.address || "Nhận tại cửa hàng"}</Text>
+                </Box>
+                {selectedOrder.note && (
+                  <Box flex justifyContent="space-between" className="items-start">
+                    <Text size="xSmall" className="text-gray-500 shrink-0">Ghi chú:</Text>
+                    <Text size="xSmall" className="text-gray-600 text-right max-w-[70%] italic">"{selectedOrder.note}"</Text>
+                  </Box>
+                )}
+              </Box>
+
+              {/* Products List */}
+              <Box className="bg-white p-3 rounded-xl border border-gray-150 space-y-3">
+                <Text bold size="small" className="text-gray-800 border-b border-gray-100 pb-1.5 block">Danh sách sản phẩm</Text>
+                {(selectedOrder.items || selectedOrder.cartItems) && (selectedOrder.items || selectedOrder.cartItems).length > 0 ? (
+                  (selectedOrder.items || selectedOrder.cartItems).map((item: any, i: number) => {
+                    const imgUrl = item.product?.image || item.product?.images?.[0] || "";
+                    return (
+                      <Box key={i} flex className="items-start space-x-3 py-2 border-b border-dashed border-gray-100 last:border-none last:pb-0">
+                        <Box className="w-12 h-12 rounded bg-gray-100 overflow-hidden shrink-0 border border-gray-200 flex items-center justify-center">
+                          {imgUrl ? (
+                            <img src={imgUrl} className="w-full h-full object-cover" alt="" />
+                          ) : (
+                            <Icon icon="zi-image" size={20} className="text-gray-400" />
+                          )}
+                        </Box>
+                        <Box className="flex-1 min-w-0">
+                          <Text size="small" bold className="text-gray-800 line-clamp-2">
+                            {item.product?.title || item.product?.name || item.name}
+                          </Text>
+                          {item.options && Object.keys(item.options).length > 0 && (
+                            <Text size="xSmall" className="text-gray-500 italic mt-0.5">
+                              {Object.entries(item.options).map(([k, v]) => `${k}: ${v}`).join(' | ')}
+                            </Text>
+                          )}
+                          <Box flex justifyContent="space-between" className="mt-1 items-center">
+                            <Text size="xSmall" className="text-gray-500">Số lượng: {item.quantity}</Text>
+                            <Text size="xSmall" bold className="text-gray-800">{(item.product?.price || item.price || 0).toLocaleString('vi-VN')}đ</Text>
+                          </Box>
+                        </Box>
+                      </Box>
+                    );
+                  })
+                ) : (
+                  (() => {
+                    const singleImg = selectedOrder.productImage || selectedOrder.product?.image || selectedOrder.product?.images?.[0] || "";
+                    return (
+                      <Box flex className="items-start space-x-3 py-2">
+                        <Box className="w-12 h-12 rounded bg-gray-100 overflow-hidden shrink-0 border border-gray-200 flex items-center justify-center">
+                          {singleImg ? (
+                            <img src={singleImg} className="w-full h-full object-cover" alt="" />
+                          ) : (
+                            <Icon icon="zi-image" size={20} className="text-gray-400" />
+                          )}
+                        </Box>
+                        <Box className="flex-1 min-w-0">
+                          <Text size="small" bold className="text-gray-800 line-clamp-2">{selectedOrder.productName}</Text>
+                          {selectedOrder.selectedVariants && Object.keys(selectedOrder.selectedVariants).length > 0 ? (
+                            <Text size="xSmall" className="text-gray-500 italic mt-0.5">
+                              {Object.entries(selectedOrder.selectedVariants).map(([k, v]) => `${k}: ${v}`).join(' | ')}
+                            </Text>
+                          ) : (selectedOrder.bookingTime || selectedOrder.bookingDate) ? (
+                            <Text size="xSmall" className="text-gray-500 mt-0.5">⏰ Lịch: {selectedOrder.bookingTime} {selectedOrder.bookingDate}</Text>
+                          ) : null}
+                          <Box flex justifyContent="space-between" className="mt-1 items-center">
+                            <Text size="xSmall" className="text-gray-500">Số lượng: 1</Text>
+                            <Text size="xSmall" bold className="text-gray-800">{(selectedOrder.originalAmount || totalAmount).toLocaleString('vi-VN')}đ</Text>
+                          </Box>
+                        </Box>
+                      </Box>
+                    );
+                  })()
+                )}
+              </Box>
+
+              {/* Total Calculation Details */}
+              <Box className="bg-white p-3 rounded-xl border border-gray-150 space-y-2">
+                <Text bold size="small" className="text-gray-800 border-b border-gray-100 pb-1.5 block">Chi tiết thanh toán</Text>
+                <Box flex justifyContent="space-between">
+                  <Text size="xSmall" className="text-gray-500">Phương thức:</Text>
+                  <Text size="xSmall" bold className="text-gray-800">Thanh toán khi nhận hàng (COD)</Text>
+                </Box>
+                <Box flex justifyContent="space-between">
+                  <Text size="xSmall" className="text-gray-500">Tổng giá trị sản phẩm:</Text>
+                  <Text size="xSmall" bold className="text-gray-800">{totalAmount.toLocaleString('vi-VN')}đ</Text>
+                </Box>
+                <Box flex justifyContent="space-between">
+                  <Text size="xSmall" className="text-gray-500">Khuyến mãi / Giảm giá:</Text>
+                  <Text size="xSmall" bold className="text-gray-800">0đ</Text>
+                </Box>
+                <Box flex justifyContent="space-between" className="border-t border-dashed border-gray-100 pt-2 mt-2">
+                  <Text size="small" bold className="text-gray-800">Thực tế thanh toán:</Text>
+                  <Text size="small" bold className="text-red-500">{totalAmount.toLocaleString('vi-VN')}đ</Text>
+                </Box>
+              </Box>
+            </Box>
+          );
+        })()}
       </Modal>
     </Page>
   );

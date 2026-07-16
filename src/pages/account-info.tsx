@@ -3,7 +3,7 @@ import React, { FC, useState, useEffect } from "react";
 import { Page, Header, Box, Input, Button, useSnackbar, Text, Icon } from "zmp-ui";
 import { auth, db, storage } from "../firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const AccountInfoPage: FC = () => {
@@ -15,6 +15,8 @@ const AccountInfoPage: FC = () => {
   const [avatar, setAvatar] = useState("");
   const [role, setRole] = useState("Thành viên");
   const [isUploading, setIsUploading] = useState(false);
+  const [docId, setDocId] = useState("");
+  const [collectionName, setCollectionName] = useState("users");
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -42,25 +44,63 @@ const AccountInfoPage: FC = () => {
       if (user) {
         setCurrentUser(user);
         
+        let finalPhone = user.phoneNumber || user.email?.split('@')[0] || "";
+        if (finalPhone.startsWith("+84")) {
+          finalPhone = "0" + finalPhone.substring(3);
+        }
+
+        let currentColl = "users";
+        let currentId = user.uid;
+        
         let docRef = doc(db, "users", user.uid);
         let docSnap = await getDoc(docRef);
         
         if (!docSnap.exists()) {
-          docRef = doc(db, "shops", user.uid);
-          docSnap = await getDoc(docRef);
-          if (docSnap.exists()) {
-            setRole("Nhà phân phối");
+          // Check shops
+          try {
+            const qShop = query(collection(db, "shops"), where("phone", "==", finalPhone));
+            const shopSnap = await getDocs(qShop);
+            if (!shopSnap.empty) {
+              docSnap = shopSnap.docs[0];
+              currentColl = "shops";
+              currentId = shopSnap.docs[0].id;
+              setRole("Nhà phân phối");
+            } else {
+              // Check fallback users by phone (managers)
+              const qUser = query(collection(db, "users"), where("phone", "==", finalPhone));
+              const userSnap = await getDocs(qUser);
+              if (!userSnap.empty) {
+                docSnap = userSnap.docs[0];
+                currentColl = "users";
+                currentId = userSnap.docs[0].id;
+                setRole(docSnap.data().branchInfo ? "Quản lý chi nhánh" : "Thành viên");
+              }
+            }
+          } catch (err) {
+            console.error("Lỗi tải thông tin tài khoản:", err);
+          }
+        } else {
+          const data = docSnap.data();
+          if (data.role === "admin") {
+            setRole("Quản trị viên");
+          } else if (data.branchInfo) {
+            setRole("Quản lý chi nhánh");
+          } else {
+            setRole("Thành viên");
           }
         }
         
-        if (docSnap.exists()) {
+        setCollectionName(currentColl);
+        setDocId(currentId);
+        
+        if (docSnap && docSnap.exists()) {
           const data = docSnap.data();
-          setName(data.fullName || data.name || user.email?.split('@')[0] || "");
-          setPhone(data.phone || user.email?.split('@')[0] || "");
+          setName(data.fullName || data.name || finalPhone);
+          setPhone(data.phone || finalPhone);
           setAvatar(data.avatar || "");
         } else {
-          setName(user.email?.split('@')[0] || "");
-          setPhone(user.email?.split('@')[0] || "");
+          setName(finalPhone);
+          setPhone(finalPhone);
           setAvatar("");
         }
       } else {
@@ -68,6 +108,9 @@ const AccountInfoPage: FC = () => {
         setName("Vũ Hoàng Hiệp (Mẫu)");
         setPhone("0782431949");
         setAvatar("");
+        setRole("Thành viên");
+        setCollectionName("users");
+        setDocId("");
       }
     });
 
@@ -85,18 +128,16 @@ const AccountInfoPage: FC = () => {
     }
 
     try {
-      let docRef = doc(db, "users", currentUser.uid);
-      let docSnap = await getDoc(docRef);
+      const targetColl = collectionName || "users";
+      const targetId = docId || currentUser.uid;
+      const docRef = doc(db, targetColl, targetId);
       
-      if (!docSnap.exists()) {
-        docRef = doc(db, "shops", currentUser.uid);
-      }
-      
-      await updateDoc(docRef, {
+      await setDoc(docRef, {
         fullName: name,
+        name: name, // Cập nhật cả name để đảm bảo đồng bộ
         phone: phone,
         avatar: avatar
-      });
+      }, { merge: true });
 
       openSnackbar({
         text: "Cập nhật thông tin thành công!",

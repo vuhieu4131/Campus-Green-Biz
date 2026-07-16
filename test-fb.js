@@ -1,6 +1,6 @@
 // d:\CampusBiz\Campus-Green-Biz\test-fb.js
 const { initializeApp } = require("firebase/app");
-const { getFirestore, collection, getDocs } = require("firebase/firestore");
+const { getFirestore, collection, getDocs, query, where } = require("firebase/firestore");
 const { getAuth, signInWithEmailAndPassword } = require("firebase/auth");
 
 const firebaseConfig = {
@@ -26,6 +26,25 @@ async function run() {
   bannersSnap.forEach(doc => {
     const data = doc.data();
     console.log(`ID: ${doc.id} | Type: ${data.type} | Active: ${data.active} | Image: ${data.image} | Link: ${data.link}`);
+  });
+
+  console.log("\nChecking shops collection:");
+  const shopsSnap = await getDocs(collection(db, "shops"));
+  console.log("Total shops in Firestore:", shopsSnap.size);
+  
+  const phones = [];
+  shopsSnap.forEach(doc => {
+    const data = doc.data();
+    console.log(`ID: ${doc.id} | Phone: ${data.phone} | Name: ${data.name} | Password: ${data.password}`);
+    if (data.phone) phones.push(data.phone);
+  });
+
+  console.log("\nChecking all documents in users collection:");
+  const usersSnap = await getDocs(collection(db, "users"));
+  console.log("Total users in Firestore:", usersSnap.size);
+  usersSnap.forEach(doc => {
+    const data = doc.data();
+    console.log(`ID: ${doc.id} | Phone: ${data.phone} | Name: ${data.name} | Password: ${data.password} | Role: ${data.role} | branchInfo: ${data.branchInfo ? JSON.stringify(data.branchInfo) : 'none'}`);
   });
 }
 

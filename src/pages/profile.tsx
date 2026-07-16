@@ -26,7 +26,6 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { PostItem } from "../components/post-item";
 import { RawPost } from "../utils/edgeRanker";
 import { ProviderView } from "../components/profile-modules/provider-view";
-import { BranchView } from "../components/profile-modules/branch-view";
 import { AdminView } from "../components/profile-modules/admin-view";
 
 class ErrorBoundary extends React.Component<
@@ -543,14 +542,29 @@ const ProfilePage: FC = () => {
         // Tải dữ liệu từ bảng "users"
         const docRef = doc(db, "users", user.uid);
         const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const data = docSnap.data();
+        let data = docSnap.exists() ? docSnap.data() : null;
+        let docId = docSnap.id;
+
+        if ((!data || !data.branchInfo) && finalPhone) {
+          try {
+            const qUser = query(collection(db, "users"), where("phone", "==", finalPhone));
+            const userSnap = await getDocs(qUser);
+            if (!userSnap.empty) {
+              data = userSnap.docs[0].data();
+              docId = userSnap.docs[0].id;
+            }
+          } catch (err) {
+            console.error("Lỗi tải fallback users:", err);
+          }
+        }
+
+        if (data) {
           if (data.role === "admin") {
-              setUserData({ id: docSnap.id, ...data });
+              setUserData({ id: docId, ...data });
           } else if (data.branchInfo) {
-              setUserData({ id: docSnap.id, ...data, role: "member" });
+              setUserData({ id: docId, ...data, role: "member" });
           } else {
-              setUserData({ id: docSnap.id, ...data, role: data.role || "user" });
+              setUserData({ id: docId, ...data, role: data.role || "user" });
           }
         }
       } else {
@@ -641,9 +655,8 @@ const ProfilePage: FC = () => {
             )}
             {userData?.role === "admin" && <AdminView userData={userData} onLogout={handleLogout} />}
             {userData?.role === "provider" && showProviderDashboard && <ProviderView userData={userData} onLogout={handleLogout} onBackToProfile={() => setShowProviderDashboard(false)} />}
-            {userData?.role === "member" && userData.branchInfo && <BranchView userData={userData} onLogout={handleLogout} />}
             
-            {(!userData?.role || userData?.role === "user" || userData?.role === "distributor" || (userData?.role === "provider" && !showProviderDashboard) || (userData?.role === "member" && !userData.branchInfo)) && (
+            {(!userData?.role || userData?.role === "user" || userData?.role === "member" || userData?.role === "distributor" || (userData?.role === "provider" && !showProviderDashboard)) && (
               <NewMemberView
                 user={{
                   id: currentUser.uid,

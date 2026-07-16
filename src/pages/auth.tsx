@@ -6,7 +6,7 @@ import { userState } from "state";
 import { auth, db } from "../firebase"; 
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, deleteUser } from "firebase/auth";
 // 👉 ĐÃ BỔ SUNG: Thêm collection, query, where, getDocs để hỗ trợ quét dữ liệu ngoại lệ
-import { doc, setDoc, getDoc, collection, query, where, getDocs } from "firebase/firestore"; 
+import { doc, setDoc, getDoc, collection, query, where, getDocs, updateDoc, addDoc, serverTimestamp, increment } from "firebase/firestore"; 
 
 interface AuthOverlayProps {
   visible: boolean;
@@ -141,6 +141,61 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
       // 👉 LẤY MÃ UID VỪA TẠO
       const uid = userCredential.user.uid; 
 
+      let initialSpendingPoints = 0;
+      let initialRankPoints = 0;
+      const refPhone = referralCode.trim();
+
+      if (refPhone) {
+        try {
+          let referrerRef = null;
+          let referrerDocId = "";
+
+          const qUser = query(collection(db, "users"), where("phone", "==", refPhone));
+          const userSnap = await getDocs(qUser);
+          if (!userSnap.empty) {
+            referrerRef = doc(db, "users", userSnap.docs[0].id);
+            referrerDocId = userSnap.docs[0].id;
+          } else {
+            const qShop = query(collection(db, "shops"), where("phone", "==", refPhone));
+            const shopSnap = await getDocs(qShop);
+            if (!shopSnap.empty) {
+              referrerRef = doc(db, "shops", shopSnap.docs[0].id);
+              referrerDocId = shopSnap.docs[0].id;
+            }
+          }
+
+          if (referrerRef) {
+            await updateDoc(referrerRef, {
+              spendingPoints: increment(10),
+              rankPoints: increment(10)
+            });
+
+            await addDoc(collection(db, "point_transactions"), {
+              userId: referrerDocId,
+              type: "plus",
+              amount: 10,
+              description: `Thưởng giới thiệu thành viên mới: ${fullName || "Khách"} (${phone})`,
+              walletType: "main",
+              createdAt: serverTimestamp()
+            });
+
+            await addDoc(collection(db, "notifications"), {
+              userId: referrerDocId,
+              title: "Nhận điểm giới thiệu thành công",
+              content: `Bạn được cộng +10 điểm xanh từ việc giới thiệu thành viên ${fullName || "Khách"} (${phone}) thành công!`,
+              type: "success",
+              createdAt: serverTimestamp(),
+              isRead: false
+            });
+
+            initialSpendingPoints = 5;
+            initialRankPoints = 5;
+          }
+        } catch (err) {
+          console.error("Lỗi cộng điểm giới thiệu:", err);
+        }
+      }
+
       const collectionName = isShopConfig ? "shops" : "users";
 
       // 2. LƯU DỮ LIỆU BẰNG MÃ UID
@@ -150,8 +205,30 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
         referralCode: referralCode,
         isShopConfig: isShopConfig, 
         zaloName: userInfo?.name || "",
+        spendingPoints: initialSpendingPoints,
+        rankPoints: initialRankPoints,
         createdAt: new Date().toISOString()
       });
+
+      if (initialSpendingPoints > 0) {
+        await addDoc(collection(db, "point_transactions"), {
+          userId: uid,
+          type: "plus",
+          amount: 5,
+          description: `Thưởng nhập mã giới thiệu từ: ${refPhone}`,
+          walletType: "main",
+          createdAt: serverTimestamp()
+        });
+
+        await addDoc(collection(db, "notifications"), {
+          userId: uid,
+          title: "Thưởng thành viên mới",
+          content: `Bạn được tặng +5 điểm xanh khi nhập mã giới thiệu từ ${refPhone}.`,
+          type: "success",
+          createdAt: serverTimestamp(),
+          isRead: false
+        });
+      }
 
       if (isShopConfig) {
         alert("Đăng ký mở Gian hàng (Nhà phân phối) thành công!");

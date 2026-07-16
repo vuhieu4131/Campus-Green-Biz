@@ -984,7 +984,8 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
         // 2. Thuật toán đếm số người giới thiệu cực nhanh
         const referralCounts: Record<string, number> = {};
         dataList.forEach(u => {
-            if (u.referrer) { referralCounts[u.referrer] = (referralCounts[u.referrer] || 0) + 1; }
+            const refVal = u.referrer || u.referralCode;
+            if (refVal) { referralCounts[refVal] = (referralCounts[refVal] || 0) + 1; }
         });
 
         // 3. Logic Sắp xếp TOP
@@ -1032,7 +1033,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                   )}
                               </Box>
                               <Box ml={3} className="flex-1">
-    <Text bold size="small">{m.name}</Text>
+    <Text bold size="small">{m.fullName || m.name || "Thành viên"}</Text>
     <Text size="xxSmall" className="text-gray">{m.phone}</Text>
     {/* 👉 Hiển thị thêm địa chỉ */}
     {/* 👉 Hiển thị địa chỉ: Do Bước 1 đã lưu "address" nên giờ gọi thẳng là ra */}

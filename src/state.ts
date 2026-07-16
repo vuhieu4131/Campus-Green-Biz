@@ -10,6 +10,8 @@ import { Store } from "types/delivery";
 import { calcFinalPrice } from "utils/product";
 import { wait } from "utils/async";
 import categories from "../mock/categories.json";
+import { db } from "./firebase";
+import { collection, getDocs, query } from "firebase/firestore";
 
 export const userState = selector({
   key: "user",
@@ -27,19 +29,28 @@ export const categoriesState = selector<Category[]>({
 export const productsState = selector<Product[]>({
   key: "products",
   get: async () => {
-    await wait(2000);
-    const products = (await import("../mock/products.json")).default;
-    const variants = (await import("../mock/variants.json"))
-      .default as Variant[];
-    return products.map(
-      (product) =>
-        ({
-          ...product,
-          variants: variants.filter((variant) =>
-            product.variantId.includes(variant.id)
-          ),
-        } as Product)
-    );
+    try {
+      const q = query(collection(db, "services"));
+      const querySnapshot = await getDocs(q);
+      const dbServices = querySnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as any))
+        .filter(item => item.status === "approved" || !item.status);
+      
+      const variants = (await import("../mock/variants.json")).default as Variant[];
+      return dbServices.map(
+        (product) =>
+          ({
+            ...product,
+            name: product.name || product.title,
+            variants: variants.filter((variant) =>
+              (product.variantId || []).includes(variant.id)
+            ),
+          } as Product)
+      );
+    } catch (e) {
+      console.error("Lỗi khi lấy danh sách sản phẩm từ DB cho search:", e);
+      return [];
+    }
   },
 });
 
