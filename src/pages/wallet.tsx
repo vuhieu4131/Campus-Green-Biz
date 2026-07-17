@@ -43,15 +43,20 @@ const WalletPage: FC = () => {
     setHistoryLoading(true);
     setShowHistoryModal(true);
     try {
-      const walletType = activeTab === 'rank' ? 'main' : 'promo';
+      const targetWalletType = activeTab === 'rank' ? 'main' : 'promo';
       const q = query(
         collection(db, "point_transactions"),
-        where("userId", "==", userId),
-        where("walletType", "==", walletType),
-        orderBy("createdAt", "desc")
+        where("userId", "==", userId)
       );
       const querySnapshot = await getDocs(q);
-      const docs = querySnapshot.docs.map(doc => doc.data());
+      const docs = querySnapshot.docs
+        .map(doc => doc.data() as any)
+        .filter(item => item.walletType === targetWalletType)
+        .sort((a, b) => {
+            const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+            const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
+            return dateB.getTime() - dateA.getTime();
+        });
       setHistoryList(docs);
     } catch (error) {
       console.error("Lỗi tải lịch sử:", error);

@@ -4,9 +4,38 @@ import { Box, Text, Avatar, Icon, Sheet, Input, useSnackbar, useNavigate } from 
 import { ImageGrid } from "./image-grid";
 import { RawPost } from "../utils/edgeRanker";
 import { auth, db } from "../firebase";
-import { doc, updateDoc, increment, collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, deleteDoc, arrayUnion, arrayRemove } from "firebase/firestore";
+import { doc, updateDoc, increment, collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, deleteDoc, arrayUnion, arrayRemove, getDoc } from "firebase/firestore";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { AuthOverlay } from "../pages/auth";
+
+const awardReputationPoints = async (userId: string, amount: number, description: string) => {
+  try {
+    let accountRef = doc(db, "users", userId);
+    let accountSnap = await getDoc(accountRef);
+    
+    if (!accountSnap.exists()) {
+      accountRef = doc(db, "shops", userId);
+      accountSnap = await getDoc(accountRef);
+    }
+    
+    if (accountSnap.exists()) {
+      await updateDoc(accountRef, {
+        reputationPoints: increment(amount)
+      });
+      
+      await addDoc(collection(db, "point_transactions"), {
+        userId: userId,
+        type: "plus",
+        amount: amount,
+        description: description,
+        walletType: "reputation",
+        createdAt: serverTimestamp()
+      });
+    }
+  } catch (err) {
+    console.error("Lỗi cộng điểm uy tín:", err);
+  }
+};
 
 interface PostItemProps {
   data: RawPost;
@@ -65,6 +94,120 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
     }
   }, [showComments, data.id]);
 
+  // Trạng thái theo dõi tác giả bài viết
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [loadingFollow, setLoadingFollow] = useState(true);
+
+  React.useEffect(() => {
+    if (!data.authorId) {
+      setLoadingFollow(false);
+      return;
+    }
+
+    const authorRef = doc(db, "users", data.authorId);
+    const unsub = onSnapshot(authorRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const followers = docSnap.data().followers || [];
+        setIsFollowing(currentUser ? followers.includes(currentUser.uid) : false);
+      } else {
+        const shopRef = doc(db, "shops", data.authorId);
+        getDoc(shopRef).then((shopSnap) => {
+          if (shopSnap.exists()) {
+            const followers = shopSnap.data().followers || [];
+            setIsFollowing(currentUser ? followers.includes(currentUser.uid) : false);
+          }
+        });
+      }
+      setLoadingFollow(false);
+    }, (err) => {
+      console.error("Lỗi lấy thông tin follow:", err);
+      setLoadingFollow(false);
+    });
+
+    return unsub;
+  }, [currentUser, data.authorId]);
+
+  const handleFollowToggle = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!currentUser || currentUser.email === "guest@campus.com") {
+      setShowAuth(true);
+      return;
+    }
+    if (!data.authorId) return;
+
+    try {
+      let authorRef = doc(db, "users", data.authorId);
+      let snap = await getDoc(authorRef);
+      
+      if (!snap.exists()) {
+        authorRef = doc(db, "shops", data.authorId);
+        snap = await getDoc(authorRef);
+      }
+
+      if (snap.exists()) {
+        if (isFollowing) {
+          await updateDoc(authorRef, {
+            followers: arrayRemove(currentUser.uid)
+          });
+          setIsFollowing(false);
+          openSnackbar({ text: "Đã hủy theo dõi", type: "success" });
+        } else {
+          await updateDoc(authorRef, {
+            followers: arrayUnion(currentUser.uid)
+          });
+          setIsFollowing(true);
+          openSnackbar({ text: "Đã theo dõi người dùng", type: "success" });
+        }
+      }
+    } catch (error) {
+      console.error("Lỗi khi thao tác theo dõi:", error);
+      openSnackbar({ text: "Thao tác thất bại", type: "error" });
+    }
+  };
+
+  // Trạng thái profile thực tế của tác giả bài viết
+  const [authorProfile, setAuthorProfile] = useState<{ name: string; avatar: string } | null>(null);
+
+  React.useEffect(() => {
+    if (!data.authorId) return;
+
+    const authorRef = doc(db, "users", data.authorId);
+    const unsub = onSnapshot(authorRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const docData = docSnap.data();
+        setAuthorProfile({
+          name: docData.fullName || docData.name || data.authorName,
+          avatar: docData.avatar || data.authorAvatar
+        });
+      } else {
+        const shopRef = doc(db, "shops", data.authorId);
+        getDoc(shopRef).then((shopSnap) => {
+          if (shopSnap.exists()) {
+            const shopData = shopSnap.data();
+            setAuthorProfile({
+              name: shopData.shopName || shopData.name || data.authorName,
+              avatar: shopData.shopAvatar || shopData.avatar || data.authorAvatar
+            });
+          }
+        });
+      }
+    });
+
+    return unsub;
+  }, [data.authorId, data.authorName, data.authorAvatar]);
+
+  const maskPhoneNumber = (text: string) => {
+    if (!text) return "Người dùng";
+    const digitsOnly = text.replace(/\D/g, "");
+    if (digitsOnly.length >= 9 && digitsOnly.length <= 11 && /^\d+$/.test(text)) {
+      return text.substring(0, 3) + "****" + text.substring(text.length - 3);
+    }
+    return text;
+  };
+
+  const resolvedAuthorName = maskPhoneNumber(authorProfile?.name || data.authorName || "Người dùng");
+  const resolvedAuthorAvatar = authorProfile?.avatar || data.authorAvatar || "https://i.pravatar.cc/150?img=11";
+
   const handleLike = async () => {
     if (!isRealUser) {
       setShowAuth(true);
@@ -80,6 +223,9 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
       await updateDoc(postRef, {
         likesCount: increment(newLiked ? 1 : -1)
       });
+      if (newLiked) {
+        await awardReputationPoints(currentUser.uid, 2, "Thưởng uy tín: Thích bài viết");
+      }
     } catch (e) {
       // Revert if error
       setLiked(!newLiked);
@@ -108,7 +254,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
         commentsCount: increment(1)
       });
       setCommentsCount(prev => prev + 1);
-      
+      await awardReputationPoints(currentUser.uid, 5, "Thưởng uy tín: Bình luận bài viết");
       setCommentText("");
     } catch (error) {
       console.error("Lỗi gửi bình luận:", error);
@@ -221,11 +367,17 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
 
   return (
     <Box className="bg-white mx-3 mb-4 pt-4 pb-2 rounded-2xl shadow-sm border border-gray-100">
+      {data.sharedFrom && data.originalPost && (
+        <Box className="px-4 pb-2 border-b border-gray-100/50 mb-3 flex items-center space-x-1.5 text-xs text-gray-500">
+          <Icon icon="zi-share" size={14} className="text-gray-400" />
+          <span>đã chia sẻ bài viết của <span className="font-bold text-gray-700">{data.originalPost.authorName}</span></span>
+        </Box>
+      )}
       {/* Header */}
       <Box className="flex items-center justify-between px-4 mb-2">
         <Box className="flex items-center space-x-2">
           <Avatar 
-            src={data.authorAvatar || "https://i.pravatar.cc/150?img=11"} 
+            src={resolvedAuthorAvatar} 
             size={40} 
             className="border border-gray-100 cursor-pointer active:opacity-70"
             onClick={(e) => {
@@ -249,21 +401,26 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
                   }
                 }}
               >
-                {data.authorName || "Người dùng"}
+                {resolvedAuthorName}
               </Text.Title>
+              {data.authorId !== currentUser?.uid && !loadingFollow && (
+                <span 
+                  className="text-xs font-semibold cursor-pointer active:opacity-75 select-none"
+                  onClick={handleFollowToggle}
+                  style={{ color: isFollowing ? "#9ca3af" : "#14502e" }}
+                >
+                  <span className="text-gray-400 mx-1 font-normal">•</span>
+                  {isFollowing ? "Đang theo dõi" : "Theo dõi"}
+                </span>
+              )}
+              {/* @ts-ignore */}
+              {data.location && (
+                <span className="text-gray-500 text-xs flex items-center font-normal ml-1">
+                  <svg className="w-3.5 h-3.5 text-red-500 mr-0.5 fill-current" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                  đang ở <span className="font-semibold text-gray-700 ml-1">{data.location}</span>
+                </span>
+              )}
               {data.isPinned && <CustomIcon icon="zi-star-solid" size={12} className="text-[#a68c4d]" />}
-              {data.status === "pending" && (
-                <span className="inline-flex items-center bg-yellow-50 text-yellow-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-yellow-200 ml-1.5 shrink-0">
-                  <span className="w-1.5 h-1.5 bg-yellow-500 rounded-full mr-1 animate-pulse" />
-                  Chờ duyệt
-                </span>
-              )}
-              {data.status === "rejected" && (
-                <span className="inline-flex items-center bg-red-50 text-red-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-red-200 ml-1.5 shrink-0">
-                  <span className="w-1.5 h-1.5 bg-red-500 rounded-full mr-1" />
-                  Bị từ chối
-                </span>
-              )}
             </Box>
             {isEditing ? (
               <Box className="flex items-center mt-1 bg-gray-100 rounded-md px-2 py-0.5 border border-gray-200">
@@ -302,48 +459,201 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
         {!isEditing ? (
           <CustomIcon icon="zi-more-horiz" className="text-gray-400 cursor-pointer p-2" onClick={() => setShowMenu(true)} />
         ) : (
-          <Text className="text-[#14502e] font-bold text-[15px] cursor-pointer p-2" onClick={handleSaveEdit}>Lưu</Text>
+          <Box className="flex items-center space-x-2">
+            <Text className="text-gray-400 font-medium text-[15px] cursor-pointer p-2 active:opacity-70" onClick={() => setIsEditing(false)}>Hủy</Text>
+            <Text className="text-[#14502e] font-bold text-[15px] cursor-pointer p-2 active:opacity-70" onClick={handleSaveEdit}>Lưu</Text>
+          </Box>
         )}
       </Box>
 
-      {/* Content */}
-      <Box className="px-4 mb-3">
-        {isEditing ? (
-          <textarea
-            className="w-full border border-gray-200 rounded-lg p-3 text-[15px] outline-none min-h-[120px] focus:border-[#14502e] transition-colors"
-            value={editContent}
-            onChange={(e) => setEditContent(e.target.value)}
-            placeholder="Bạn đang nghĩ gì?"
-          />
-        ) : (
-          <>
-            <Text className={`text-[15px] text-gray-800 leading-relaxed whitespace-pre-wrap ${!isExpanded && data.content && data.content.length > 150 ? "line-clamp-3" : ""}`} onClick={() => setIsExpanded(!isExpanded)}>
+      {/* Content, Images, Video, Product */}
+      {data.sharedFrom && data.originalPost ? (
+        <>
+          <Box className="px-4 mb-2">
+            <Text className="text-[15px] text-gray-800 leading-relaxed whitespace-pre-wrap">
               {data.content}
             </Text>
-            {data.content && data.content.length > 150 && (
-              <Text 
-                className="text-gray-500 font-medium mt-1 cursor-pointer" 
-                onClick={() => setIsExpanded(!isExpanded)}
-              >
-                {isExpanded ? "Thu gọn" : "Xem thêm"}
+          </Box>
+          <Box className="mx-4 mb-3 p-3 bg-gray-50 border border-gray-150 rounded-xl">
+            {/* Original Author Info */}
+            <Box className="flex items-center space-x-2 mb-2">
+              <Avatar src={data.originalPost.authorAvatar || "https://i.pravatar.cc/150?img=11"} size={28} className="border border-gray-200" />
+              <Text className="font-bold text-gray-800 text-[13px]">{data.originalPost.authorName}</Text>
+            </Box>
+            {/* Original Content */}
+            {data.originalPost.content && (
+              <Text className="text-[14px] text-gray-700 leading-relaxed whitespace-pre-wrap mb-2">
+                {data.originalPost.content}
               </Text>
             )}
-          </>
-        )}
-      </Box>
+            {/* Original Images Grid */}
+            {data.originalPost.images && data.originalPost.images.length > 0 && (
+              <Box className="mb-2">
+                <ImageGrid 
+                  images={data.originalPost.images} 
+                  onImageClick={(idx) => {
+                    setActiveImageIndex(idx);
+                    setShowOverlay(true);
+                    setShowImageViewer(true);
+                  }} 
+                />
+              </Box>
+            )}
+            {/* Original Video Player */}
+            {data.originalPost.videoUrl && (
+              <Box className="mb-2">
+                <Box className="w-full rounded-lg overflow-hidden border border-gray-200/50 bg-black flex justify-center items-center shadow-sm">
+                  <video 
+                    src={data.originalPost.videoUrl} 
+                    controls 
+                    playsInline
+                    className="w-full object-contain max-h-64" 
+                    poster={data.originalPost.images?.[0] || ""}
+                  />
+                </Box>
+              </Box>
+            )}
+            {/* Original Attached Product */}
+            {data.originalPost.attachedProduct && (
+              <Box 
+                className="bg-white border border-gray-200 rounded-lg p-2.5 flex items-start space-x-2.5 cursor-pointer hover:bg-gray-100/50 transition"
+                onClick={() => {
+                  const prod = {
+                    id: data.originalPost.attachedProduct.id,
+                    title: data.originalPost.attachedProduct.name || data.originalPost.attachedProduct.title,
+                    price: data.originalPost.attachedProduct.price,
+                    image: data.originalPost.attachedProduct.image,
+                    images: [data.originalPost.attachedProduct.image],
+                  };
+                  navigate(`/detail/${data.originalPost.attachedProduct.id}`, { state: { product: prod } });
+                }}
+              >
+                {data.originalPost.attachedProduct.image && (
+                  <img 
+                    src={data.originalPost.attachedProduct.image} 
+                    alt={data.originalPost.attachedProduct.name || data.originalPost.attachedProduct.title} 
+                    className="w-12 h-12 object-cover rounded border border-gray-150 shrink-0" 
+                  />
+                )}
+                <Box className="flex-1 min-w-0 flex flex-col justify-between min-h-[48px]">
+                  <Box>
+                    <Text className="font-semibold text-gray-800 text-[13px] line-clamp-2 leading-tight">
+                      {data.originalPost.attachedProduct.name || data.originalPost.attachedProduct.title}
+                    </Text>
+                  </Box>
+                  <Box className="flex items-center justify-between mt-1">
+                    <Text className="text-red-600 text-[11px] font-bold">
+                      {Number(data.originalPost.attachedProduct.price || 0).toLocaleString('vi-VN')}đ
+                    </Text>
+                    <Box className="bg-[#14502e] text-white px-2 py-1 rounded-full text-[9px] font-semibold flex items-center space-x-0.5 shrink-0 shadow-sm active:opacity-90">
+                      <span>Xem sản phẩm</span>
+                      <svg className="w-2.5 h-2.5 fill-current" viewBox="0 0 24 24"><path d="M5 13h11.86l-5.43 5.43 1.42 1.42L21.14 12l-8.29-8.29-1.42 1.42 5.43 5.43H5v2z"/></svg>
+                    </Box>
+                  </Box>
+                </Box>
+              </Box>
+            )}
+          </Box>
+        </>
+      ) : (
+        <>
+          {/* Content */}
+          <Box className="px-4 mb-3">
+            {isEditing ? (
+              <textarea
+                className="w-full border border-gray-200 rounded-lg p-3 text-[15px] outline-none min-h-[120px] focus:border-[#14502e] transition-colors"
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                placeholder="Bạn đang nghĩ gì?"
+              />
+            ) : (
+              <>
+                <Text className={`text-[15px] text-gray-800 leading-relaxed whitespace-pre-wrap ${!isExpanded && data.content && data.content.length > 150 ? "line-clamp-3" : ""}`} onClick={() => setIsExpanded(!isExpanded)}>
+                  {data.content}
+                </Text>
+                {data.content && data.content.length > 150 && (
+                  <Text 
+                    className="text-gray-500 font-medium mt-1 cursor-pointer" 
+                    onClick={() => setIsExpanded(!isExpanded)}
+                  >
+                    {isExpanded ? "Thu gọn" : "Xem thêm"}
+                  </Text>
+                )}
+              </>
+            )}
+          </Box>
 
-      {/* Images Grid */}
-      {data.images && data.images.length > 0 && (
-        <Box className="mb-3 px-1">
-          <ImageGrid 
-            images={data.images} 
-            onImageClick={(idx) => {
-              setActiveImageIndex(idx);
-              setShowOverlay(true);
-              setShowImageViewer(true);
-            }} 
-          />
-        </Box>
+          {/* Images Grid */}
+          {data.images && data.images.length > 0 && (
+            <Box className="mb-3 px-1">
+              <ImageGrid 
+                images={data.images} 
+                onImageClick={(idx) => {
+                  setActiveImageIndex(idx);
+                  setShowOverlay(true);
+                  setShowImageViewer(true);
+                }} 
+              />
+            </Box>
+          )}
+
+          {/* Video Player */}
+          {/* @ts-ignore */}
+          {data.videoUrl && (
+            <Box className="mb-3 px-4">
+              <Box className="w-full rounded-lg overflow-hidden border border-gray-200/50 bg-black flex justify-center items-center shadow-sm">
+                <video 
+                  src={data.videoUrl} 
+                  controls 
+                  playsInline
+                  className="w-full object-contain max-h-80" 
+                  poster={data.images?.[0] || ""}
+                />
+              </Box>
+            </Box>
+          )}
+
+          {/* @ts-ignore */}
+          {data.attachedProduct && (
+            <Box 
+              className="mx-4 mb-3 bg-gray-50 border border-gray-200/60 rounded-xl p-3 flex items-start space-x-3 cursor-pointer hover:bg-gray-100 transition active:scale-[0.99]"
+              onClick={() => {
+                const prod = {
+                  id: data.attachedProduct.id,
+                  title: data.attachedProduct.name || data.attachedProduct.title,
+                  price: data.attachedProduct.price,
+                  image: data.attachedProduct.image,
+                  images: [data.attachedProduct.image],
+                };
+                navigate(`/detail/${data.attachedProduct.id}`, { state: { product: prod } });
+              }}
+            >
+              {data.attachedProduct.image && (
+                <img 
+                  src={data.attachedProduct.image} 
+                  alt={data.attachedProduct.name || data.attachedProduct.title} 
+                  className="w-16 h-16 object-cover rounded-lg border border-gray-200 shrink-0" 
+                />
+              )}
+              <Box className="flex-1 min-w-0 flex flex-col justify-between min-h-[64px]">
+                <Box>
+                  <Text className="font-semibold text-gray-800 text-[14px] line-clamp-2 leading-tight">
+                    {data.attachedProduct.name || data.attachedProduct.title}
+                  </Text>
+                </Box>
+                <Box className="flex items-center justify-between mt-2">
+                  <Text className="text-red-600 text-sm font-bold">
+                    {Number(data.attachedProduct.price || 0).toLocaleString('vi-VN')}đ
+                  </Text>
+                  <Box className="bg-[#14502e] text-white px-3 py-1.5 rounded-full text-[11px] font-semibold flex items-center space-x-1 shrink-0 shadow-sm active:opacity-90">
+                    <span>Xem sản phẩm</span>
+                    <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M5 13h11.86l-5.43 5.43 1.42 1.42L21.14 12l-8.29-8.29-1.42 1.42 5.43 5.43H5v2z"/></svg>
+                  </Box>
+                </Box>
+              </Box>
+            </Box>
+          )}
+        </>
       )}
 
       {/* Stats */}
@@ -384,9 +694,9 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
             <>
               <Box className="absolute top-0 left-0 w-full p-4 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent">
                 <Box className="flex items-center space-x-2 cursor-pointer" onClick={(e) => { e.stopPropagation(); setShowImageViewer(false); if (data.authorId) navigate(`/profile?id=${data.authorId}`); }}>
-                  <Avatar src={data.authorAvatar || "https://i.pravatar.cc/150?img=11"} size={36} className="border border-white/30" />
+                  <Avatar src={resolvedAuthorAvatar} size={36} className="border border-white/30" />
                   <Box>
-                    <Text className="text-white font-bold text-sm leading-tight">{data.authorName || "Người dùng"}</Text>
+                    <Text className="text-white font-bold text-sm leading-tight">{resolvedAuthorName}</Text>
                     <Text className="text-white/70 text-xs">{timeString}</Text>
                   </Box>
                 </Box>
@@ -528,8 +838,75 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
       {/* Bảng Chia sẻ */}
       <Sheet visible={showShare} onClose={() => setShowShare(false)} autoHeight title="Chia sẻ lên">
         <Box className="p-6 grid grid-cols-4 gap-4">
-          {/* ... (keep existing share UI) ... */}
-          <Box className="flex flex-col items-center cursor-pointer">
+          <Box className="flex flex-col items-center cursor-pointer" onClick={async () => {
+            if (!currentUser || currentUser.email === "guest@campus.com") {
+              setShowShare(false);
+              setShowAuth(true);
+              return;
+            }
+            setShowShare(false);
+            try {
+              let profileName = "Người dùng";
+              let profileAvatar = "https://i.pravatar.cc/150?img=11";
+
+              const userRef = doc(db, "users", currentUser.uid);
+              const userSnap = await getDoc(userRef);
+              if (userSnap.exists()) {
+                const userData = userSnap.data();
+                profileName = userData.fullName || userData.name || profileName;
+                profileAvatar = userData.avatar || profileAvatar;
+              } else {
+                const shopRef = doc(db, "shops", currentUser.uid);
+                const shopSnap = await getDoc(shopRef);
+                if (shopSnap.exists()) {
+                  const shopData = shopSnap.data();
+                  profileName = shopData.shopName || shopData.name || profileName;
+                  profileAvatar = shopData.shopAvatar || shopData.avatar || profileAvatar;
+                }
+              }
+
+              if (profileName === "Người dùng") {
+                profileName = currentUser.displayName || currentUser.email?.split('@')[0] || profileName;
+              }
+              if (profileAvatar === "https://i.pravatar.cc/150?img=11") {
+                profileAvatar = currentUser.photoURL || profileAvatar;
+              }
+
+              await addDoc(collection(db, "posts"), {
+                authorId: currentUser.uid,
+                authorName: profileName,
+                authorAvatar: profileAvatar,
+                content: `Đã chia sẻ bài viết của ${data.authorName}`,
+                sharedFrom: data.id,
+                originalPost: {
+                  id: data.id,
+                  authorName: data.authorName,
+                  authorAvatar: data.authorAvatar,
+                  content: data.content || "",
+                  images: data.images || [],
+                  videoUrl: data.videoUrl || null,
+                  attachedProduct: data.attachedProduct || null
+                },
+                createdAt: serverTimestamp(),
+                likesCount: 0,
+                commentsCount: 0,
+                sharesCount: 0,
+                status: "approved"
+              });
+
+              await updateDoc(doc(db, "posts", data.id), { sharesCount: increment(1) });
+              setSharesCount(prev => prev + 1);
+              await awardReputationPoints(currentUser.uid, 10, "Thưởng uy tín: Chia sẻ bài viết");
+              openSnackbar({ text: "Đã chia sẻ bài viết lên tường của bạn!", type: "success" });
+            } catch (error) {
+              console.error("Lỗi chia sẻ bài viết:", error);
+              openSnackbar({ text: "Không thể chia sẻ bài viết", type: "error" });
+            }
+          }}>
+            <Box className="w-14 h-14 bg-[#14502e] rounded-full flex items-center justify-center mb-2 text-white shadow-md"><CustomIcon icon="zi-share" className="text-2xl" /></Box>
+            <Text size="xSmall" className="text-center font-medium text-gray-600">Lên tường</Text>
+          </Box>
+          <Box className="flex flex-col items-center cursor-pointer" onClick={() => { setShowShare(false); openSnackbar({ text: "Tính năng đang phát triển", type: "info" }); }}>
             <Box className="w-14 h-14 bg-[#0068ff] rounded-full flex items-center justify-center mb-2 text-white shadow-md"><CustomIcon icon="zi-chat" className="text-2xl" /></Box>
             <Text size="xSmall" className="text-center font-medium text-gray-600">Gửi bạn bè</Text>
           </Box>
@@ -540,6 +917,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
             try {
               await updateDoc(doc(db, "posts", data.id), { sharesCount: increment(1) });
               setSharesCount(prev => prev + 1);
+              await awardReputationPoints(currentUser.uid, 10, "Thưởng uy tín: Sao chép liên kết chia sẻ");
             } catch (e) {}
           }}>
             <Box className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mb-2 text-gray-700 shadow-md border border-gray-200"><CustomIcon icon="zi-copy" className="text-2xl" /></Box>

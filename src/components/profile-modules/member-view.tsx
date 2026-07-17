@@ -28,14 +28,20 @@ export const MemberView: FC<{ user: any; points: number }> = ({ user, points }) 
     setHistoryLoading(true);
     setShowHistoryModal(true);
     try {
+      const targetWallet = activeWallet;
       const q = query(
         collection(db, "point_transactions"),
-        where("userId", "==", user.id),
-        where("walletType", "==", activeWallet),
-        orderBy("createdAt", "desc")
+        where("userId", "==", user.id)
       );
       const querySnapshot = await getDocs(q);
-      const docs = querySnapshot.docs.map(doc => doc.data());
+      const docs = querySnapshot.docs
+        .map(doc => doc.data() as any)
+        .filter(item => item.walletType === targetWallet)
+        .sort((a, b) => {
+            const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+            const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
+            return dateB.getTime() - dateA.getTime();
+        });
       setHistoryList(docs);
     } catch (error) {
       console.error("Lỗi:", error);

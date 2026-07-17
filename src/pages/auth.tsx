@@ -141,39 +141,55 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
       // 👉 LẤY MÃ UID VỪA TẠO
       const uid = userCredential.user.uid; 
 
-      let initialSpendingPoints = 0;
-      let initialRankPoints = 0;
+      let initialSpendingPoints = 5; // Mặc định nhận 5 điểm đăng ký mới
+      let initialRankPoints = 5;
       const refPhone = referralCode.trim();
 
       if (refPhone) {
         try {
           let referrerRef = null;
           let referrerDocId = "";
+          let referrerType: "user" | "shop" = "user";
 
           const qUser = query(collection(db, "users"), where("phone", "==", refPhone));
           const userSnap = await getDocs(qUser);
           if (!userSnap.empty) {
             referrerRef = doc(db, "users", userSnap.docs[0].id);
             referrerDocId = userSnap.docs[0].id;
+            referrerType = "user";
           } else {
             const qShop = query(collection(db, "shops"), where("phone", "==", refPhone));
             const shopSnap = await getDocs(qShop);
             if (!shopSnap.empty) {
               referrerRef = doc(db, "shops", shopSnap.docs[0].id);
               referrerDocId = shopSnap.docs[0].id;
+              referrerType = "shop";
             }
           }
 
           if (referrerRef) {
+            let pointsToReferrer = 10;
+            if (isShopConfig) {
+              // Giới thiệu Shop: người giới thiệu +50, shop mới +10
+              pointsToReferrer = 50;
+              initialSpendingPoints = 10;
+              initialRankPoints = 10;
+            } else {
+              // Giới thiệu User: người giới thiệu +10, user mới +5
+              pointsToReferrer = 10;
+              initialSpendingPoints = 5;
+              initialRankPoints = 5;
+            }
+
             await updateDoc(referrerRef, {
-              spendingPoints: increment(10),
-              rankPoints: increment(10)
+              spendingPoints: increment(pointsToReferrer),
+              rankPoints: increment(pointsToReferrer)
             });
 
             await addDoc(collection(db, "point_transactions"), {
               userId: referrerDocId,
               type: "plus",
-              amount: 10,
+              amount: pointsToReferrer,
               description: `Thưởng giới thiệu thành viên mới: ${fullName || "Khách"} (${phone})`,
               walletType: "main",
               createdAt: serverTimestamp()
@@ -182,14 +198,11 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
             await addDoc(collection(db, "notifications"), {
               userId: referrerDocId,
               title: "Nhận điểm giới thiệu thành công",
-              content: `Bạn được cộng +10 điểm xanh từ việc giới thiệu thành viên ${fullName || "Khách"} (${phone}) thành công!`,
+              content: `Bạn được cộng +${pointsToReferrer} điểm ưu đãi từ việc giới thiệu thành viên ${fullName || "Khách"} (${phone}) thành công!`,
               type: "success",
               createdAt: serverTimestamp(),
               isRead: false
             });
-
-            initialSpendingPoints = 5;
-            initialRankPoints = 5;
           }
         } catch (err) {
           console.error("Lỗi cộng điểm giới thiệu:", err);
@@ -214,8 +227,8 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
         await addDoc(collection(db, "point_transactions"), {
           userId: uid,
           type: "plus",
-          amount: 5,
-          description: `Thưởng nhập mã giới thiệu từ: ${refPhone}`,
+          amount: initialSpendingPoints,
+          description: refPhone ? `Thưởng nhập mã giới thiệu từ: ${refPhone}` : "Thưởng đăng ký thành viên mới",
           walletType: "main",
           createdAt: serverTimestamp()
         });
@@ -223,7 +236,7 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
         await addDoc(collection(db, "notifications"), {
           userId: uid,
           title: "Thưởng thành viên mới",
-          content: `Bạn được tặng +5 điểm xanh khi nhập mã giới thiệu từ ${refPhone}.`,
+          content: `Bạn được tặng +${initialSpendingPoints} điểm ưu đãi khi nhập mã giới thiệu từ ${refPhone}.`,
           type: "success",
           createdAt: serverTimestamp(),
           isRead: false

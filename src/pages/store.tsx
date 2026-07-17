@@ -101,7 +101,7 @@ const StoreWelcome: FC = () => {
   return (
     <Box className="bg-[#14502e] rounded-b-[30px] pt-10 pb-10 px-4 relative shadow-md">
       <Box className="flex justify-between items-center">
-        {/* TRÁI: Avatar, Lời chào & Điểm xanh */}
+        {/* TRÁI: Avatar, Lời chào & Điểm ưu đãi */}
         <Box 
           className="flex items-center space-x-2.5 cursor-pointer flex-1"
           onClick={() => navigate('/profile')}
@@ -115,7 +115,7 @@ const StoreWelcome: FC = () => {
             {isRealUser ? (
               <Box className="bg-white/25 backdrop-blur-md rounded-full px-2 py-0.5 flex items-center w-fit border border-white/20 shadow-sm">
                 <CustomIcon icon="zi-star-solid" className="text-yellow-400 text-[10px] mr-1" />
-                <Text size="xxxxSmall" className="text-white font-bold text-[10px]">{rankName} | {spendingPoints} Điểm Xanh</Text>
+                <Text size="xxxxSmall" className="text-white font-bold text-[10px]">{rankName} | {spendingPoints} Điểm ưu đãi</Text>
               </Box>
             ) : (
               <Box 

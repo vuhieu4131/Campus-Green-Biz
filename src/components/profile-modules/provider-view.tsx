@@ -197,6 +197,8 @@ export const ProviderView: FC<ProviderProps> = ({ userData, onBackToProfile, onL
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyList, setHistoryList] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [rankHistoryList, setRankHistoryList] = useState<any[]>([]);
+  const [rankHistoryLoading, setRankHistoryLoading] = useState(false);
 
   useEffect(() => {
       setEditName(userData.name || "");
@@ -268,24 +270,58 @@ export const ProviderView: FC<ProviderProps> = ({ userData, onBackToProfile, onL
       setShowHistoryModal(true);
       setHistoryLoading(true);
       try {
-          // Tìm trong collection 'point_history' các giao dịch trừ điểm của user này
+          // Tìm trong collection 'point_history' các giao dịch trừ điểm của user này (Lọc và sắp xếp in-memory để tránh lỗi thiếu Composite Index)
           const q = query(
               collection(db, "point_history"), 
-              where("userId", "==", userData.phone),
-              where("type", "==", "minus"), // Lọc loại giao dịch trừ điểm
-              orderBy("createdAt", "desc"),
-              limit(20)
+              where("userId", "==", userData.phone)
           );
           
           const snapshot = await getDocs(q);
-          const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          const list = snapshot.docs
+              .map(doc => ({ id: doc.id, ...doc.data() } as any))
+              .filter(item => item.type === "minus")
+              .sort((a, b) => {
+                  const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+                  const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
+                  return dateB.getTime() - dateA.getTime();
+              })
+              .slice(0, 20);
           setHistoryList(list);
       } catch (error) {
           console.error("Lỗi tải lịch sử:", error);
-          // Nếu chưa có collection thì để trống
           setHistoryList([]);
       } finally {
           setHistoryLoading(false);
+      }
+  };
+
+  // 👉 LẤY LỊCH SỬ TÍCH LŨY ĐIỂM (CỘNG ĐIỂM ĐỂ LÊN HẠNG)
+  const handleShowRankDetail = async () => {
+      setShowRankDetailModal(true);
+      setRankHistoryLoading(true);
+      try {
+          // Lọc và sắp xếp in-memory để tránh lỗi thiếu Composite Index của Firebase
+          const q = query(
+              collection(db, "point_transactions"), 
+              where("userId", "==", userData.id)
+          );
+          
+          const snapshot = await getDocs(q);
+          const list = snapshot.docs
+              .map(doc => ({ id: doc.id, ...doc.data() } as any))
+              .filter(item => item.type === "plus")
+              .sort((a, b) => {
+                  const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+                  const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
+                  return dateB.getTime() - dateA.getTime();
+              })
+              .slice(0, 20);
+          setRankHistoryList(list);
+      } catch (error) {
+          console.error("Lỗi tải lịch sử tích lũy:", error);
+          setRankHistoryList([]);
+      } finally {
+          setRankHistoryLoading(false);
       }
   };
 
@@ -358,7 +394,7 @@ const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
             if (pointsEarned > 0) {
                 if (orderData.userId) {
                     try {
-                        let userRef = null;
+                        let userRef: any = null;
                         let userDocId = "";
                         
                         const qUser = query(collection(db, "users"), where("phone", "==", orderData.userId));
@@ -1160,7 +1196,11 @@ useEffect(() => {
     <Box className="animate-fade-in pb-10">
       {/* 0. NÚT QUAY LẠI */}
       {onBackToProfile && (
-        <Box className="px-4 pt-4 flex items-center cursor-pointer active:opacity-70" onClick={onBackToProfile}>
+        <Box 
+          className="px-4 flex items-center cursor-pointer active:opacity-70" 
+          onClick={onBackToProfile}
+          style={{ paddingTop: "calc(var(--zaui-safe-area-inset-top, 24px) + 8px)" }}
+        >
           <Icon icon="zi-arrow-left" className="text-gray-800 text-2xl mr-2" />
           <Text.Title size="large" className="font-bold text-gray-800">Quản lý Cửa Hàng</Text.Title>
         </Box>
@@ -1567,7 +1607,7 @@ useEffect(() => {
                   <Box 
                     className="bg-gradient-to-br from-yellow-50 to-yellow-100 p-3 rounded-xl border border-yellow-200 text-center active:opacity-60 cursor-pointer"
                     
-                    onClick={() => setShowRankDetailModal(true)}
+                    onClick={handleShowRankDetail}
                   >
                       <CustomIcon icon="zi-poll-solid" className="text-green-600 mb-1" size={24}/>
                       <Text size="xSmall" className="text-gray-600">Tổng tích lũy</Text>
@@ -1653,26 +1693,59 @@ useEffect(() => {
       </Modal>
 
       {/* 👉 MODAL CHI TIẾT RANK (MỚI) */}
-      <Modal visible={showRankDetailModal} title="Tiến trình lên hạng" onClose={() => setShowRankDetailModal(false)} actions={[{ text: "Đóng", onClick: () => setShowRankDetailModal(false) }]}>
-          <Box p={4} flex flexDirection="column" alignItems="center">
-              <Box className={`p-4 rounded-full mb-4 ${shopRankInfo.color}`}><CustomIcon icon={shopRankInfo.icon as any} size={40} /></Box>
-              <Text.Title size="large" className="text-center">{shopRankInfo.name}</Text.Title>
-              <Text size="small" className="text-gray-500 mb-6 text-center">Hạng hiện tại của Shop</Text>
+      <Modal 
+        visible={showRankDetailModal} 
+        title="Tiến trình lên hạng" 
+        onClose={() => setShowRankDetailModal(false)} 
+        actions={[{ text: "Đóng", onClick: () => setShowRankDetailModal(false) }]}
+      >
+          <Box p={4} flex flexDirection="column" style={{ maxHeight: "75vh", overflowY: "auto" }}>
+              <Box flex flexDirection="column" alignItems="center" className="mb-4">
+                  <Box className={`p-4 rounded-full mb-4 ${shopRankInfo.color}`}><CustomIcon icon={shopRankInfo.icon as any} size={40} /></Box>
+                  <Text.Title size="large" className="text-center">{shopRankInfo.name}</Text.Title>
+                  <Text size="small" className="text-gray-500 mb-6 text-center">Hạng hiện tại của Shop</Text>
 
-              {shopRankInfo.target > 0 ? (
-                  <Box className="w-full">
-                      <Box flex justifyContent="space-between" mb={1}>
-                          <Text size="xSmall" className="text-blue-600 font-bold">Đang có: {userData.rankPoints || 0}</Text>
-                          <Text size="xSmall" className="text-gray-500">Mục tiêu: {shopRankInfo.target}</Text>
+                  {shopRankInfo.target > 0 ? (
+                      <Box className="w-full">
+                          <Box flex justifyContent="space-between" mb={1}>
+                              <Text size="xSmall" className="text-blue-600 font-bold">Đang có: {userData.rankPoints || 0}</Text>
+                              <Text size="xSmall" className="text-gray-500">Mục tiêu: {shopRankInfo.target}</Text>
+                          </Box>
+                          <Progress completed={Math.min(100, ((userData.rankPoints || 0) / shopRankInfo.target) * 100)} maxCompleted={100} className="mb-2"/>
+                          <Box className="bg-blue-50 p-3 rounded-lg text-center mt-4">
+                              <Text size="small">Bạn cần tích lũy thêm <span className="text-red-600 font-bold">{(shopRankInfo.target - (userData.rankPoints || 0)).toLocaleString()} điểm</span> nữa để lên hạng <span className="text-blue-600 font-bold">{shopRankInfo.nextRank}</span></Text>
+                          </Box>
                       </Box>
-                      <Progress completed={Math.min(100, ((userData.rankPoints || 0) / shopRankInfo.target) * 100)} maxCompleted={100} className="mb-2"/>
-                      <Box className="bg-blue-50 p-3 rounded-lg text-center mt-4">
-                          <Text size="small">Bạn cần tích lũy thêm <span className="text-red-600 font-bold">{(shopRankInfo.target - (userData.rankPoints || 0)).toLocaleString()} điểm</span> nữa để lên hạng <span className="text-blue-600 font-bold">{shopRankInfo.nextRank}</span></Text>
+                  ) : (
+                      <Text className="text-green-600 font-bold text-center">Chúc mừng! Bạn đã đạt hạng cao nhất.</Text>
+                  )}
+              </Box>
+
+              <div className="h-[1px] bg-gray-100 w-full my-4"></div>
+
+              <Box className="w-full">
+                  <Text.Title size="small" className="mb-3 text-gray-700 font-bold">Lịch sử tích lũy</Text.Title>
+                  {rankHistoryLoading ? (
+                      <Box flex justifyContent="center" py={4}><Spinner /></Box>
+                  ) : rankHistoryList.length > 0 ? (
+                      <Box className="flex flex-col gap-3">
+                          {rankHistoryList.map((item, idx) => (
+                              <Box key={idx} className="pb-3 border-b border-gray-100 last:border-0 flex justify-between items-center">
+                                  <Box className="flex-1 pr-2">
+                                      <Text size="small" className="font-semibold text-gray-800">{item.description || "Tích điểm lên hạng"}</Text>
+                                      <Text size="xxSmall" className="text-gray-400 mt-0.5 block">{formatDate(item.createdAt)}</Text>
+                                  </Box>
+                                  <Text size="small" className="text-green-600 font-bold flex-shrink-0">+{item.amount?.toLocaleString()} điểm</Text>
+                              </Box>
+                          ))}
                       </Box>
-                  </Box>
-              ) : (
-                  <Text className="text-green-600 font-bold text-center">Chúc mừng! Bạn đã đạt hạng cao nhất.</Text>
-              )}
+                  ) : (
+                      <Box flex flexDirection="column" alignItems="center" py={4} className="text-center">
+                          <CustomIcon icon="zi-clock-2" className="text-gray-300 mb-2" size={32}/>
+                          <Text size="small" className="text-gray-400 italic">Chưa có lịch sử tích lũy điểm nào.</Text>
+                      </Box>
+                  )}
+              </Box>
           </Box>
       </Modal>
 
@@ -2055,7 +2128,7 @@ useEffect(() => {
                                                               {imgUrl ? (
                                                                   <img src={imgUrl} className="w-full h-full object-cover" alt="" />
                                                               ) : (
-                                                                  <Icon icon="zi-image" size={16} className="text-gray-400" />
+                                                                  <Icon icon={"zi-image" as any} size={16} className="text-gray-400" />
                                                               )}
                                                           </Box>
                                                           <Box className="flex-1 min-w-0">
@@ -2083,7 +2156,7 @@ useEffect(() => {
                                                           {singleImg ? (
                                                               <img src={singleImg} className="w-full h-full object-cover" alt="" />
                                                           ) : (
-                                                              <Icon icon="zi-image" size={16} className="text-gray-400" />
+                                                              <Icon icon={"zi-image" as any} size={16} className="text-gray-400" />
                                                           )}
                                                       </Box>
                                                       <Box className="flex-1 min-w-0">
@@ -2226,7 +2299,7 @@ useEffect(() => {
                               {imgUrl ? (
                                 <img src={imgUrl} className="w-full h-full object-cover" alt="" />
                               ) : (
-                                <Icon icon="zi-image" size={16} className="text-gray-400" />
+                                <Icon icon={"zi-image" as any} size={16} className="text-gray-400" />
                               )}
                             </Box>
                             <Box className="flex-1 min-w-0">

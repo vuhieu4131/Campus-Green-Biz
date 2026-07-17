@@ -300,7 +300,7 @@ const SettingsPage: FC = () => {
 
                 // Retroactive notification write
                 if (pointsEarned > 0) {
-                  const expectedContent = `Bạn được cộng +${pointsEarned} điểm xanh từ đơn hàng #${orderCodeStr}.`;
+                  const expectedContent = `Bạn được cộng +${pointsEarned} điểm ưu đãi từ đơn hàng #${orderCodeStr}.`;
                   if (!notifContents.has(expectedContent)) {
                     await addDoc(collection(db, "notifications"), {
                       userId: userId,
@@ -357,7 +357,7 @@ const SettingsPage: FC = () => {
                 }
 
                 // Retroactive notification write
-                const expectedContent = `Bạn được cộng +10 điểm xanh từ việc giới thiệu thành viên ${rName} (${rPhone}) thành công!`;
+                const expectedContent = `Bạn được cộng +10 điểm ưu đãi từ việc giới thiệu thành viên ${rName} (${rPhone}) thành công!`;
                 if (!notifContents.has(expectedContent)) {
                   await addDoc(collection(db, "notifications"), {
                     userId: userId,
@@ -396,7 +396,7 @@ const SettingsPage: FC = () => {
                 }
 
                 // Retroactive notification write
-                const expectedContent = `Bạn được tặng +5 điểm xanh khi nhập mã giới thiệu từ ${refCodeStr}.`;
+                const expectedContent = `Bạn được tặng +5 điểm ưu đãi khi nhập mã giới thiệu từ ${refCodeStr}.`;
                 if (!notifContents.has(expectedContent)) {
                   await addDoc(collection(db, "notifications"), {
                     userId: userId,

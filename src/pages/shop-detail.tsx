@@ -316,6 +316,27 @@ const filteredServices = selectedCategory === 'Tất cả'
 
                   <Box className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
                       <Box flex alignItems="center" className="mb-3">
+                          <Icon icon="zi-user" className="text-green-600 mr-2" />
+                          <Text bold className="text-gray-800">Thông tin quản lý</Text>
+                      </Box>
+                      <Box className="flex flex-col gap-2">
+                          <Box flex alignItems="center">
+                              <Text size="small" className="text-gray-400 w-24 shrink-0">Người quản lý:</Text>
+                              <Text size="small" className="text-gray-700 font-medium">
+                                  {shop.managerName || "Chưa cập nhật"}
+                              </Text>
+                          </Box>
+                          <Box flex alignItems="center">
+                              <Text size="small" className="text-gray-400 w-24 shrink-0">Số điện thoại:</Text>
+                              <Text size="small" className="text-gray-700 font-medium">
+                                  {shop.phone || "Chưa cập nhật"}
+                              </Text>
+                          </Box>
+                      </Box>
+                  </Box>
+
+                  <Box className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                      <Box flex alignItems="center" className="mb-3">
                           <Icon icon="zi-location" className="text-red-500 mr-2" />
                           <Text bold className="text-gray-800">Địa chỉ cửa hàng</Text>
                       </Box>

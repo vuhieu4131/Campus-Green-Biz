@@ -110,27 +110,53 @@ export const RegisterForm: React.FunctionComponent<RegisterProps> = ({ userInfo,
         return;
       }
 
-      // --- CẤU HÌNH ĐIỂM SỐ (Đã sửa theo yêu cầu) ---
-      const POINT_NEW_USER = 5;  // Người đăng ký mới nhận 5 điểm
-      const POINT_REFERRER = 10; // Người giới thiệu nhận 10 điểm
-
+      // --- CẤU HÌNH ĐIỂM SỐ CẬP NHẬT ---
+      let newUserPoints = 5;
+      let referrerPoints = 10;
       let referrerIdToUpdate = ""; 
+      let referrerType: "user" | "shop" = "user";
 
       // 2. Tìm ID của người giới thiệu (nếu có mã)
-      if (role === "member" && cleanReferralCode) {
-         // Query tìm người có phone == mã giới thiệu
-         const qRef = query(collection(db, "users"), where("phone", "==", cleanReferralCode));
-         const snapRef = await getDocs(qRef);
-         if (!snapRef.empty) {
-             const referrerDoc = snapRef.docs[0];
-             referrerIdToUpdate = referrerDoc.id; // Lấy ID document để update
-         }
+      if (cleanReferralCode) {
+          const qRefUser = query(collection(db, "users"), where("phone", "==", cleanReferralCode));
+          const snapRefUser = await getDocs(qRefUser);
+          if (!snapRefUser.empty) {
+              const referrerDoc = snapRefUser.docs[0];
+              referrerIdToUpdate = referrerDoc.id; // Lấy ID document để update
+              referrerType = "user";
+          } else {
+              const qRefShop = query(collection(db, "shops"), where("phone", "==", cleanReferralCode));
+              const snapRefShop = await getDocs(qRefShop);
+              if (!snapRefShop.empty) {
+                  const referrerDoc = snapRefShop.docs[0];
+                  referrerIdToUpdate = referrerDoc.id; // Lấy ID document để update
+                  referrerType = "shop";
+              }
+          }
+      }
+
+      // Xác định điểm thưởng giới thiệu dựa trên vai trò
+      if (referrerIdToUpdate) {
+          if (role === "provider") {
+              // Giới thiệu Shop: người giới thiệu +50đ, shop mới +10đ
+              newUserPoints = 10;
+              referrerPoints = 50;
+          } else {
+              // Giới thiệu User: người giới thiệu +10đ, user mới +5đ
+              newUserPoints = 5;
+              referrerPoints = 10;
+          }
+      } else {
+          // Mặc định đăng ký mới nhận 5 điểm
+          newUserPoints = 5;
+          referrerPoints = 0;
       }
 
       // 3. Tạo tài khoản cho người mới
       // QUAN TRỌNG: Sử dụng cleanPhone làm Document ID thay vì userInfo.id
       // Điều này giúp tránh bị ghi đè khi test nhiều user trên cùng 1 máy
-      await setDoc(doc(db, "users", cleanPhone), {
+      const collectionName = role === "provider" ? "shops" : "users";
+      await setDoc(doc(db, collectionName, cleanPhone), {
         id: cleanPhone,       // ID document là SĐT
         zaloId: userInfo.id,  // Lưu thêm Zalo ID để sau này có thể mapping
         name: fullName, 
@@ -138,26 +164,58 @@ export const RegisterForm: React.FunctionComponent<RegisterProps> = ({ userInfo,
         phone: cleanPhone,
         password: password,
         role: role, 
-        referrer: role === "member" ? cleanReferralCode : "",
+        referrer: cleanReferralCode || "",
         referrerName: referrerName || "", 
         status: role === "provider" ? "pending" : "active",
         
-        // Luôn cộng 5 điểm cho người mới (dù có hay không có mã giới thiệu)
-        rankPoints: POINT_NEW_USER,      
-        spendingPoints: POINT_NEW_USER,  
+        rankPoints: newUserPoints,      
+        spendingPoints: newUserPoints,  
         
         rank: "Thành viên mới",
         createdAt: serverTimestamp(),
       });
 
+      // Bổ sung ghi giao dịch tích lũy điểm và thông báo cho người mới đăng ký
+      if (newUserPoints > 0) {
+          await addDoc(collection(db, "point_transactions"), {
+              userId: cleanPhone,
+              type: "plus",
+              amount: newUserPoints,
+              description: cleanReferralCode ? `Thưởng nhập mã giới thiệu từ: ${cleanReferralCode}` : "Thưởng đăng ký thành viên mới",
+              walletType: "main",
+              createdAt: serverTimestamp()
+          });
+
+          await addDoc(collection(db, "notifications"), {
+              userId: cleanPhone,
+              title: "Thưởng thành viên mới",
+              content: cleanReferralCode 
+                  ? `Bạn được tặng +${newUserPoints} điểm ưu đãi khi nhập mã giới thiệu từ ${cleanReferralCode}.`
+                  : `Bạn được tặng +${newUserPoints} điểm ưu đãi khi đăng ký thành viên mới.`,
+              type: "success",
+              createdAt: serverTimestamp(),
+              isRead: false
+          });
+      }
+
       // 4. Cộng điểm cho người giới thiệu (nếu tìm thấy)
       if (referrerIdToUpdate) {
-          const referrerRef = doc(db, "users", referrerIdToUpdate);
+          const referrerRef = doc(db, referrerType === "shop" ? "shops" : "users", referrerIdToUpdate);
           await updateDoc(referrerRef, {
-              rankPoints: increment(POINT_REFERRER),     
-              spendingPoints: increment(POINT_REFERRER)  
+              rankPoints: increment(referrerPoints),     
+              spendingPoints: increment(referrerPoints)  
           });
-          console.log(`Đã cộng ${POINT_REFERRER} điểm cho người giới thiệu (ID: ${referrerIdToUpdate})`);
+          
+          await addDoc(collection(db, "point_transactions"), {
+              userId: referrerIdToUpdate,
+              type: "plus",
+              amount: referrerPoints,
+              description: `Thưởng giới thiệu thành viên mới: ${fullName} (${cleanPhone})`,
+              walletType: "main",
+              createdAt: serverTimestamp()
+          });
+
+          console.log(`Đã cộng ${referrerPoints} điểm cho người giới thiệu (ID: ${referrerIdToUpdate})`);
       }
 
       openSnackbar({ text: `Đăng ký thành công! Bạn nhận được ${POINT_NEW_USER} điểm thưởng.`, type: "success" });
@@ -230,7 +288,7 @@ export const RegisterForm: React.FunctionComponent<RegisterProps> = ({ userInfo,
                 />
             </Box>
 
-            {role === "member" && (
+            {(role === "member" || role === "provider") && (
               <Box mb={4}>
                 <Box flex justifyContent="space-between" alignItems="center">
                     <Text size="small" className="mb-1 font-medium">Mã giới thiệu (Không bắt buộc)</Text>
@@ -262,7 +320,7 @@ export const RegisterForm: React.FunctionComponent<RegisterProps> = ({ userInfo,
                     </Text>
                 )}
                 <Text size="xxSmall" className="text-gray mt-2 italic">
-                   *Bạn nhận ngay 5 điểm khi đăng ký. Nếu nhập mã, người giới thiệu bạn sẽ nhận được 10 điểm.
+                   *Nhận điểm thưởng khi đăng ký thành công: Giới thiệu User mới (+10đ cho người giới thiệu, +5đ cho người được giới thiệu). Giới thiệu Shop mới (+50đ cho người giới thiệu, +10đ cho người được giới thiệu).
                 </Text>
               </Box>
             )}

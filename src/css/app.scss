@@ -195,3 +195,12 @@ body {
     }
   }
 }
+
+/* Ẩn toàn bộ thanh cuộn dọc/ngang trên toàn bộ ứng dụng */
+* {
+  -ms-overflow-style: none !important; /* IE and Edge */
+  scrollbar-width: none !important;    /* Firefox */
+}
+*::-webkit-scrollbar {
+  display: none !important;            /* Safari and Chrome */
+}

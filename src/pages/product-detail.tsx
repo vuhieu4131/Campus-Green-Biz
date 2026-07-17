@@ -217,7 +217,7 @@ const ProductDetailPage: FC = () => {
     
     const productTitle = product.title || product.name || "Sản phẩm Green Biz";
     const productPrice = Number(product.price || 0).toLocaleString('vi-VN') + 'đ';
-    const productPoints = product.points ? ` (+${product.points} Điểm Xanh)` : "";
+    const productPoints = product.points ? ` (+${product.points} Điểm ưu đãi)` : "";
     const thumbImage = productImages[0] || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png";
     const shareLink = `https://zalo.me/s/2196212719506893777/detail/${product.id}`;
 
@@ -252,7 +252,10 @@ const ProductDetailPage: FC = () => {
   return (
     <Page className="bg-gray-50 flex flex-col h-screen relative">
       {/* Header */}
-      <Box className="flex items-center px-4 py-3 bg-white z-50 shadow-sm border-b border-gray-100">
+      <Box 
+        className="flex items-center px-4 pb-3 bg-white z-50 shadow-sm border-b border-gray-100"
+        style={{ paddingTop: "calc(var(--zaui-safe-area-inset-top, 24px) + 8px)" }}
+      >
         <CustomIcon icon="zi-arrow-left" className="text-2xl mr-4 cursor-pointer text-gray-800" onClick={() => navigate(-1)} />
         <Text.Title className="font-bold text-[17px] text-gray-800 flex-1 truncate">
           {product.title || product.name}
@@ -284,7 +287,7 @@ const ProductDetailPage: FC = () => {
           {product.points && (
             <Box className="absolute top-4 right-4 bg-gradient-to-r from-yellow-500 to-amber-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md flex items-center space-x-1 z-10">
               <CustomIcon icon="zi-star-solid" className="text-yellow-200" size={14} />
-              <span>+{product.points} Điểm Xanh</span>
+              <span>+{product.points} Điểm ưu đãi</span>
             </Box>
           )}
           {/* Share Button */}

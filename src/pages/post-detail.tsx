@@ -35,7 +35,10 @@ const PostDetailPage: FC = () => {
   return (
     <Page className="bg-gray-50 flex flex-col h-screen">
       {/* Header */}
-      <Box className="flex items-center px-4 py-3 bg-white z-50 shadow-sm border-b border-gray-100">
+      <Box 
+        className="flex items-center px-4 pb-3 bg-white z-50 shadow-sm border-b border-gray-100"
+        style={{ paddingTop: "calc(var(--zaui-safe-area-inset-top, 24px) + 8px)" }}
+      >
         <CustomIcon icon="zi-arrow-left" className="text-2xl mr-4 cursor-pointer" onClick={() => navigate(-1)} />
         <Text.Title className="font-bold text-[17px]">Bài viết</Text.Title>
       </Box>
