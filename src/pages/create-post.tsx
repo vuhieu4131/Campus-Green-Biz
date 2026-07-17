@@ -199,6 +199,7 @@ const CreatePostPage: FC = () => {
           privacy: privacy,
           createdAt: serverTimestamp(),
           likesCount: 0,
+          likedBy: [],
           commentsCount: 0,
           status: "pending",
           location: location || null,

@@ -199,6 +199,49 @@ export const ProviderView: FC<ProviderProps> = ({ userData, onBackToProfile, onL
   const [historyLoading, setHistoryLoading] = useState(false);
   const [rankHistoryList, setRankHistoryList] = useState<any[]>([]);
   const [rankHistoryLoading, setRankHistoryLoading] = useState(false);
+  const [showShopWalletHistoryModal, setShowShopWalletHistoryModal] = useState(false);
+  const [shopActiveWalletTab, setShopActiveWalletTab] = useState<'rank' | 'promo' | 'interaction'>('rank');
+  const [shopWalletHistoryList, setShopWalletHistoryList] = useState<any[]>([]);
+  const [loadingShopWalletHistory, setLoadingShopWalletHistory] = useState(false);
+  const [eligiblePoints, setEligiblePoints] = useState(0);
+  const [activeShopTab, setActiveShopTab] = useState<'rank' | 'promo' | 'interaction'>('rank');
+
+  useEffect(() => {
+    const fetchShopEligiblePoints = async () => {
+      if (!userData?.id) return;
+      try {
+        const q = query(
+          collection(db, "point_transactions"),
+          where("userId", "==", userData.id),
+          where("walletType", "==", "interaction")
+        );
+        const snap = await getDocs(q);
+        const now = new Date();
+        let plusSum = 0;
+        let minusSum = 0;
+        
+        snap.forEach(d => {
+          const tx = d.data();
+          const isPlus = tx.type === "plus";
+          if (isPlus) {
+            const created = tx.createdAt?.toDate ? tx.createdAt.toDate() : (tx.createdAt?.seconds ? new Date(tx.createdAt.seconds * 1000) : null);
+            if (created) {
+              const diffInHours = (now.getTime() - created.getTime()) / 3600000;
+              if (diffInHours >= 48) {
+                plusSum += tx.amount || 0;
+              }
+            }
+          } else {
+            minusSum += tx.amount || 0;
+          }
+        });
+        setEligiblePoints(Math.max(0, plusSum - minusSum));
+      } catch (e) {
+        console.error("Lỗi tính điểm khả dụng shop:", e);
+      }
+    };
+    fetchShopEligiblePoints();
+  }, [userData?.id]);
 
   useEffect(() => {
       setEditName(userData.name || "");
@@ -322,6 +365,44 @@ export const ProviderView: FC<ProviderProps> = ({ userData, onBackToProfile, onL
           setRankHistoryList([]);
       } finally {
           setRankHistoryLoading(false);
+      }
+  };
+
+  const handleOpenShopWalletHistory = async (tab: 'rank' | 'promo' | 'interaction') => {
+      setShopActiveWalletTab(tab);
+      setShowShopWalletHistoryModal(true);
+      setLoadingShopWalletHistory(true);
+      try {
+          const q = query(
+              collection(db, "point_transactions"), 
+              where("userId", "==", userData.id)
+          );
+          const snapshot = await getDocs(q);
+          let docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+          
+          docs = docs.filter((tx: any) => {
+              const type = tx.walletType || 'main';
+              if (tab === 'rank') {
+                  return type === 'main' || type === 'all';
+              } else if (tab === 'promo') {
+                  return type === 'promo' || type === 'main' || type === 'all';
+              } else {
+                  return type === 'interaction';
+              }
+          });
+          
+          docs.sort((a: any, b: any) => {
+              const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
+              const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
+              return timeB - timeA;
+          });
+          
+          setShopWalletHistoryList(docs);
+      } catch (error) {
+          console.error("Lỗi tải lịch sử ví shop:", error);
+          setShopWalletHistoryList([]);
+      } finally {
+          setLoadingShopWalletHistory(false);
       }
   };
 
@@ -1600,21 +1681,165 @@ useEffect(() => {
 
       {/* MODAL THÔNG TIN SHOP & VÍ ĐIỂM */}
       <Modal visible={showShopInfoModal} title="Thông tin Shop" onClose={() => setShowShopInfoModal(false)}>
-          <Box p={4}>
+          <Box p={4} className="max-h-[85vh] overflow-y-auto hide-scroll">
               <Text.Title size="small" className="mb-3 text-gray-700">Ví điểm thưởng</Text.Title>
-              <Box className="mb-6">
-                  {/* TRẢI RỘNG KHỐI TỔNG TÍCH LŨY */}
+              <Box flex className="space-x-2 mb-4">
+                  {/* TỔNG TÍCH LŨY */}
                   <Box 
-                    className="bg-gradient-to-br from-yellow-50 to-yellow-100 p-3 rounded-xl border border-yellow-200 text-center active:opacity-60 cursor-pointer"
-                    
-                    onClick={handleShowRankDetail}
+                    className={`flex-1 p-2.5 rounded-xl border text-center cursor-pointer flex flex-col items-center justify-center transition-all ${
+                      activeShopTab === 'rank' 
+                        ? 'border-yellow-400 bg-yellow-50 text-yellow-600 font-semibold' 
+                        : 'border-gray-200 bg-white text-gray-500'
+                    }`}
+                    onClick={() => setActiveShopTab('rank')}
                   >
-                      <CustomIcon icon="zi-poll-solid" className="text-green-600 mb-1" size={24}/>
-                      <Text size="xSmall" className="text-gray-600">Tổng tích lũy</Text>
-                      <Text size="large" bold className="text-green-700">{(userData.rankPoints || 0).toLocaleString()}</Text>
-                      <Text size="xxxxSmall" className="text-green-600 italic mt-1 font-bold">Chạm để xem hạng và quyền lợi</Text>
+                      <CustomIcon icon="zi-poll-solid" className={activeShopTab === 'rank' ? 'text-yellow-600 mb-1' : 'text-gray-400 mb-1'} size={20}/>
+                      <Text className="text-[10px] font-medium leading-none">Ví Hạng</Text>
+                      <Text size="normal" bold className={`mt-1 ${activeShopTab === 'rank' ? 'text-yellow-700' : 'text-gray-800'}`}>{(userData.rankPoints || 0).toLocaleString()}</Text>
+                  </Box>
+ 
+                  {/* VÍ ƯU ĐÃI SHOP */}
+                  <Box 
+                    className={`flex-1 p-2.5 rounded-xl border text-center cursor-pointer flex flex-col items-center justify-center transition-all ${
+                      activeShopTab === 'promo' 
+                        ? 'border-blue-400 bg-blue-50 text-blue-600 font-semibold' 
+                        : 'border-gray-200 bg-white text-gray-500'
+                    }`}
+                    onClick={() => setActiveShopTab('promo')}
+                  >
+                      <CustomIcon icon="zi-star-solid" className={activeShopTab === 'promo' ? 'text-blue-600 mb-1' : 'text-gray-400 mb-1'} size={20}/>
+                      <Text className="text-[10px] font-medium leading-none">Ví Ưu Đãi</Text>
+                      <Text size="normal" bold className={`mt-1 ${activeShopTab === 'promo' ? 'text-blue-700' : 'text-gray-800'}`}>{(userData.spendingPoints || 0).toLocaleString()}</Text>
+                  </Box>
+                  
+                  {/* VÍ TƯƠNG TÁC SHOP */}
+                  <Box 
+                    className={`flex-1 p-2.5 rounded-xl border text-center cursor-pointer flex flex-col items-center justify-center transition-all ${
+                      activeShopTab === 'interaction' 
+                        ? 'border-[#288F4E] bg-[#288F4E]/10 text-[#288F4E] font-semibold' 
+                        : 'border-gray-200 bg-white text-gray-500'
+                    }`}
+                    onClick={() => setActiveShopTab('interaction')}
+                  >
+                      <CustomIcon icon="zi-chat-solid" className={activeShopTab === 'interaction' ? 'text-[#288F4E] mb-1' : 'text-gray-400 mb-1'} size={20}/>
+                      <Text className="text-[10px] font-medium leading-none">Ví Tương Tác</Text>
+                      <Text size="normal" bold className={`mt-1 ${activeShopTab === 'interaction' ? 'text-green-800' : 'text-gray-800'}`}>{(userData.interactionPoints || 0).toLocaleString()}</Text>
                   </Box>
               </Box>
+
+              {/* Card Content for activeShopTab */}
+              {activeShopTab === 'rank' && (
+                <Box className="bg-gradient-to-br from-yellow-500 to-amber-600 rounded-2xl p-4 text-white shadow-sm relative overflow-hidden mb-5">
+                  <Box flex justifyContent="space-between" alignItems="flex-start" className="mb-4">
+                    <Box className="cursor-pointer active:opacity-75" onClick={handleShowRankDetail}>
+                      <Text size="xxSmall" className="opacity-80 uppercase tracking-wider">Hạng Cửa Hàng</Text>
+                      <Box flex alignItems="center" className="mt-1">
+                        <CustomIcon icon={shopRankInfo.icon as any} size={16} className="mr-1 text-yellow-300" />
+                        <Text bold size="normal" className="text-white">{shopRankInfo.name}</Text>
+                      </Box>
+                    </Box>
+                    <Box className="text-right">
+                      <Text size="xxSmall" className="opacity-80">Điểm Tích Lũy</Text>
+                      <Text bold size="large" className="text-white mt-1 block">{(userData.rankPoints || 0).toLocaleString()}</Text>
+                    </Box>
+                  </Box>
+                  
+                  {shopRankInfo.target > 0 ? (
+                    <Box className="mb-3">
+                      <Box className="w-full h-1 bg-white/20 rounded-full overflow-hidden">
+                        <Box className="h-full bg-white rounded-full" style={{ width: `${Math.min(100, ((userData.rankPoints || 0) / shopRankInfo.target) * 100)}%` }} />
+                      </Box>
+                      <Box flex justifyContent="space-between" className="mt-1 opacity-80 text-[9px]">
+                        <span>0</span>
+                        <span>Mục tiêu: {shopRankInfo.target} điểm</span>
+                      </Box>
+                    </Box>
+                  ) : (
+                    <Text size="xxSmall" className="text-yellow-200 font-bold block mb-3">Đã đạt hạng cao nhất</Text>
+                  )}
+
+                  <Box flex justifyContent="space-between" alignItems="center" className="border-t border-white/20 pt-2.5 mt-1">
+                    <Text size="xxxxSmall" className="italic opacity-85">* Điểm dùng để xếp hạng cửa hàng trên hệ thống.</Text>
+                    <Box 
+                      flex 
+                      alignItems="center" 
+                      className="cursor-pointer active:opacity-75 text-[10px] font-bold bg-white/10 px-2.5 py-0.5 rounded-full border border-white/10"
+                      onClick={handleShowRankDetail}
+                    >
+                      <Icon icon="zi-poll" className="mr-1" size={10} />
+                      <span>Xem tiến trình</span>
+                    </Box>
+                  </Box>
+                </Box>
+              )}
+
+              {activeShopTab === 'promo' && (
+                <Box className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-4 text-white shadow-sm relative overflow-hidden mb-5">
+                  <Box flex justifyContent="space-between" alignItems="flex-start" className="mb-4">
+                    <Box>
+                      <Text size="xxSmall" className="opacity-80 uppercase tracking-wider">Ưu Đãi Cửa Hàng</Text>
+                      <Box flex alignItems="center" className="mt-1">
+                        <Icon icon="zi-star" size={16} className="mr-1 text-blue-200" />
+                        <Text bold size="normal" className="text-white">Ví Ưu Đãi</Text>
+                      </Box>
+                    </Box>
+                    <Box className="text-right">
+                      <Text size="xxSmall" className="opacity-80">Số Dư Hiện Tại</Text>
+                      <Text bold size="large" className="text-white mt-1 block">{(userData.spendingPoints || 0).toLocaleString()}</Text>
+                    </Box>
+                  </Box>
+
+                  <Box flex justifyContent="space-between" alignItems="center" className="border-t border-white/20 pt-2.5 mt-4">
+                    <Text size="xxxxSmall" className="italic opacity-85">* Điểm ưu đãi dùng để tạo voucher, chiến dịch quảng cáo.</Text>
+                    <Box 
+                      flex 
+                      alignItems="center" 
+                      className="cursor-pointer active:opacity-75 text-[10px] font-bold bg-white/10 px-2.5 py-0.5 rounded-full border border-white/10"
+                      onClick={() => handleOpenShopWalletHistory('promo')}
+                    >
+                      <Icon icon={"zi-clock" as any} className="mr-1" size={10} />
+                      <span>Xem lịch sử</span>
+                    </Box>
+                  </Box>
+                </Box>
+              )}
+
+              {activeShopTab === 'interaction' && (
+                <Box className="bg-gradient-to-br from-[#14502e] to-[#288F4E] rounded-2xl p-4 text-white shadow-sm relative overflow-hidden mb-5">
+                  <Box flex justifyContent="space-between" alignItems="flex-start" className="mb-4">
+                    <Box>
+                      <Text size="xxSmall" className="opacity-80 uppercase tracking-wider">Tích Lũy Tương Tác</Text>
+                      <Box flex alignItems="center" className="mt-1">
+                        <Icon icon="zi-chat" size={16} className="mr-1 text-emerald-200" />
+                        <Text bold size="normal" className="text-white">Ví Tương Tác</Text>
+                      </Box>
+                    </Box>
+                    <Box className="text-right flex space-x-3 items-center">
+                      <Box>
+                        <Text size="xxxxSmall" className="opacity-75 block text-right">Tổng điểm</Text>
+                        <Text bold size="normal" className="text-white mt-0.5 block text-right">{(userData.interactionPoints || 0).toLocaleString()}</Text>
+                      </Box>
+                      <Box className="border-l border-white/20 pl-3">
+                        <Text size="xxxxSmall" className="opacity-90 block text-right font-bold text-yellow-300">{"Khả dụng (>48h)"}</Text>
+                        <Text bold size="normal" className="text-yellow-300 mt-0.5 block text-right">{eligiblePoints.toLocaleString()}</Text>
+                      </Box>
+                    </Box>
+                  </Box>
+
+                  <Box flex justifyContent="space-between" alignItems="center" className="border-t border-white/20 pt-2.5 mt-4">
+                    <Text size="xxxxSmall" className="italic opacity-85">* Điểm khả dụng là điểm đã tích lũy đủ 48 giờ.</Text>
+                    <Box 
+                      flex 
+                      alignItems="center" 
+                      className="cursor-pointer active:opacity-75 text-[10px] font-bold bg-white/10 px-2.5 py-0.5 rounded-full border border-white/10"
+                      onClick={() => handleOpenShopWalletHistory('interaction')}
+                    >
+                      <Icon icon={"zi-clock" as any} className="mr-1" size={10} />
+                      <span>Xem lịch sử</span>
+                    </Box>
+                  </Box>
+                </Box>
+              )}
 
               <div className="h-[1px] bg-gray-200 w-full mb-4"></div>
 
@@ -1768,6 +1993,51 @@ useEffect(() => {
                   <Box flex flexDirection="column" alignItems="center" py={4}>
                       <CustomIcon icon="zi-clock-2" className="text-gray-300 mb-2" size={40}/>
                       <Text size="small" className="text-gray-400">Chưa có lịch sử trừ điểm nào.</Text>
+                  </Box>
+              )}
+          </Box>
+      </Modal>
+
+      {/* MODAL LỊCH SỬ VÍ SHOP (ƯU ĐÃI & TƯƠNG TÁC) */}
+      <Modal 
+        visible={showShopWalletHistoryModal} 
+        title={
+          shopActiveWalletTab === 'promo' 
+            ? "Lịch sử Ví Ưu Đãi" 
+            : shopActiveWalletTab === 'interaction' 
+            ? "Lịch sử Ví Tương Tác" 
+            : "Lịch sử Ví Hạng"
+        } 
+        onClose={() => setShowShopWalletHistoryModal(false)}
+        actions={[{ text: "Đóng", onClick: () => setShowShopWalletHistoryModal(false) }]}
+      >
+          <Box p={4} style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+              {loadingShopWalletHistory ? (
+                  <Box flex justifyContent="center"><Spinner /></Box>
+              ) : shopWalletHistoryList.length > 0 ? (
+                  <Box className="flex flex-col gap-3">
+                      {shopWalletHistoryList.map((item, idx) => {
+                          const isPlus = item.type === 'plus';
+                          return (
+                              <Box key={idx} className="pb-3 border-b border-gray-100 last:border-0 flex justify-between items-center">
+                                  <Box className="flex-1 pr-2">
+                                      <Text size="small" className="font-semibold text-gray-800">{item.description || "Giao dịch điểm"}</Text>
+                                      <Text size="xxSmall" className="text-gray-400 mt-0.5 block">{formatDate(item.createdAt)}</Text>
+                                  </Box>
+                                  <Text 
+                                      size="small" 
+                                      className={`font-bold flex-shrink-0 ${isPlus ? "text-[#288F4E]" : "text-red-550"}`}
+                                  >
+                                      {isPlus ? "+" : "-"}{item.amount?.toLocaleString()} điểm
+                                  </Text>
+                              </Box>
+                          );
+                      })}
+                  </Box>
+              ) : (
+                  <Box flex flexDirection="column" alignItems="center" py={4} className="text-center">
+                      <CustomIcon icon="zi-clock-2" className="text-gray-300 mb-2" size={40}/>
+                      <Text size="small" className="text-gray-400 italic">Chưa có lịch sử giao dịch nào.</Text>
                   </Box>
               )}
           </Box>

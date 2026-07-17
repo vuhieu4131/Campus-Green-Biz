@@ -4,7 +4,7 @@ import { Box, Text, Avatar, Icon, Sheet, Input, useSnackbar, useNavigate } from 
 import { ImageGrid } from "./image-grid";
 import { RawPost } from "../utils/edgeRanker";
 import { auth, db } from "../firebase";
-import { doc, updateDoc, increment, collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, deleteDoc, arrayUnion, arrayRemove, getDoc } from "firebase/firestore";
+import { doc, updateDoc, increment, collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, deleteDoc, arrayUnion, arrayRemove, getDoc, getDocs, where } from "firebase/firestore";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { AuthOverlay } from "../pages/auth";
 
@@ -37,6 +37,117 @@ const awardReputationPoints = async (userId: string, amount: number, description
   }
 };
 
+const awardInteractionPoints = async (userId: string, amount: number, description: string, postId?: string, actionType?: string) => {
+  try {
+    let accountRef = doc(db, "users", userId);
+    let accountSnap = await getDoc(accountRef);
+    
+    if (!accountSnap.exists()) {
+      accountRef = doc(db, "shops", userId);
+      accountSnap = await getDoc(accountRef);
+    }
+    
+    if (accountSnap.exists()) {
+      const currentPoints = accountSnap.data().interactionPoints || 0;
+      await updateDoc(accountRef, {
+        interactionPoints: currentPoints + amount
+      });
+      
+      await addDoc(collection(db, "point_transactions"), {
+        userId: userId,
+        type: "plus",
+        amount: amount,
+        description: description,
+        walletType: "interaction",
+        postId: postId || "",
+        actionType: actionType || "",
+        createdAt: serverTimestamp()
+      });
+
+      // Gửi thông báo đến người nhận
+      await addDoc(collection(db, "notifications"), {
+        userId: userId,
+        title: "Tích lũy tương tác mới 🎉",
+        content: `${description}. Bạn được cộng +${amount} điểm tương tác vào Ví Tương Tác.`,
+        isRead: false,
+        type: "interaction_points_plus",
+        createdAt: serverTimestamp()
+      });
+    }
+  } catch (err) {
+    console.error("Lỗi cộng điểm tương tác:", err);
+  }
+};
+
+const deductInteractionPoints = async (userId: string, amount: number, description: string, postId?: string, actionType?: string) => {
+  try {
+    let accountRef = doc(db, "users", userId);
+    let accountSnap = await getDoc(accountRef);
+    
+    if (!accountSnap.exists()) {
+      accountRef = doc(db, "shops", userId);
+      accountSnap = await getDoc(accountRef);
+    }
+    
+    if (accountSnap.exists()) {
+      const currentPoints = accountSnap.data().interactionPoints || 0;
+      await updateDoc(accountRef, {
+        interactionPoints: Math.max(0, currentPoints - amount)
+      });
+      
+      await addDoc(collection(db, "point_transactions"), {
+        userId: userId,
+        type: "minus",
+        amount: amount,
+        description: description,
+        walletType: "interaction",
+        postId: postId || "",
+        actionType: actionType || "",
+        createdAt: serverTimestamp()
+      });
+
+      // Gửi thông báo đến người nhận
+      await addDoc(collection(db, "notifications"), {
+        userId: userId,
+        title: "Khấu trừ điểm tương tác ⚠️",
+        content: `${description}. Bạn bị trừ -${amount} điểm tương tác khỏi Ví Tương Tác.`,
+        isRead: false,
+        type: "interaction_points_minus",
+        createdAt: serverTimestamp()
+      });
+    }
+  } catch (err) {
+    console.error("Lỗi trừ điểm tương tác:", err);
+  }
+};
+
+const checkDailyPointsForAction = async (userId: string, actionType: string, cap: number) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const q = query(
+      collection(db, "point_transactions"),
+      where("userId", "==", userId),
+      where("actionType", "==", actionType),
+      where("type", "==", "plus")
+    );
+    const snap = await getDocs(q);
+    let sum = 0;
+    snap.forEach(d => {
+      const txData = d.data();
+      const created = txData.createdAt?.toDate ? txData.createdAt.toDate() : (txData.createdAt?.seconds ? new Date(txData.createdAt.seconds * 1000) : null);
+      if (created && created >= today) {
+        sum += txData.amount || 0;
+      }
+    });
+    return sum >= cap;
+  } catch (e) {
+    console.error("Lỗi kiểm tra giới hạn điểm ngày:", e);
+    return false;
+  }
+};
+
 interface PostItemProps {
   data: RawPost;
   isDetailView?: boolean;
@@ -58,6 +169,23 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
   const [likesCount, setLikesCount] = useState(data.likesCount || 0);
   const [commentsCount, setCommentsCount] = useState(data.commentsCount || 0);
   const [sharesCount, setSharesCount] = useState(data.sharesCount || 0);
+
+  // Sync state when props or auth changes
+  React.useEffect(() => {
+    setLiked(data.likedBy?.includes(currentUser?.uid || "") || false);
+  }, [data.likedBy, currentUser]);
+
+  React.useEffect(() => {
+    setLikesCount(data.likesCount || 0);
+  }, [data.likesCount]);
+
+  React.useEffect(() => {
+    setCommentsCount(data.commentsCount || 0);
+  }, [data.commentsCount]);
+
+  React.useEffect(() => {
+    setSharesCount(data.sharesCount || 0);
+  }, [data.sharesCount]);
 
   // States
   const [showImageViewer, setShowImageViewer] = useState(false);
@@ -219,15 +347,61 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
 
     try {
       const postRef = doc(db, "posts", data.id);
-      // Giả lập lưu like: trong thực tế sẽ dùng arrayUnion hoặc transaction
       await updateDoc(postRef, {
-        likesCount: increment(newLiked ? 1 : -1)
+        likesCount: increment(newLiked ? 1 : -1),
+        likedBy: newLiked ? arrayUnion(currentUser.uid) : arrayRemove(currentUser.uid)
       });
       if (newLiked) {
-        await awardReputationPoints(currentUser.uid, 2, "Thưởng uy tín: Thích bài viết");
+        // Tích điểm tương tác (Thích bài viết): +1 điểm
+        // Kiểm tra giới hạn 30 điểm/ngày cho người thích
+        const isLikerCapped = await checkDailyPointsForAction(currentUser.uid, "like", 30);
+        if (!isLikerCapped) {
+          await awardInteractionPoints(currentUser.uid, 1, "Thưởng tương tác: Thích bài viết", data.id, "like");
+        }
+        // Kiểm tra giới hạn 30 điểm/ngày cho tác giả nhận like
+        if (data.authorId && data.authorId !== currentUser.uid) {
+          const isAuthorCapped = await checkDailyPointsForAction(data.authorId, "received_like", 30);
+          if (!isAuthorCapped) {
+            await awardInteractionPoints(data.authorId, 1, `Điểm tương tác: Bài viết được thích bởi ${currentUser.displayName || "Thành viên"}`, data.id, "received_like");
+          }
+        }
+      } else {
+        // Bỏ thích trước 48 giờ thì trừ 1 điểm cho mỗi người
+        try {
+          const qTx = query(
+            collection(db, "point_transactions"),
+            where("userId", "==", currentUser.uid),
+            where("postId", "==", data.id),
+            where("actionType", "==", "like"),
+            where("type", "==", "plus")
+          );
+          const txSnap = await getDocs(qTx);
+          if (!txSnap.empty) {
+            let txDocs = txSnap.docs.map(d => d.data());
+            txDocs.sort((a: any, b: any) => {
+              const tA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
+              const tB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
+              return tB - tA;
+            });
+            const txTime = txDocs[0].createdAt?.toDate ? txDocs[0].createdAt.toDate() : (txDocs[0].createdAt?.seconds ? new Date(txDocs[0].createdAt.seconds * 1000) : null);
+            if (txTime) {
+              const now = new Date();
+              const diffInHours = (now.getTime() - txTime.getTime()) / 3600000;
+              if (diffInHours < 48) {
+                // Trừ điểm tương tác
+                await deductInteractionPoints(currentUser.uid, 1, "Trừ điểm: Bỏ thích bài viết trước 48h", data.id, "unlike");
+                if (data.authorId && data.authorId !== currentUser.uid) {
+                  await deductInteractionPoints(data.authorId, 1, `Trừ điểm: Bài viết bị bỏ thích bởi ${currentUser.displayName || "Thành viên"} trước 48h`, data.id, "received_unlike");
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.error("Lỗi khi kiểm tra trừ điểm bỏ like:", err);
+        }
       }
     } catch (e) {
-      // Revert if error
+      // Revert nếu lỗi
       setLiked(!newLiked);
       setLikesCount(prev => !newLiked ? prev + 1 : prev - 1);
     }
@@ -242,10 +416,44 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
     if (!commentText.trim()) return;
 
     try {
+      let profileName = "Người dùng";
+      let profileAvatar = "https://i.pravatar.cc/150?img=11";
+
+      const userRef = doc(db, "users", currentUser.uid);
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists()) {
+        const userData = userSnap.data();
+        profileName = userData.fullName || userData.name || profileName;
+        profileAvatar = userData.avatar || profileAvatar;
+      } else {
+        const shopRef = doc(db, "shops", currentUser.uid);
+        const shopSnap = await getDoc(shopRef);
+        if (shopSnap.exists()) {
+          const shopData = shopSnap.data();
+          profileName = shopData.shopName || shopData.name || profileName;
+          profileAvatar = shopData.shopAvatar || shopData.avatar || profileAvatar;
+        }
+      }
+
+      if (profileName === "Người dùng") {
+        profileName = currentUser.displayName || "Thành viên";
+        if (profileName === "Thành viên" && currentUser.email) {
+          const emailPrefix = currentUser.email.split('@')[0];
+          if (/^\d+$/.test(emailPrefix)) {
+            profileName = emailPrefix.slice(0, 3) + "****" + emailPrefix.slice(-3);
+          } else {
+            profileName = emailPrefix;
+          }
+        }
+      }
+      if (profileAvatar === "https://i.pravatar.cc/150?img=11") {
+        profileAvatar = currentUser.photoURL || profileAvatar;
+      }
+
       await addDoc(collection(db, "posts", data.id, "comments"), {
         authorId: currentUser.uid,
-        authorName: currentUser.email?.split('@')[0] || "Người dùng",
-        authorAvatar: currentUser.photoURL || "https://i.pravatar.cc/150?img=11",
+        authorName: profileName,
+        authorAvatar: profileAvatar,
         content: commentText.trim(),
         createdAt: serverTimestamp()
       });
@@ -254,7 +462,31 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
         commentsCount: increment(1)
       });
       setCommentsCount(prev => prev + 1);
-      await awardReputationPoints(currentUser.uid, 5, "Thưởng uy tín: Bình luận bài viết");
+      // Tích điểm tương tác cho người bình luận (chỉ tính lần đầu cho mỗi bài viết)
+      const qComment = query(
+        collection(db, "point_transactions"),
+        where("userId", "==", currentUser.uid),
+        where("postId", "==", data.id),
+        where("actionType", "==", "comment"),
+        where("type", "==", "plus")
+      );
+      const commentSnap = await getDocs(qComment);
+      const isFirstCommentOnPost = commentSnap.empty;
+
+      if (isFirstCommentOnPost) {
+        // Kiểm tra giới hạn 15 điểm/ngày cho người bình luận
+        const isCommenterCapped = await checkDailyPointsForAction(currentUser.uid, "comment", 15);
+        if (!isCommenterCapped) {
+          await awardInteractionPoints(currentUser.uid, 5, "Thưởng tương tác: Bình luận bài viết", data.id, "comment");
+        }
+        // Kiểm tra giới hạn 15 điểm/ngày cho tác giả bài viết
+        if (data.authorId && data.authorId !== currentUser.uid) {
+          const isAuthorCapped = await checkDailyPointsForAction(data.authorId, "received_comment", 15);
+          if (!isAuthorCapped) {
+            await awardInteractionPoints(data.authorId, 5, `Điểm tương tác: Bài viết được bình luận bởi ${currentUser.displayName || "Thành viên"}`, data.id, "received_comment");
+          }
+        }
+      }
       setCommentText("");
     } catch (error) {
       console.error("Lỗi gửi bình luận:", error);
@@ -285,11 +517,40 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
 
   const handleDeleteComment = async (commentId: string) => {
     try {
+      const commentObj = activeCommentMenu;
       await deleteDoc(doc(db, "posts", data.id, "comments", commentId));
       await updateDoc(doc(db, "posts", data.id), {
         commentsCount: increment(-1)
       });
       setCommentsCount(prev => Math.max(0, prev - 1));
+
+      // Kiểm tra nếu xóa bình luận trước 48h thì trừ 5 điểm của cả 2 bên
+      if (commentObj) {
+        const now = new Date();
+        const commentTime = commentObj.createdAt?.toDate 
+          ? commentObj.createdAt.toDate() 
+          : (commentObj.createdAt?.seconds ? new Date(commentObj.createdAt.seconds * 1000) : new Date());
+        const diffInHours = (now.getTime() - commentTime.getTime()) / 3600000;
+
+        if (diffInHours < 48) {
+          // Kiểm tra xem đã từng tích điểm bình luận bài viết này chưa
+          const qCommentPlus = query(
+            collection(db, "point_transactions"),
+            where("userId", "==", commentObj.authorId),
+            where("postId", "==", data.id),
+            where("actionType", "==", "comment"),
+            where("type", "==", "plus")
+          );
+          const plusSnap = await getDocs(qCommentPlus);
+          if (!plusSnap.empty) {
+            await deductInteractionPoints(commentObj.authorId, 5, "Trừ điểm: Xóa bình luận trước 48h", data.id, "uncomment");
+            if (data.authorId && data.authorId !== commentObj.authorId) {
+              await deductInteractionPoints(data.authorId, 5, `Trừ điểm: Bình luận bị xóa bởi ${commentObj.authorName} trước 48h`, data.id, "received_uncomment");
+            }
+          }
+        }
+      }
+
       openSnackbar({ text: "Đã xóa bình luận", type: "success" });
       setActiveCommentMenu(null);
     } catch (e) {
@@ -324,6 +585,34 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
     
     if (window.confirm("Bạn có chắc chắn muốn xóa bài viết này không?")) {
       try {
+        // Kiểm tra trừ điểm nếu là bài viết chia sẻ bị xoá trước 48h
+        if (data.sharedFrom) {
+          const now = new Date();
+          const postTime = data.createdAt?.toDate 
+            ? data.createdAt.toDate() 
+            : (data.createdAt?.seconds ? new Date(data.createdAt.seconds * 1000) : new Date());
+          const diffInHours = (now.getTime() - postTime.getTime()) / 3600000;
+
+          if (diffInHours < 48) {
+            // Kiểm tra xem đã từng tích điểm chia sẻ bài viết này chưa
+            const qSharePlus = query(
+              collection(db, "point_transactions"),
+              where("userId", "==", currentUser.uid),
+              where("postId", "==", data.sharedFrom),
+              where("actionType", "==", "share"),
+              where("type", "==", "plus")
+            );
+            const plusSnap = await getDocs(qSharePlus);
+            if (!plusSnap.empty) {
+              await deductInteractionPoints(currentUser.uid, 10, "Trừ điểm: Xóa bài viết chia sẻ trước 48h", data.sharedFrom, "unshare");
+              const origAuthorId = data.originalAuthorId || data.originalPost?.authorId;
+              if (origAuthorId && origAuthorId !== currentUser.uid) {
+                await deductInteractionPoints(origAuthorId, 10, `Trừ điểm: Bài chia sẻ bị xóa bởi ${currentUser.displayName || "Thành viên"} trước 48h`, data.sharedFrom, "received_unshare");
+              }
+            }
+          }
+        }
+
         await deleteDoc(doc(db, "posts", data.id));
         openSnackbar({ text: "Đã xóa bài viết thành công!", type: "success" });
         if (onDelete) onDelete();
@@ -878,8 +1167,10 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
                 authorAvatar: profileAvatar,
                 content: `Đã chia sẻ bài viết của ${data.authorName}`,
                 sharedFrom: data.id,
+                originalAuthorId: data.authorId || "",
                 originalPost: {
                   id: data.id,
+                  authorId: data.authorId || "",
                   authorName: data.authorName,
                   authorAvatar: data.authorAvatar,
                   content: data.content || "",
@@ -889,6 +1180,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
                 },
                 createdAt: serverTimestamp(),
                 likesCount: 0,
+                likedBy: [],
                 commentsCount: 0,
                 sharesCount: 0,
                 status: "approved"
@@ -896,7 +1188,26 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
 
               await updateDoc(doc(db, "posts", data.id), { sharesCount: increment(1) });
               setSharesCount(prev => prev + 1);
-              await awardReputationPoints(currentUser.uid, 10, "Thưởng uy tín: Chia sẻ bài viết");
+
+              // Một bài chỉ được tính 1 lần chia sẻ lên tường
+              const qShare = query(
+                collection(db, "point_transactions"),
+                where("userId", "==", currentUser.uid),
+                where("postId", "==", data.id),
+                where("actionType", "==", "share"),
+                where("type", "==", "plus")
+              );
+              const shareSnap = await getDocs(qShare);
+              const isFirstShareOnPost = shareSnap.empty;
+
+              if (isFirstShareOnPost) {
+                // Tích điểm tương tác cho người chia sẻ bài viết (+10 điểm)
+                await awardInteractionPoints(currentUser.uid, 10, "Thưởng tương tác: Chia sẻ bài viết lên tường", data.id, "share");
+                // Tích điểm tương tác cho tác giả bài viết
+                if (data.authorId && data.authorId !== currentUser.uid) {
+                  await awardInteractionPoints(data.authorId, 10, `Điểm tương tác: Bài viết được chia sẻ bởi ${currentUser.displayName || "Thành viên"}`, data.id, "received_share");
+                }
+              }
               openSnackbar({ text: "Đã chia sẻ bài viết lên tường của bạn!", type: "success" });
             } catch (error) {
               console.error("Lỗi chia sẻ bài viết:", error);
@@ -917,7 +1228,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
             try {
               await updateDoc(doc(db, "posts", data.id), { sharesCount: increment(1) });
               setSharesCount(prev => prev + 1);
-              await awardReputationPoints(currentUser.uid, 10, "Thưởng uy tín: Sao chép liên kết chia sẻ");
+              // Không tính điểm khi sao chép liên kết chia sẻ theo yêu cầu
             } catch (e) {}
           }}>
             <Box className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mb-2 text-gray-700 shadow-md border border-gray-200"><CustomIcon icon="zi-copy" className="text-2xl" /></Box>

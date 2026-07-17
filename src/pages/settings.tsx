@@ -77,10 +77,44 @@ const SettingsPage: FC = () => {
   const [userData, setUserData] = useState<any>(null);
   const [points, setPoints] = useState(0);
   const [isWalletExpanded, setIsWalletExpanded] = useState(false);
-  const [activeWalletTab, setActiveWalletTab] = useState<'rank' | 'promo'>('rank');
+  const [activeWalletTab, setActiveWalletTab] = useState<'rank' | 'promo' | 'interaction'>('rank');
   const [showWalletHistoryModal, setShowWalletHistoryModal] = useState(false);
   const [walletHistoryList, setWalletHistoryList] = useState<any[]>([]);
   const [loadingWalletHistory, setLoadingWalletHistory] = useState(false);
+  const [eligiblePoints, setEligiblePoints] = useState(0);
+
+  const fetchEligiblePoints = async (userId: string) => {
+    try {
+      const q = query(
+        collection(db, "point_transactions"),
+        where("userId", "==", userId),
+        where("walletType", "==", "interaction")
+      );
+      const snap = await getDocs(q);
+      const now = new Date();
+      let plusSum = 0;
+      let minusSum = 0;
+      
+      snap.forEach(d => {
+        const tx = d.data();
+        const isPlus = tx.type === "plus";
+        if (isPlus) {
+          const created = tx.createdAt?.toDate ? tx.createdAt.toDate() : (tx.createdAt?.seconds ? new Date(tx.createdAt.seconds * 1000) : null);
+          if (created) {
+            const diffInHours = (now.getTime() - created.getTime()) / 3600000;
+            if (diffInHours >= 48) {
+              plusSum += tx.amount || 0;
+            }
+          }
+        } else {
+          minusSum += tx.amount || 0;
+        }
+      });
+      setEligiblePoints(Math.max(0, plusSum - minusSum));
+    } catch (e) {
+      console.error("Lỗi tính điểm đủ điều kiện:", e);
+    }
+  };
 
   // My Orders states & functions
   const [showMyOrdersModal, setShowMyOrdersModal] = useState(false);
@@ -167,8 +201,10 @@ const SettingsPage: FC = () => {
         const type = tx.walletType || 'main';
         if (activeWalletTab === 'rank') {
           return type === 'main' || type === 'all';
-        } else {
+        } else if (activeWalletTab === 'promo') {
           return type === 'promo' || type === 'main' || type === 'all';
+        } else {
+          return type === 'interaction';
         }
       });
       
@@ -253,6 +289,9 @@ const SettingsPage: FC = () => {
 
         setUserData(foundData);
         setPoints(foundData.rankPoints || 0);
+        if (foundData.id) {
+          fetchEligiblePoints(foundData.id);
+        }
 
         // 👉 ĐÃ BỔ SUNG: Đồng bộ điểm thưởng quá khứ (Retroactive points sync)
         const syncRetroactivePoints = async (userId: string, userPhone: string, userRole: string, currentData: any) => {
@@ -641,9 +680,9 @@ const SettingsPage: FC = () => {
           {isWalletExpanded && (
             <Box className="px-4 pb-4 border-t border-gray-50 pt-4 bg-transparent">
               {/* Wallet Selectors */}
-              <Box flex className="space-x-3 mb-4">
+              <Box flex className="space-x-2 mb-4">
                 <button 
-                  className={`flex-1 py-2 px-3 rounded-xl border flex flex-col items-center justify-center transition-all ${
+                  className={`flex-1 py-2 px-2.5 rounded-xl border flex flex-col items-center justify-center transition-all ${
                     activeWalletTab === 'rank' 
                       ? 'border-orange-400 bg-orange-50/30 text-orange-600 font-semibold' 
                       : 'border-gray-200 bg-white text-gray-500'
@@ -651,11 +690,11 @@ const SettingsPage: FC = () => {
                   onClick={() => setActiveWalletTab('rank')}
                 >
                   <Icon icon="zi-poll" className="mb-1 text-lg" />
-                  <span className="text-[12px]">Ví Tính Hạng</span>
+                  <span className="text-[11px] whitespace-nowrap">Ví Tính Hạng</span>
                 </button>
 
                 <button 
-                  className={`flex-1 py-2 px-3 rounded-xl border flex flex-col items-center justify-center transition-all ${
+                  className={`flex-1 py-2 px-2.5 rounded-xl border flex flex-col items-center justify-center transition-all ${
                     activeWalletTab === 'promo' 
                       ? 'border-blue-400 bg-blue-50/30 text-blue-600 font-semibold' 
                       : 'border-gray-200 bg-white text-gray-500'
@@ -663,12 +702,24 @@ const SettingsPage: FC = () => {
                   onClick={() => setActiveWalletTab('promo')}
                 >
                   <Icon icon="zi-star" className="mb-1 text-lg" />
-                  <span className="text-[12px]">Ví Ưu Đãi</span>
+                  <span className="text-[11px] whitespace-nowrap">Ví Ưu Đãi</span>
+                </button>
+
+                <button 
+                  className={`flex-1 py-2 px-2.5 rounded-xl border flex flex-col items-center justify-center transition-all ${
+                    activeWalletTab === 'interaction' 
+                      ? 'border-[#288F4E] bg-[#288F4E]/10 text-[#288F4E] font-semibold' 
+                      : 'border-gray-200 bg-white text-gray-500'
+                  }`}
+                  onClick={() => setActiveWalletTab('interaction')}
+                >
+                  <Icon icon="zi-chat" className="mb-1 text-lg" />
+                  <span className="text-[11px] whitespace-nowrap">Ví Tương Tác</span>
                 </button>
               </Box>
 
               {/* Wallet Card */}
-              {activeWalletTab === 'rank' ? (
+              {activeWalletTab === 'rank' && (
                 <Box className="bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl p-5 text-white shadow-md relative overflow-hidden">
                   <Box flex justifyContent="space-between" alignItems="flex-start" className="mb-6">
                     <Box className="cursor-pointer active:opacity-75" onClick={handleRankClick}>
@@ -711,7 +762,9 @@ const SettingsPage: FC = () => {
                     </Box>
                   </Box>
                 </Box>
-              ) : (
+              )}
+
+              {activeWalletTab === 'promo' && (
                 <Box className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-5 text-white shadow-md relative overflow-hidden">
                   <Box flex justifyContent="space-between" alignItems="flex-start" className="mb-6">
                     <Box>
@@ -743,6 +796,57 @@ const SettingsPage: FC = () => {
 
                   <Box flex justifyContent="space-between" alignItems="center" className="border-t border-white/20 pt-3 mt-1">
                     <Text size="xxSmall" className="italic opacity-85">* Điểm tiêu dùng dùng để đổi Voucher.</Text>
+                    <Box 
+                      flex 
+                      alignItems="center" 
+                      className="cursor-pointer active:opacity-75 text-[11px] font-bold bg-white/10 px-2.5 py-1 rounded-full border border-white/10"
+                      onClick={handleOpenHistory}
+                    >
+                      <Icon icon="zi-clock-1" className="mr-1" size={12} />
+                      <span>Xem lịch sử giao dịch</span>
+                    </Box>
+                  </Box>
+                </Box>
+              )}
+
+              {activeWalletTab === 'interaction' && (
+                <Box className="bg-gradient-to-br from-[#14502e] to-[#288F4E] rounded-2xl p-5 text-white shadow-md relative overflow-hidden">
+                  <Box flex justifyContent="space-between" alignItems="flex-start" className="mb-6">
+                    <Box>
+                      <Text size="xxSmall" className="opacity-80 uppercase tracking-wider">Tích Lũy Tương Tác</Text>
+                      <Box flex alignItems="center" className="mt-1">
+                        <Icon icon="zi-chat" size={20} className="mr-1 text-emerald-200" />
+                        <Text bold size="large" className="text-white">Ví Tương Tác</Text>
+                      </Box>
+                    </Box>
+                    <Box className="text-right flex space-x-3 items-center">
+                      <Box>
+                        <Text size="xxxxSmall" className="opacity-75 block text-right">Tổng điểm</Text>
+                        <Text bold size="normal" className="text-white mt-0.5 block text-right">{(userData.interactionPoints || 0).toLocaleString()}</Text>
+                      </Box>
+                      <Box className="border-l border-white/20 pl-3">
+                        <Text size="xxxxSmall" className="opacity-90 block text-right font-bold text-yellow-300">{"Khả dụng (>48h)"}</Text>
+                        <Text bold size="normal" className="text-yellow-300 mt-0.5 block text-right">{eligiblePoints.toLocaleString()}</Text>
+                      </Box>
+                    </Box>
+                  </Box>
+
+                  {/* Progress Bar */}
+                  <Box className="mb-4">
+                    <Box className="w-full h-1.5 bg-white/20 rounded-full overflow-hidden">
+                      <Box 
+                        className="h-full bg-white rounded-full" 
+                        style={{ width: `${Math.min(100, ((userData.interactionPoints || 0) / 500) * 100)}%` }} 
+                      />
+                    </Box>
+                    <Box flex justifyContent="space-between" className="mt-1.5 opacity-80 text-[10px]">
+                      <span>0</span>
+                      <span>Mục tiêu: 500 điểm</span>
+                    </Box>
+                  </Box>
+
+                  <Box flex justifyContent="space-between" alignItems="center" className="border-t border-white/20 pt-3 mt-1">
+                    <Text size="xxSmall" className="italic opacity-85">* Điểm khả dụng là điểm đã tích lũy đủ 48 giờ và không bị hoàn tác.</Text>
                     <Box 
                       flex 
                       alignItems="center" 
@@ -961,7 +1065,7 @@ const SettingsPage: FC = () => {
       {/* Wallet History Modal */}
       <Modal
         visible={showWalletHistoryModal}
-        title={activeWalletTab === 'rank' ? "Lịch sử Ví Tính Hạng" : "Lịch sử Ví Ưu Đãi"}
+        title={activeWalletTab === 'rank' ? "Lịch sử Ví Tính Hạng" : activeWalletTab === 'promo' ? "Lịch sử Ví Ưu Đãi" : "Lịch sử Ví Tương Tác"}
         onClose={() => setShowWalletHistoryModal(false)}
         actions={[{ text: "Đóng", onClick: () => setShowWalletHistoryModal(false), highLight: true }]}
       >
@@ -990,7 +1094,7 @@ const SettingsPage: FC = () => {
                       {displayDate}
                     </Text>
                   </Box>
-                  <Text className={`text-xs font-bold flex-shrink-0 ${isPlus ? "text-green-600" : "text-red-500"}`}>
+                   <Text className={`text-xs font-bold flex-shrink-0 ${isPlus ? "text-[#288F4E]" : "text-red-500"}`}>
                     {isPlus ? '+' : '-'}{item.amount?.toLocaleString()}
                   </Text>
                 </Box>
