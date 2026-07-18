@@ -22,7 +22,7 @@ import CustomIcon from "../components/custom-icon";
 // IMPORT CÔNG CỤ FIREBASE
 import { auth, db, storage } from "../firebase";
 import { onAuthStateChanged, signOut, User } from "firebase/auth";
-import { doc, getDoc, collection, query, where, getDocs, updateDoc, arrayUnion, arrayRemove, orderBy } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, updateDoc, arrayUnion, arrayRemove, orderBy, addDoc, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { PostItem } from "../components/post-item";
 import { RawPost } from "../utils/edgeRanker";
@@ -96,6 +96,42 @@ const calculateMemberRankInfo = (points: number) => {
   if (p < 1000) return { name: "Hạng Bạc", sub: "SILVER STATUS", color: "bg-[#f8fafc] text-[#475569] border-[#e2e8f0]", icon: "zi-heart-solid", target: 1000 };
   if (p < 2000) return { name: "Hạng Vàng", sub: "ELITE STATUS", color: "bg-[#fffdf5] text-[#ca8a04] border-[#fef08a]", icon: "zi-diamond", target: 2000 };
   return { name: "Hạng Kim Cương", sub: "DIAMOND STATUS", color: "bg-[#faf5ff] text-[#9333ea] border-[#e9d5ff]", icon: "zi-diamond-solid", target: 999999 };
+};
+
+const handleChat = async (currentUser: any, targetUserId: string, navigate: any, openSnackbar: any) => {
+  if (!currentUser || currentUser.email === "guest@campus.com") {
+    openSnackbar({ text: "Vui lòng đăng nhập để nhắn tin", type: "warning" });
+    return;
+  }
+  try {
+    const q = query(
+      collection(db, "chats"),
+      where("participants", "array-contains", currentUser.uid)
+    );
+    const snap = await getDocs(q);
+    let existingChatId = null;
+    snap.forEach((docSnap) => {
+      const data = docSnap.data();
+      if (data.participants.includes(targetUserId)) {
+        existingChatId = docSnap.id;
+      }
+    });
+
+    if (existingChatId) {
+      navigate(`/chat-detail/${existingChatId}`);
+    } else {
+      const newChat = await addDoc(collection(db, "chats"), {
+        participants: [currentUser.uid, targetUserId],
+        lastMessage: "",
+        lastMessageTime: serverTimestamp(),
+        createdAt: serverTimestamp(),
+      });
+      navigate(`/chat-detail/${newChat.id}`);
+    }
+  } catch (error) {
+    console.error("Lỗi khi tạo chat:", error);
+    openSnackbar({ text: "Không thể mở đoạn chat", type: "error" });
+  }
 };
 
 const calculateShopRankInfo = (points: number) => {
@@ -371,28 +407,36 @@ const NewMemberView: FC<{
           </Box>
         </Box>
         {isOtherProfile && (
-          <Button 
-            className="rounded-full font-medium shadow-sm px-4 h-8 text-sm flex-shrink-0 flex items-center justify-center"
-            style={{ 
-              backgroundColor: isFollowing ? "#f3f4f6" : "#14502e", 
-              color: isFollowing ? "#374151" : "white",
-              border: isFollowing ? "1px solid #e5e7eb" : "none"
-            }}
-            onClick={() => {
-              if (isFollowing) {
-                setShowFollowingOptions(true);
-              } else {
-                if (onFollowToggle) onFollowToggle();
-              }
-            }}
-          >
-            {isFollowing ? (
-              <Box className="flex items-center">
-                Đang theo dõi
-                <span className="ml-1 inline-flex"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
-              </Box>
-            ) : "Theo dõi"}
-          </Button>
+          <Box className="flex items-center space-x-2 shrink-0">
+            <Button 
+              className="rounded-full font-medium shadow-sm px-4 h-8 text-sm flex items-center justify-center"
+              style={{ 
+                backgroundColor: isFollowing ? "#f3f4f6" : "#14502e", 
+                color: isFollowing ? "#374151" : "white",
+                border: isFollowing ? "1px solid #e5e7eb" : "none"
+              }}
+              onClick={() => {
+                if (isFollowing) {
+                  setShowFollowingOptions(true);
+                } else {
+                  if (onFollowToggle) onFollowToggle();
+                }
+              }}
+            >
+              {isFollowing ? (
+                <Box className="flex items-center">
+                  Đang theo dõi
+                  <span className="ml-1 inline-flex"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+                </Box>
+              ) : "Theo dõi"}
+            </Button>
+            <Button 
+              className="rounded-full font-medium shadow-sm px-4 h-8 text-sm flex items-center justify-center bg-[#0068ff] text-white"
+              onClick={() => handleChat(auth.currentUser, user.id, navigate, openSnackbar)}
+            >
+              Nhắn tin
+            </Button>
+          </Box>
         )}
       </Box>
 
@@ -822,10 +866,34 @@ const ProfilePage: FC = () => {
           setLoadingTarget(false);
           return;
         }
+        
         snap = await getDoc(doc(db, "shops", profileId));
         if (snap.exists()) {
           setTargetUserData({ id: snap.id, collectionName: "shops", ...snap.data() });
+          setLoadingTarget(false);
+          return;
         }
+
+        try {
+          const qUser = query(collection(db, "users"), where("phone", "==", profileId));
+          const userSnap = await getDocs(qUser);
+          if (!userSnap.empty) {
+            setTargetUserData({ id: userSnap.docs[0].id, collectionName: "users", ...userSnap.docs[0].data() });
+            setLoadingTarget(false);
+            return;
+          }
+          
+          const qShop = query(collection(db, "shops"), where("phone", "==", profileId));
+          const shopSnap = await getDocs(qShop);
+          if (!shopSnap.empty) {
+            setTargetUserData({ id: shopSnap.docs[0].id, collectionName: "shops", ...shopSnap.docs[0].data() });
+            setLoadingTarget(false);
+            return;
+          }
+        } catch (e) {
+          console.error("Lỗi tìm kiếm hồ sơ theo sđt:", e);
+        }
+        
         setLoadingTarget(false);
       };
       fetchTarget();

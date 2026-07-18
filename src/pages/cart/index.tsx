@@ -190,21 +190,43 @@ const CartPage: FC = () => {
     }
   }, []);
 
-  // Load available vouchers from Firestore with mock backup
+  // Load available vouchers from user's my_vouchers
   useEffect(() => {
     const fetchVouchers = async () => {
       try {
-        const q = query(collection(db, "voucher_campaigns"), where("isOpen", "==", true));
+        const userPhone = localStorage.getItem("user_phone") || (auth.currentUser?.email || "").replace("@campus.com", "");
+        if (!userPhone && !auth.currentUser?.uid) return;
+
+        let userId = auth.currentUser?.uid || userPhone;
+        if (userPhone) {
+            const qShop = query(collection(db, "shops"), where("phone", "==", userPhone));
+            const shopSnap = await getDocs(qShop);
+            if (!shopSnap.empty) {
+                userId = shopSnap.docs[0].id;
+            } else {
+                const qUser = query(collection(db, "users"), where("phone", "==", userPhone));
+                const userSnap = await getDocs(qUser);
+                if (!userSnap.empty) {
+                    const uidMatch = userSnap.docs.find(d => d.id === auth.currentUser?.uid);
+                    userId = uidMatch ? uidMatch.id : userSnap.docs[0].id;
+                }
+            }
+        }
+
+        const q = query(collection(db, `users/${userId}/my_vouchers`), where("isUsed", "==", false));
         const snap = await getDocs(q);
-        const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
         
-        // Add backup mock vouchers for testing
-        const mocks = [
-          { id: "mock_10k", title: "Mã CAMPUSGREEN - Giảm 10.000đ", discountType: "fixed", value: 10000 },
-          { id: "mock_15percent", title: "Mã GO_GREEN - Giảm 15% đơn hàng", discountType: "percent", value: 15 },
-          { id: "mock_50k", title: "Mã VIP_SHOPPING - Giảm 50.000đ", discountType: "fixed", value: 50000 }
-        ];
-        setVouchers([...list, ...mocks]);
+        const now = Date.now();
+        const validVouchers = list.filter(v => {
+            if (v.expiryDate) {
+                const exp = new Date(v.expiryDate).getTime();
+                if (now > exp) return false;
+            }
+            return true;
+        });
+        
+        setVouchers(validVouchers);
       } catch (e) {
         console.error("Lỗi khi tải Voucher:", e);
       }
@@ -212,15 +234,62 @@ const CartPage: FC = () => {
     fetchVouchers();
   }, []);
 
+  const applicableVouchers = useMemo(() => {
+      return vouchers.filter(v => {
+          let applicableTotal = 0;
+          if (!v.applicableProducts || v.applicableProducts.length === 0) {
+              applicableTotal = activeTotalPrice;
+          } else {
+              applicableTotal = activeCartItems.reduce((sum, item) => {
+                  if (v.applicableProducts.includes(item.product.id)) {
+                      return sum + (item.product.price || 0) * item.quantity;
+                  }
+                  return sum;
+              }, 0);
+          }
+          
+          if (applicableTotal === 0) return false;
+          if (v.minOrderValue && applicableTotal < v.minOrderValue) return false;
+          
+          return true;
+      });
+  }, [vouchers, activeCartItems, activeTotalPrice]);
+
+  useEffect(() => {
+      if (selectedVoucher && !applicableVouchers.find(v => v.id === selectedVoucher.id)) {
+          setSelectedVoucher(null);
+      }
+  }, [applicableVouchers, selectedVoucher]);
+
   // Calculate discount and final price for active shop items
   const discountAmount = useMemo(() => {
     if (!selectedVoucher) return 0;
+    
+    let applicableTotal = 0;
+    if (!selectedVoucher.applicableProducts || selectedVoucher.applicableProducts.length === 0) {
+        applicableTotal = activeTotalPrice;
+    } else {
+        applicableTotal = activeCartItems.reduce((sum, item) => {
+            if (selectedVoucher.applicableProducts.includes(item.product.id)) {
+                return sum + (item.product.price || 0) * item.quantity;
+            }
+            return sum;
+        }, 0);
+    }
+
+    if (selectedVoucher.minOrderValue && applicableTotal < selectedVoucher.minOrderValue) {
+        return 0; // Not applicable
+    }
+
+    let discount = 0;
     if (selectedVoucher.discountType === "percent" || selectedVoucher.title?.includes("%")) {
       const percentValue = selectedVoucher.value || 15;
-      return Math.round((activeTotalPrice * percentValue) / 100);
+      discount = Math.round((applicableTotal * percentValue) / 100);
+    } else {
+      discount = selectedVoucher.value || 10000;
     }
-    return selectedVoucher.value || 10000;
-  }, [selectedVoucher, activeTotalPrice]);
+    return Math.min(discount, applicableTotal);
+  }, [selectedVoucher, activeTotalPrice, activeCartItems]);
 
   const finalTotalPrice = useMemo(() => {
     return Math.max(0, activeTotalPrice - discountAmount);
@@ -378,6 +447,7 @@ const CartPage: FC = () => {
         recipientPhone: recipientPhone.trim(),
         address: deliveryAddress,
         voucherTitle: selectedVoucher?.title || "Không có",
+        voucherCode: selectedVoucher?.code || "",
         note: note.trim(),
         status: "pending",
         shopName: activeShop,
@@ -696,35 +766,84 @@ const CartPage: FC = () => {
         onClose={() => setShowVoucherModal(false)}
       >
         <Box p={4} className="max-h-[50vh] overflow-y-auto space-y-3">
-          {vouchers.map((v) => (
-            <Box 
-              key={v.id} 
-              className={`p-3 border rounded-xl cursor-pointer transition-all flex justify-between items-center ${
-                selectedVoucher?.id === v.id 
-                  ? "border-[#14502e] bg-green-50/70" 
-                  : "border-gray-200 bg-white active:bg-gray-50"
-              }`}
-              onClick={() => {
-                setSelectedVoucher(v);
-                setShowVoucherModal(false);
-                openSnackbar({ text: `Đã áp dụng ${v.title}!`, type: "success" });
-              }}
-            >
-              <Box className="flex-1 pr-2">
-                <Text bold size="small" className="text-gray-800">{v.title}</Text>
-                <Text size="xxxxSmall" className="text-gray-400">
-                  {v.discountType === "percent" ? `Giảm ${v.value}%` : `Giảm giá trị ${v.value?.toLocaleString("vi-VN")}đ`}
-                </Text>
-              </Box>
+          {applicableVouchers.map((v) => {
+            let applicableText = "Toàn bộ dịch vụ";
+            if (v.applicableProducts && v.applicableProducts.length > 0) {
+              const matchedNames = activeCartItems
+                .filter(item => v.applicableProducts.includes(item.product.id))
+                .map(item => item.product.title || item.product.name);
+              
+              if (matchedNames.length > 0) {
+                applicableText = `${activeShop} (${matchedNames.join(", ")})`;
+              } else {
+                applicableText = "Một số dịch vụ nhất định";
+              }
+            }
+
+            let createdAtStr = "";
+            if (v.createdAt) {
+              let d: Date;
+              if (typeof v.createdAt.toDate === "function") {
+                  d = v.createdAt.toDate();
+              } else if (v.createdAt.seconds) {
+                  d = new Date(v.createdAt.seconds * 1000);
+              } else {
+                  d = new Date(v.createdAt);
+              }
+              
+              if (!isNaN(d.getTime())) {
+                  createdAtStr = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}:${d.getSeconds().toString().padStart(2, '0')}, ${d.getDate().toString().padStart(2, '0')}/${(d.getMonth()+1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+              }
+            }
+
+            return (
               <Box 
-                className={`w-5 h-5 rounded-full border flex items-center justify-center ${
-                  selectedVoucher?.id === v.id ? "border-[#14502e] bg-[#14502e] text-white" : "border-gray-300"
+                key={v.id} 
+                className={`p-3 border rounded-xl cursor-pointer transition-all flex justify-between items-center ${
+                  selectedVoucher?.id === v.id 
+                    ? "border-[#14502e] bg-green-50/70" 
+                    : "border-gray-200 bg-white active:bg-gray-50"
                 }`}
+                onClick={() => {
+                  setSelectedVoucher(v);
+                  setShowVoucherModal(false);
+                  openSnackbar({ text: `Đã áp dụng ${v.title}!`, type: "success" });
+                }}
               >
-                {selectedVoucher?.id === v.id && <Icon icon="zi-check" size={10} />}
+                <Box className="flex-1 pr-2">
+                  <Box flex alignItems="center" className="mb-1">
+                    <Text bold size="small" className="text-gray-800 mr-2">{v.title}</Text>
+                    {v.code && (
+                      <Box className="px-1.5 py-0.5 rounded border border-gray-200 bg-gray-50">
+                        <Text size="xxxxSmall" className="text-gray-600 font-bold tracking-wider">MÃ: {v.code}</Text>
+                      </Box>
+                    )}
+                  </Box>
+                  <Text size="xxxxSmall" className="text-gray-600 mb-0.5 block">
+                    Đơn tối thiểu: {((v.minOrderValue || (v.value * 10)) / 1000)}k
+                  </Text>
+                  <Text size="xxxxSmall" className="text-gray-600 mb-0.5 block">
+                    {v.discountType === "percent" ? `Giảm: ${v.value}%` : `Giảm: ${v.value?.toLocaleString("vi-VN")}đ`}
+                  </Text>
+                  {createdAtStr && (
+                    <Text size="xxxxSmall" className="text-gray-400 italic block mb-1">Ngày đổi: {createdAtStr}</Text>
+                  )}
+                  <Box className="border-t border-dashed border-gray-200 mt-2 pt-2">
+                    <Text size="xxxxSmall" className="text-gray-600 font-medium">
+                      Phạm vi áp dụng: <span className="italic font-normal text-gray-500">{applicableText}</span>
+                    </Text>
+                  </Box>
+                </Box>
+                <Box 
+                  className={`w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 ${
+                    selectedVoucher?.id === v.id ? "border-[#14502e] bg-[#14502e] text-white" : "border-gray-300"
+                  }`}
+                >
+                  {selectedVoucher?.id === v.id && <Icon icon="zi-check" size={10} />}
+                </Box>
               </Box>
-            </Box>
-          ))}
+            );
+          })}
           
           {selectedVoucher && (
             <Button 
@@ -740,7 +859,7 @@ const CartPage: FC = () => {
             </Button>
           )}
 
-          {vouchers.length === 0 && (
+          {applicableVouchers.length === 0 && (
             <Text className="text-gray-400 text-center block py-4">Không có mã giảm giá khả dụng</Text>
           )}
         </Box>

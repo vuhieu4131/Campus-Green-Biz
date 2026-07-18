@@ -38,7 +38,7 @@ const StoreWelcome: FC = () => {
         const localPhone = localStorage.getItem("user_phone");
         const finalPhone = phoneFromEmail || localPhone;
 
-        let foundData = null;
+        let foundData: any = null;
 
         if (finalPhone) {
           try {
@@ -99,7 +99,10 @@ const StoreWelcome: FC = () => {
   const greeting = getGreeting();
 
   return (
-    <Box className="bg-[#14502e] rounded-b-[30px] pt-10 pb-10 px-4 relative shadow-md">
+    <Box 
+      className="bg-[#14502e] rounded-b-[30px] pb-10 px-4 relative shadow-md"
+      style={{ paddingTop: 'calc(var(--zaui-safe-area-inset-top, 40px) + 12px)' }}
+    >
       <Box className="flex justify-between items-center">
         {/* TRÁI: Avatar, Lời chào & Điểm ưu đãi */}
         <Box 
@@ -133,7 +136,7 @@ const StoreWelcome: FC = () => {
         </Box>
 
         {/* PHẢI: Nút Tìm Kiếm & Nút Giỏ Hàng */}
-        <Box className="flex items-center space-x-3 text-white">
+        <Box className="flex items-center space-x-3 text-white" style={{ paddingRight: '80px' }}>
           {/* Nút Tìm Kiếm */}
           <Box 
             className="w-9 h-9 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/25 cursor-pointer relative shadow-sm hover:bg-white/30 transition-colors"

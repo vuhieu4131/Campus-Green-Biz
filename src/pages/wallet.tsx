@@ -5,6 +5,14 @@ import { auth, db } from "../firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, collection, query, where, getDocs, orderBy } from "firebase/firestore";
 
+const isWithin15Days = (createdAt: any) => {
+  if (!createdAt) return true;
+  const date = createdAt.toDate ? createdAt.toDate() : (createdAt.seconds ? new Date(createdAt.seconds * 1000) : new Date(createdAt));
+  const fifteenDaysAgo = new Date();
+  fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
+  return date >= fifteenDaysAgo;
+};
+
 const calculateMemberRankInfo = (points: number) => {
   const p = points || 0;
   if (p < 100) return { name: "Thành viên mới", icon: "zi-user", target: 100 };
@@ -258,8 +266,8 @@ const WalletPage: FC = () => {
         actions={[{ text: "Đóng", onClick: () => setShowHistoryModal(false), highLight: true }]}
       >
         <Box p={4} style={{ maxHeight: '60vh', overflowY: 'auto' }}>
-          {historyLoading ? <Spinner /> : historyList.length > 0 ? (
-            historyList.map((item, idx) => (
+          {historyLoading ? <Spinner /> : historyList.filter(item => isWithin15Days(item.createdAt)).length > 0 ? (
+            historyList.filter(item => isWithin15Days(item.createdAt)).map((item, idx) => (
               <Box key={idx} className="mb-3 pb-3 border-b border-gray-100 flex justify-between items-center">
                 <Box>
                   <Text size="small" bold>{item.description}</Text>

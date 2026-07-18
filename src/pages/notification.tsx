@@ -3,10 +3,13 @@ import React, { FC, useState, useEffect } from "react";
 import { Box, Header, Page, Text, Spinner } from "zmp-ui";
 import { auth, db } from "../firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, query, where, onSnapshot, doc, updateDoc } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc, updateDoc, getDoc, getDocs, deleteDoc } from "firebase/firestore";
+import { useNavigate } from "react-router-dom";
 
 const getNotificationStyle = (type: string) => {
   switch (type) {
+    case "voucher":
+      return { icon: "zi-star-solid", iconColor: "text-white", bgColor: "bg-orange-500" };
     case "completed":
     case "success":
     case "post_approved_notification":
@@ -23,6 +26,8 @@ const getNotificationStyle = (type: string) => {
     case "post_banned_notification":
     case "vip_reject_notification":
       return { icon: "zi-close-circle", iconColor: "text-red-600", bgColor: "bg-red-100" };
+    case "comment":
+      return { icon: "zi-chat", iconColor: "text-blue-600", bgColor: "bg-blue-100" };
     default:
       return { icon: "zi-notif", iconColor: "text-[#14502e]", bgColor: "bg-green-50" };
   }
@@ -31,6 +36,7 @@ const getNotificationStyle = (type: string) => {
 const NotificationPage: FC = () => {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     let unsub1: (() => void) | undefined;
@@ -49,7 +55,7 @@ const NotificationPage: FC = () => {
         unsub1 = onSnapshot(q1, (snap1) => {
           const list1 = snap1.docs.map(doc => ({ id: doc.id, ...doc.data() }));
           
-          unsub2 = onSnapshot(q2, (snap2) => {
+          unsub2 = onSnapshot(q2, async (snap2) => {
             const list2 = snap2.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             
             // Merge & Deduplicate by ID
@@ -57,21 +63,101 @@ const NotificationPage: FC = () => {
             list1.forEach((n: any) => mergedMap.set(n.id, n));
             list2.forEach((n: any) => mergedMap.set(n.id, n));
             
-            const sortedList = Array.from(mergedMap.values())
-              .map((data: any) => {
-                const dateObj = data.createdAt?.toDate ? data.createdAt.toDate() :
-                               (data.createdAt?.seconds ? new Date(data.createdAt.seconds * 1000) : new Date(data.createdAt || Date.now()));
-                
+            const fifteenDaysAgo = new Date();
+            fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
+            
+            const validList: any[] = [];
+            const expiredIds: string[] = [];
+
+            Array.from(mergedMap.values()).forEach((data: any) => {
+              const dateObj = data.createdAt?.toDate ? data.createdAt.toDate() :
+                             (data.createdAt?.seconds ? new Date(data.createdAt.seconds * 1000) : new Date(data.createdAt || Date.now()));
+              
+              if (dateObj && dateObj < fifteenDaysAgo) {
+                expiredIds.push(data.id);
+              } else {
                 const timeStr = dateObj ? `${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')} ${String(dateObj.getDate()).padStart(2, '0')}/${String(dateObj.getMonth() + 1).padStart(2, '0')}` : "";
-                
-                return {
+                validList.push({
                   ...data,
                   dateObj,
                   time: timeStr
-                };
-              })
-              .sort((a, b) => (b.dateObj?.getTime() || 0) - (a.dateObj?.getTime() || 0));
+                });
+              }
+            });
+
+            // Xóa định kỳ các thông báo đã quá 15 ngày
+            if (expiredIds.length > 0) {
+              expiredIds.forEach(id => {
+                deleteDoc(doc(db, "notifications", id)).catch(() => {});
+              });
+            }
+
+            let sortedList = validList.sort((a, b) => (b.dateObj?.getTime() || 0) - (a.dateObj?.getTime() || 0));
               
+            // 👉 FETCH VOUCHER CONFIG VÀ CHÈN THÔNG BÁO ẢO LÊN ĐẦU
+            try {
+              const configSnap = await getDoc(doc(db, "system_config", "admin_settings"));
+              if (configSnap.exists()) {
+                const data = configSnap.data();
+                
+                let isActive = false;
+                if (data.isVoucherOpen) {
+                  isActive = true;
+                } else if (data.voucherStartTime && data.voucherEndTime) {
+                  const now = new Date().getTime();
+                  const start = new Date(data.voucherStartTime).getTime();
+                  const end = new Date(data.voucherEndTime).getTime();
+                  if (now >= start && now <= end) {
+                    isActive = true;
+                  }
+                }
+
+                if (isActive && data.voucherTitle) {
+                  let applicableText = "Toàn bộ hệ thống";
+                  if (data.applicableProducts && data.applicableProducts.length > 0) {
+                    try {
+                      const servicesRef = collection(db, "services");
+                      const snap = await getDocs(servicesRef);
+                      const matchedServices = snap.docs
+                        .map(d => ({ id: d.id, ...d.data() }))
+                        .filter((s: any) => data.applicableProducts.includes(s.id));
+                        
+                      if (matchedServices.length > 0) {
+                        const shopGroups = matchedServices.reduce((acc: any, curr: any) => {
+                          const sName = curr.shopName || "Cửa hàng";
+                          if (!acc[sName]) acc[sName] = [];
+                          acc[sName].push(curr.title);
+                          return acc;
+                        }, {});
+                        
+                        const scopeTexts = Object.keys(shopGroups).map(shopName => 
+                          `${shopName} (${shopGroups[shopName].join(", ")})`
+                        );
+                        
+                        applicableText = scopeTexts.join(" - ");
+                      } else {
+                        applicableText = "Một số mặt hàng nhất định";
+                      }
+                    } catch (e) {
+                      console.error("Lỗi lấy thông tin cơ sở:", e);
+                    }
+                  }
+
+                  sortedList.unshift({
+                    id: "sys_voucher_notif",
+                    type: "voucher",
+                    title: `🎁 ${data.voucherTitle}`,
+                    content: `Hệ thống vừa mở đợt đổi Voucher.\nThời gian: ${data.voucherStartTime || ""} đến ${data.voucherEndTime || ""}.\nCơ sở áp dụng: ${applicableText}.\nĐổi ngay bằng Điểm ưu đãi và Điểm tích lũy!`,
+                    time: "Hệ thống",
+                    isRead: true, // ảo nên không cần mark read
+                    dateObj: new Date() // luôn hiện lên trên cùng
+                  });
+                }
+              }
+            } catch (err) {
+              console.error("Lỗi tải cấu hình Voucher:", err);
+            }
+
             setNotifications(sortedList);
             setLoading(false);
 
@@ -115,7 +201,16 @@ const NotificationPage: FC = () => {
             {notifications.map((item) => {
               const style = getNotificationStyle(item.type);
               return (
-                <Box key={item.id} flex className="p-4 items-start space-x-3 hover:bg-gray-50 transition-colors">
+                <Box 
+                  key={item.id} 
+                  flex 
+                  className="p-4 items-start space-x-3 hover:bg-gray-50 transition-colors cursor-pointer active:bg-gray-100"
+                  onClick={() => {
+                    if (item.postId) {
+                      navigate(`/post-detail?id=${item.postId}`);
+                    }
+                  }}
+                >
                   <Box className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${style.bgColor}`}>
                     <CustomIcon icon={style.icon} className={style.iconColor} size={24} />
                   </Box>
@@ -124,7 +219,7 @@ const NotificationPage: FC = () => {
                       <Text bold size="small" className="text-gray-900 leading-snug">{item.title}</Text>
                       <Text size="xxxxSmall" className="text-gray-400 whitespace-nowrap ml-2 mt-0.5">{item.time}</Text>
                     </Box>
-                    <Text size="xSmall" className="text-gray-600 leading-relaxed">{item.content}</Text>
+                    <Text size="xSmall" className="text-gray-600 leading-relaxed whitespace-pre-wrap">{item.content}</Text>
                   </Box>
                 </Box>
               );

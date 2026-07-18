@@ -71,6 +71,7 @@ const awardInteractionPoints = async (userId: string, amount: number, descriptio
         content: `${description}. Bạn được cộng +${amount} điểm tương tác vào Ví Tương Tác.`,
         isRead: false,
         type: "interaction_points_plus",
+        postId: postId || "",
         createdAt: serverTimestamp()
       });
     }
@@ -113,6 +114,7 @@ const deductInteractionPoints = async (userId: string, amount: number, descripti
         content: `${description}. Bạn bị trừ -${amount} điểm tương tác khỏi Ví Tương Tác.`,
         isRead: false,
         type: "interaction_points_minus",
+        postId: postId || "",
         createdAt: serverTimestamp()
       });
     }
@@ -195,6 +197,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [comments, setComments] = useState<any[]>([]);
+  const [replyingTo, setReplyingTo] = useState<any>(null);
   
   const [isExpanded, setIsExpanded] = useState(isDetailView || false);
   const [showShare, setShowShare] = useState(false);
@@ -455,6 +458,8 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
         authorName: profileName,
         authorAvatar: profileAvatar,
         content: commentText.trim(),
+        replyToId: replyingTo ? replyingTo.id : null,
+        replyToName: replyingTo ? replyingTo.authorName : null,
         createdAt: serverTimestamp()
       });
       
@@ -487,7 +492,24 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
           }
         }
       }
+
+      // Add a dedicated comment notification
+      if (data.authorId && data.authorId !== currentUser.uid) {
+        let snippet = commentText.trim();
+        if (snippet.length > 50) snippet = snippet.slice(0, 50) + "...";
+        await addDoc(collection(db, "notifications"), {
+          userId: data.authorId,
+          title: "Bình luận mới 💬",
+          content: `${profileName} đã bình luận: "${snippet}"`,
+          type: "comment",
+          postId: data.id,
+          isRead: false,
+          createdAt: serverTimestamp()
+        });
+      }
+
       setCommentText("");
+      setReplyingTo(null);
     } catch (error) {
       console.error("Lỗi gửi bình luận:", error);
       openSnackbar({ text: "Không thể gửi bình luận", type: "error" });
@@ -563,6 +585,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
     if (!currentUser) return;
     const commentRef = doc(db, "posts", data.id, "comments", comment.id);
     const hasLiked = comment.likedBy?.includes(currentUser.uid);
+    const hasDisliked = comment.dislikedBy?.includes(currentUser.uid);
     try {
       if (hasLiked) {
         await updateDoc(commentRef, {
@@ -570,10 +593,43 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
           likesCount: increment(-1)
         });
       } else {
-        await updateDoc(commentRef, {
+        const updates: any = {
           likedBy: arrayUnion(currentUser.uid),
           likesCount: increment(1)
+        };
+        if (hasDisliked) {
+          updates.dislikedBy = arrayRemove(currentUser.uid);
+          updates.dislikesCount = increment(-1);
+        }
+        await updateDoc(commentRef, updates);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleDislikeComment = async (comment: any, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!currentUser) return;
+    const commentRef = doc(db, "posts", data.id, "comments", comment.id);
+    const hasDisliked = comment.dislikedBy?.includes(currentUser.uid);
+    const hasLiked = comment.likedBy?.includes(currentUser.uid);
+    try {
+      if (hasDisliked) {
+        await updateDoc(commentRef, {
+          dislikedBy: arrayRemove(currentUser.uid),
+          dislikesCount: increment(-1)
         });
+      } else {
+        const updates: any = {
+          dislikedBy: arrayUnion(currentUser.uid),
+          dislikesCount: increment(1)
+        };
+        if (hasLiked) {
+          updates.likedBy = arrayRemove(currentUser.uid);
+          updates.likesCount = increment(-1);
+        }
+        await updateDoc(commentRef, updates);
       }
     } catch (e) {
       console.error(e);
@@ -653,6 +709,60 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
       openSnackbar({ text: "Lỗi khi thao tác", type: "error" });
     }
   };
+
+  const commentMap = new Map();
+  comments.forEach(c => commentMap.set(c.id, c));
+  const rootComments: any[] = [];
+  const repliesMap = new Map<string, any[]>();
+  comments.forEach(c => {
+    if (!c.replyToId) {
+      rootComments.push(c);
+    } else {
+      let rootId = c.rootCommentId;
+      if (!rootId) {
+        let current = c;
+        while (current.replyToId && commentMap.has(current.replyToId)) {
+          current = commentMap.get(current.replyToId);
+        }
+        rootId = current.id;
+      }
+      if (!repliesMap.has(rootId)) {
+        repliesMap.set(rootId, []);
+      }
+      repliesMap.get(rootId)!.push(c);
+    }
+  });
+
+  const renderComment = (cmt: any, isReply = false) => (
+    <Box 
+      key={cmt.id} 
+      className={`flex space-x-2 ${isReply ? 'mt-3' : 'mb-1'}`}
+      onTouchStart={() => handleTouchStart(cmt)}
+      onTouchEnd={handleTouchEnd}
+      onMouseDown={() => handleTouchStart(cmt)}
+      onMouseUp={handleTouchEnd}
+      onMouseLeave={handleTouchEnd}
+    >
+      <Avatar src={cmt.authorAvatar || "https://i.pravatar.cc/150?img=11"} size={isReply ? 24 : 32} className="flex-shrink-0 mt-1" />
+      <Box className="flex-1 flex flex-col">
+        <Box className="bg-gray-100 px-3 py-2 rounded-2xl w-fit max-w-[100%] active:bg-gray-200 transition-colors">
+          <Text className="font-bold text-[14px] text-gray-800">{cmt.authorName || "Người dùng"}</Text>
+          <Text className="text-[14px] text-gray-800">{cmt.content}</Text>
+        </Box>
+        <Box className="flex items-center space-x-4 mt-1.5 ml-2">
+          <Box className="flex items-center space-x-1 cursor-pointer" onClick={(e) => handleLikeComment(cmt, e)}>
+            <Text size="xSmall" className={`font-semibold ${cmt.likedBy?.includes(currentUser?.uid) ? "text-[#14502e]" : "text-gray-500"}`}>Thích</Text>
+            {cmt.likesCount > 0 && <Text size="xSmall" className="text-gray-500">{cmt.likesCount}</Text>}
+          </Box>
+          <Box className="flex items-center space-x-1 cursor-pointer" onClick={(e) => handleDislikeComment(cmt, e)}>
+            <Text size="xSmall" className={`font-semibold ${cmt.dislikedBy?.includes(currentUser?.uid) ? "text-red-600" : "text-gray-500"}`}>Không thích</Text>
+            {cmt.dislikesCount > 0 && <Text size="xSmall" className="text-gray-500">{cmt.dislikesCount}</Text>}
+          </Box>
+          <Text size="xSmall" className="text-gray-500 font-semibold cursor-pointer" onClick={() => setReplyingTo(cmt)}>Trả lời</Text>
+        </Box>
+      </Box>
+    </Box>
+  );
 
   return (
     <Box className="bg-white mx-3 mb-4 pt-4 pb-2 rounded-2xl shadow-sm border border-gray-100">
@@ -1043,56 +1153,51 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
 
       {/* Bảng Bình luận (Comment Bottom Sheet) */}
       <Sheet visible={showComments} onClose={() => setShowComments(false)} autoHeight title="Bình luận">
-        <Box className="p-4 flex flex-col space-y-4 max-h-[60vh] overflow-y-auto">
-          {comments.length === 0 ? (
+        <Box className="p-4 flex flex-col space-y-1 max-h-[60vh] overflow-y-auto">
+          {rootComments.length === 0 ? (
             <Text className="text-center text-gray-400 py-4">Chưa có bình luận nào.</Text>
           ) : (
-            comments.map((cmt) => (
-              <Box 
-                key={cmt.id} 
-                className="flex space-x-2"
-                onTouchStart={() => handleTouchStart(cmt)}
-                onTouchEnd={handleTouchEnd}
-                onMouseDown={() => handleTouchStart(cmt)}
-                onMouseUp={handleTouchEnd}
-                onMouseLeave={handleTouchEnd}
-              >
-                <Avatar src={cmt.authorAvatar || "https://i.pravatar.cc/150?img=11"} size={32} className="flex-shrink-0" />
-                <Box className="flex-1 flex items-center justify-between">
-                  <Box className="bg-gray-100 px-3 py-2 rounded-2xl max-w-[90%] active:bg-gray-200 transition-colors">
-                    <Text className="font-bold text-[14px] text-gray-800">{cmt.authorName || "Người dùng"}</Text>
-                    <Text className="text-[14px] text-gray-800">{cmt.content}</Text>
+            rootComments.map((rootCmt) => (
+              <Box key={rootCmt.id} className="mb-4">
+                {renderComment(rootCmt, false)}
+                {repliesMap.has(rootCmt.id) && repliesMap.get(rootCmt.id)!.length > 0 && (
+                  <Box className="ml-10">
+                    {repliesMap.get(rootCmt.id)!.map(reply => renderComment(reply, true))}
                   </Box>
-                  <Box className="flex flex-col items-center justify-center pl-2 pr-1 cursor-pointer" onClick={(e) => handleLikeComment(cmt, e)}>
-                    <Icon icon={cmt.likedBy?.includes(currentUser?.uid) ? "zi-heart-solid" : "zi-heart"} className={cmt.likedBy?.includes(currentUser?.uid) ? "text-red-500" : "text-gray-400"} size={16} />
-                    {cmt.likesCount > 0 && <Text size="xxSmall" className="text-gray-400 mt-0.5">{cmt.likesCount}</Text>}
-                  </Box>
-                </Box>
+                )}
               </Box>
             ))
           )}
         </Box>
-        <Box className="p-3 border-t border-gray-200 flex space-x-3 items-center bg-white">
-          <Avatar src={currentUser?.photoURL || "https://i.pravatar.cc/150?img=11"} size={36} className="flex-shrink-0" />
-          <Box className="flex-1 bg-gray-100 rounded-full px-4 py-1 flex items-center">
-            <Input
-              value={commentText}
-              onChange={(e) => setCommentText(e.target.value)}
-              className="flex-1 bg-transparent border-none p-0 h-9"
-              placeholder="Viết bình luận..."
-              onKeyDown={(e) => e.key === 'Enter' && handleSendComment()}
-            />
+        <Box className="p-3 border-t border-gray-200 flex flex-col bg-white">
+          {replyingTo && (
+            <Box className="flex items-center justify-between mb-2 px-2 bg-gray-50 rounded p-1">
+              <Text size="xSmall" className="text-gray-600">Đang trả lời <span className="font-bold">{replyingTo.authorName}</span></Text>
+              <CustomIcon icon="zi-close" className="text-gray-400 cursor-pointer" size={16} onClick={() => setReplyingTo(null)} />
+            </Box>
+          )}
+          <Box className="flex space-x-3 items-center">
+            <Avatar src={currentUser?.photoURL || "https://i.pravatar.cc/150?img=11"} size={36} className="flex-shrink-0" />
+            <Box className="flex-1 bg-gray-100 rounded-full px-4 py-1 flex items-center">
+              <Input
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                className="flex-1 bg-transparent border-none p-0 h-9"
+                placeholder="Viết bình luận..."
+                onKeyDown={(e) => e.key === 'Enter' && handleSendComment()}
+              />
+            </Box>
+            <button
+              onClick={handleSendComment}
+              className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
+                commentText.trim() 
+                  ? "bg-[#14502e] text-white shadow-sm active:scale-95" 
+                  : "bg-gray-100 text-gray-400 cursor-not-allowed"
+              }`}
+            >
+              <CustomIcon icon="zi-send-solid" size={16} />
+            </button>
           </Box>
-          <button
-            onClick={handleSendComment}
-            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
-              commentText.trim() 
-                ? "bg-[#14502e] text-white shadow-sm active:scale-95" 
-                : "bg-gray-100 text-gray-400 cursor-not-allowed"
-            }`}
-          >
-            <CustomIcon icon="zi-send-solid" size={16} />
-          </button>
         </Box>
       </Sheet>
 

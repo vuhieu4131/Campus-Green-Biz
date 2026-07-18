@@ -1,7 +1,7 @@
 import React, { FC, useEffect, useState, useRef } from "react";
 import { Page, Header, Box, Text, Avatar, Button, Icon, Tabs, useSnackbar, Spinner, Modal, Sheet } from "zmp-ui";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { doc, getDoc, collection, query, where, getDocs, deleteDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, deleteDoc, updateDoc, serverTimestamp, addDoc } from "firebase/firestore";
 import { db, auth } from "../firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { openPhone, openChat } from "zmp-sdk/apis";
@@ -328,16 +328,46 @@ const ShopPublicView: FC = () => {
     fetchData();
   }, [id]);
 
-  const handleChatDirect = () => {
-    const targetId = shop.phone || shop.id || id;
-    if (targetId) {
-      openChat({
-        type: "user",
-        id: targetId,
-        message: `Xin chào ${shop.name}, tôi cần tư vấn.`
+  const handleChatDirect = async () => {
+    const currentUser = auth.currentUser;
+    const targetUserId = shop.id || id;
+    if (!currentUser || currentUser.email === "guest@campus.com") {
+      openSnackbar({ text: "Vui lòng đăng nhập để nhắn tin", type: "warning" });
+      return;
+    }
+    if (!targetUserId) {
+      openSnackbar({ text: "Không tìm thấy thông tin cửa hàng", type: "warning" });
+      return;
+    }
+    
+    try {
+      const q = query(
+        collection(db, "chats"),
+        where("participants", "array-contains", currentUser.uid)
+      );
+      const snap = await getDocs(q);
+      let existingChatId = null;
+      snap.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (data.participants.includes(targetUserId)) {
+          existingChatId = docSnap.id;
+        }
       });
-    } else {
-      openSnackbar({ text: "Cửa hàng chưa có thông tin liên hệ Zalo", type: "warning" });
+
+      if (existingChatId) {
+        navigate(`/chat-detail/${existingChatId}`);
+      } else {
+        const newChat = await addDoc(collection(db, "chats"), {
+          participants: [currentUser.uid, targetUserId],
+          lastMessage: "",
+          lastMessageTime: serverTimestamp(),
+          createdAt: serverTimestamp(),
+        });
+        navigate(`/chat-detail/${newChat.id}`);
+      }
+    } catch (error) {
+      console.error("Lỗi khi tạo chat:", error);
+      openSnackbar({ text: "Không thể mở đoạn chat", type: "error" });
     }
   };
 

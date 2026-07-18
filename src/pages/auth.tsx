@@ -220,7 +220,8 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
         zaloName: userInfo?.name || "",
         spendingPoints: initialSpendingPoints,
         rankPoints: initialRankPoints,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        ...(isShopConfig ? { status: "pending" } : {})
       });
 
       if (initialSpendingPoints > 0) {

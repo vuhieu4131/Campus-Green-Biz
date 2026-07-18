@@ -5,7 +5,7 @@ import { useRecoilValueLoadable } from "recoil";
 import { userState } from "state";
 import { auth, db } from "../../firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { onSnapshot, doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import logo from "static/logo.png";
 
 export const Welcome: FC = () => {
@@ -15,8 +15,12 @@ export const Welcome: FC = () => {
   const [userData, setUserData] = useState<any>(null);
   const [showLogoModal, setShowLogoModal] = useState(false);
   const [showTextModal, setShowTextModal] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
+    let unsub1: (() => void) | undefined;
+    let unsub2: (() => void) | undefined;
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         try {
@@ -24,6 +28,7 @@ export const Welcome: FC = () => {
           const localPhone = localStorage.getItem("user_phone");
           const finalPhone = phoneFromEmail || localPhone;
 
+          let isShop = false;
           if (finalPhone) {
             // Check in shops
             const qShop = query(collection(db, "shops"), where("phone", "==", finalPhone));
@@ -36,35 +41,64 @@ export const Welcome: FC = () => {
                 avatar: shopData.shopAvatar || shopData.avatar,
                 role: "provider" 
               });
-              return;
+              isShop = true;
             }
           }
 
-          // Check in users (by UID)
-          const docRef = doc(db, "users", user.uid);
-          const docSnap = await getDoc(docRef);
-          let data = docSnap.exists() ? docSnap.data() : null;
+          if (!isShop) {
+            // Check in users (by UID)
+            const docRef = doc(db, "users", user.uid);
+            const docSnap = await getDoc(docRef);
+            let data = docSnap.exists() ? docSnap.data() : null;
 
-          // Check in users (by phone fallback)
-          if (!data && finalPhone) {
-            const qUser = query(collection(db, "users"), where("phone", "==", finalPhone));
-            const userSnap = await getDocs(qUser);
-            if (!userSnap.empty) {
-              data = userSnap.docs[0].data();
+            // Check in users (by phone fallback)
+            if (!data && finalPhone) {
+              const qUser = query(collection(db, "users"), where("phone", "==", finalPhone));
+              const userSnap = await getDocs(qUser);
+              if (!userSnap.empty) {
+                data = userSnap.docs[0].data();
+              }
+            }
+
+            if (data) {
+              setUserData(data);
             }
           }
 
-          if (data) {
-            setUserData(data);
-          }
+          // Fetch notification count
+          const q1 = query(
+            collection(db, "notifications"),
+            where("userId", "==", user.uid),
+            where("isRead", "==", false)
+          );
+          const q2 = query(
+            collection(db, "notifications"),
+            where("userId", "==", finalPhone),
+            where("isRead", "==", false)
+          );
+
+          unsub1 = onSnapshot(q1, (snap1) => {
+            unsub2 = onSnapshot(q2, (snap2) => {
+              const uniqueIds = new Set();
+              snap1.docs.forEach(doc => uniqueIds.add(doc.id));
+              snap2.docs.forEach(doc => uniqueIds.add(doc.id));
+              setUnreadCount(uniqueIds.size);
+            });
+          });
+
         } catch (error) {
           console.error("Lỗi lấy thông tin user welcome:", error);
         }
       } else {
         setUserData(null);
+        setUnreadCount(0);
       }
     });
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      if (unsub1) unsub1();
+      if (unsub2) unsub2();
+    };
   }, []);
 
   const avatar = userInfo?.avatar || userData?.avatar || "https://i.pravatar.cc/150?img=11";
@@ -153,6 +187,11 @@ export const Welcome: FC = () => {
           onClick={() => navigate('/notification')}
         >
           <CustomIcon icon="zi-notif" className="text-gray-700 text-base" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center px-1 shadow-sm border-2 border-white">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
         </Box>
       </Box>
 

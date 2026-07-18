@@ -11,6 +11,15 @@ import { openShareSheet } from "zmp-sdk/apis";
 const { Item } = List;
 const { TextArea } = Input;
 const { Option } = Select;
+
+const isWithin15Days = (createdAt: any) => {
+  if (!createdAt) return true;
+  const date = createdAt.toDate ? createdAt.toDate() : (createdAt.seconds ? new Date(createdAt.seconds * 1000) : new Date(createdAt));
+  const fifteenDaysAgo = new Date();
+  fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
+  return date >= fifteenDaysAgo;
+};
+
 // 👉 Placeholder cho App ID của bạn
 const YOUR_APP_ID = "2196212719506893777"; 
 
@@ -92,27 +101,108 @@ export const ProviderView: FC<ProviderProps> = ({ userData, onBackToProfile, onL
   const [passLoading, setPassLoading] = useState(false);
 
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  const [feedbackTab, setFeedbackTab] = useState("new"); 
+  const [feedbackTab, setFeedbackTab] = useState("new");
   const [feedbackList, setFeedbackList] = useState<any[]>([]);
-  const [unreadFeedbackCount, setUnreadFeedbackCount] = useState(0);
-
   // Lắng nghe real-time số lượng phản hồi Admin đã trả lời nhưng chưa đọc
   useEffect(() => {
-      if (!userData.phone) return;
-      const q = query(collection(db, "feedbacks"), where("userId", "==", userData.phone));
-      const unsubscribe = onSnapshot(q, (snap) => {
-          let count = 0;
-          snap.docs.forEach(doc => {
-              const data = doc.data();
-              // Nếu Admin đã trả lời (done) và user chưa đọc (chưa có userRead hoặc userRead = false)
-              if (data.status === 'done' && !data.userRead) {
-                  count++;
-              }
-          });
-          setUnreadFeedbackCount(count);
-      });
-      return () => unsubscribe();
+    if (!userData?.id && !userData?.phone) return;
+    
+    const shopId = userData.id || userData.phone;
+    const qUnread = query(
+      collection(db, "feedbacks"),
+      where("userId", "==", shopId),
+      where("status", "==", "done"),
+      where("userRead", "==", false)
+    );
+
+    const unsub = onSnapshot(qUnread, (snap) => {
+      setUnreadFeedbackCount(snap.docs.length);
+    });
+
+    return () => unsub();
   }, [userData]);
+
+  // --- STATE MODAL CẬP NHẬT THÔNG TIN SHOP ---
+  const [showShopRegistrationModal, setShowShopRegistrationModal] = useState(false);
+  const [regShopName, setRegShopName] = useState(userData?.shopName || userData?.fullName || "");
+  const [regManagerName, setRegManagerName] = useState("");
+  const [regManagerPhone, setRegManagerPhone] = useState(userData?.phone || "");
+  const [agreeToTerms, setAgreeToTerms] = useState(false);
+  const [hasBusinessLicense, setHasBusinessLicense] = useState<string>("no");
+  const [agreeToLiability, setAgreeToLiability] = useState(false);
+  const [licenseImage, setLicenseImage] = useState<string | null>(null);
+  const [isUploadingLicense, setIsUploadingLicense] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [isSubmittingRegistration, setIsSubmittingRegistration] = useState(false);
+
+  const handleUploadLicenseImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingLicense(true);
+    try {
+      const filename = `licenses/${Date.now()}_${file.name}`;
+      const storageRef = ref(storage, filename);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      setLicenseImage(url);
+      openSnackbar({ text: "Tải ảnh lên thành công!", type: "success" });
+    } catch (error) {
+      console.error("Lỗi khi tải ảnh lên:", error);
+      openSnackbar({ text: "Lỗi tải ảnh lên. Vui lòng thử lại.", type: "error" });
+    } finally {
+      setIsUploadingLicense(false);
+    }
+  };
+
+  const handleSubmitRegistration = async () => {
+    if (!regShopName || !regManagerName || !regManagerPhone) {
+      openSnackbar({ text: "Vui lòng điền đầy đủ thông tin!", type: "error" });
+      return;
+    }
+    if (!agreeToTerms) {
+      openSnackbar({ text: "Vui lòng đồng ý với Điều khoản thoả thuận!", type: "error" });
+      return;
+    }
+    if (hasBusinessLicense === "yes" && !licenseImage) {
+      openSnackbar({ text: "Vui lòng tải lên Giấy đăng ký kinh doanh!", type: "error" });
+      return;
+    }
+    if (hasBusinessLicense === "no" && !agreeToLiability) {
+      openSnackbar({ text: "Vui lòng xác nhận Cam kết chịu trách nhiệm!", type: "error" });
+      return;
+    }
+
+    setIsSubmittingRegistration(true);
+    try {
+      const shopId = userData.id;
+      if (!shopId) throw new Error("Không tìm thấy ID Shop");
+
+      await updateDoc(doc(db, "shops", shopId), {
+        shopName: regShopName,
+        managerName: regManagerName,
+        managerPhone: regManagerPhone,
+        hasBusinessLicense: hasBusinessLicense === "yes",
+        licenseImage: licenseImage || null,
+        agreeToTerms: agreeToTerms,
+        agreeToLiability: agreeToLiability,
+        status: "reviewing",
+        registrationUpdatedAt: serverTimestamp()
+      });
+
+      // Update local state partially so UI reacts
+      userData.status = "reviewing";
+
+      openSnackbar({ text: "Gửi yêu cầu xét duyệt thành công!", type: "success" });
+      setShowShopRegistrationModal(false);
+    } catch (err) {
+      console.error("Lỗi gửi duyệt:", err);
+      openSnackbar({ text: "Có lỗi xảy ra, vui lòng thử lại!", type: "error" });
+    } finally {
+      setIsSubmittingRegistration(false);
+    }
+  };
+
+  const [unreadFeedbackCount, setUnreadFeedbackCount] = useState(0);
   const [loadingFeedbacks, setLoadingFeedbacks] = useState(false);
   const [feedbackContent, setFeedbackContent] = useState("");
   const [feedbackLoading, setFeedbackLoading] = useState(false);
@@ -123,6 +213,7 @@ export const ProviderView: FC<ProviderProps> = ({ userData, onBackToProfile, onL
   const [orderList, setOrderList] = useState<any[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [selectedOrderDetail, setSelectedOrderDetail] = useState<any>(null);
+  const [showOrderAccount, setShowOrderAccount] = useState(false);
   const [showCancelInput, setShowCancelInput] = useState(false);
   const [cancelReasonText, setCancelReasonText] = useState("");
 
@@ -322,7 +413,7 @@ export const ProviderView: FC<ProviderProps> = ({ userData, onBackToProfile, onL
           const snapshot = await getDocs(q);
           const list = snapshot.docs
               .map(doc => ({ id: doc.id, ...doc.data() } as any))
-              .filter(item => item.type === "minus")
+              .filter(item => item.type === "minus" && isWithin15Days(item.createdAt))
               .sort((a, b) => {
                   const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
                   const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
@@ -352,7 +443,7 @@ export const ProviderView: FC<ProviderProps> = ({ userData, onBackToProfile, onL
           const snapshot = await getDocs(q);
           const list = snapshot.docs
               .map(doc => ({ id: doc.id, ...doc.data() } as any))
-              .filter(item => item.type === "plus")
+              .filter(item => item.type === "plus" && isWithin15Days(item.createdAt))
               .sort((a, b) => {
                   const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
                   const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
@@ -365,6 +456,114 @@ export const ProviderView: FC<ProviderProps> = ({ userData, onBackToProfile, onL
           setRankHistoryList([]);
       } finally {
           setRankHistoryLoading(false);
+      }
+  };
+
+  const handleConvertPromoToVip = async () => {
+      const currentPromo = userData.spendingPoints || 0;
+      if (currentPromo < 2) {
+          return openSnackbar({ text: "Số dư Ví Ưu Đãi không đủ (Tối thiểu 2 điểm)!", type: "warning" });
+      }
+
+      if (!window.confirm("Đổi điểm từ Ví Ưu Đãi sang Ví điểm đẩy hàng VIP?\n- Tỷ lệ: 2 Ưu Đãi = 1 VIP\n- Toàn bộ số điểm chẵn sẽ được đổi.")) return;
+
+      try {
+          const promoToDeduct = currentPromo - (currentPromo % 2); // Chỉ đổi phần chẵn
+          const vipToAdd = promoToDeduct / 2;
+          const targetDocId = userData.id || userData.phone;
+
+          // Cập nhật điểm shop
+          await updateDoc(doc(db, "shops", targetDocId), {
+              spendingPoints: increment(-promoToDeduct),
+              vipPoints: increment(vipToAdd),
+              rankPoints: increment(vipToAdd)
+          });
+
+          // Lịch sử trừ Ví Ưu Đãi
+          await addDoc(collection(db, "point_transactions"), {
+              userId: targetDocId,
+              amount: promoToDeduct,
+              type: "minus",
+              walletType: "promo",
+              reason: `Quy đổi sang ${vipToAdd} điểm đẩy hàng VIP`,
+              createdAt: serverTimestamp()
+          });
+
+          // Lịch sử cộng Ví Hạng
+          await addDoc(collection(db, "point_transactions"), {
+              userId: targetDocId,
+              amount: vipToAdd,
+              type: "plus",
+              walletType: "rank",
+              reason: `Được quy đổi từ ${promoToDeduct} điểm Ví Ưu Đãi`,
+              createdAt: serverTimestamp()
+          });
+
+          openSnackbar({ text: `Đã đổi thành công ${vipToAdd} điểm VIP!`, type: "success" });
+          
+          setUserData((prev: any) => ({
+              ...prev,
+              spendingPoints: (prev.spendingPoints || 0) - promoToDeduct,
+              vipPoints: (prev.vipPoints || 0) + vipToAdd,
+              rankPoints: (prev.rankPoints || 0) + vipToAdd
+          }));
+      } catch (e) {
+          console.error(e);
+          openSnackbar({ text: "Lỗi quy đổi điểm", type: "error" });
+      }
+  };
+
+  const handleConvertInteractionToVip = async () => {
+      if (eligiblePoints < 20) {
+          return openSnackbar({ text: "Số dư khả dụng không đủ (Tối thiểu 20 điểm)!", type: "warning" });
+      }
+
+      if (!window.confirm("Đổi điểm từ Ví Tương Tác sang Ví điểm đẩy hàng VIP?\n- Tỷ lệ: 20 Tương Tác = 1 VIP\n- Toàn bộ số điểm chẵn theo tỷ lệ sẽ được đổi.")) return;
+
+      try {
+          const interactionToDeduct = eligiblePoints - (eligiblePoints % 20); // Chỉ đổi phần chia hết cho 20
+          const vipToAdd = interactionToDeduct / 20;
+          const targetDocId = userData.id || userData.phone;
+
+          // Cập nhật điểm shop
+          await updateDoc(doc(db, "shops", targetDocId), {
+              interactionPoints: increment(-interactionToDeduct),
+              vipPoints: increment(vipToAdd),
+              rankPoints: increment(vipToAdd)
+          });
+
+          // Lịch sử trừ Ví Tương Tác
+          await addDoc(collection(db, "point_transactions"), {
+              userId: targetDocId,
+              amount: interactionToDeduct,
+              type: "minus",
+              walletType: "interaction",
+              reason: `Quy đổi sang ${vipToAdd} điểm đẩy hàng VIP`,
+              createdAt: serverTimestamp()
+          });
+
+          // Lịch sử cộng Ví Hạng
+          await addDoc(collection(db, "point_transactions"), {
+              userId: targetDocId,
+              amount: vipToAdd,
+              type: "plus",
+              walletType: "rank",
+              reason: `Được quy đổi từ ${interactionToDeduct} điểm Ví Tương Tác`,
+              createdAt: serverTimestamp()
+          });
+
+          openSnackbar({ text: `Đã đổi thành công ${vipToAdd} điểm VIP!`, type: "success" });
+          
+          setUserData((prev: any) => ({
+              ...prev,
+              interactionPoints: (prev.interactionPoints || 0) - interactionToDeduct,
+              vipPoints: (prev.vipPoints || 0) + vipToAdd,
+              rankPoints: (prev.rankPoints || 0) + vipToAdd
+          }));
+          setEligiblePoints(prev => prev - interactionToDeduct);
+      } catch (e) {
+          console.error(e);
+          openSnackbar({ text: "Lỗi quy đổi điểm", type: "error" });
       }
   };
 
@@ -382,13 +581,15 @@ export const ProviderView: FC<ProviderProps> = ({ userData, onBackToProfile, onL
           
           docs = docs.filter((tx: any) => {
               const type = tx.walletType || 'main';
+              let matchesType = false;
               if (tab === 'rank') {
-                  return type === 'main' || type === 'all';
+                  matchesType = type === 'main' || type === 'all';
               } else if (tab === 'promo') {
-                  return type === 'promo' || type === 'main' || type === 'all';
+                  matchesType = type === 'promo' || type === 'main' || type === 'all';
               } else {
-                  return type === 'interaction';
+                  matchesType = type === 'interaction';
               }
+              return matchesType && isWithin15Days(tx.createdAt);
           });
           
           docs.sort((a: any, b: any) => {
@@ -939,8 +1140,8 @@ useEffect(() => {
       // Sửa lại từ dòng try { ... } của hàm handleSendFeedback thành thế này:
   try {
     await addDoc(collection(db, "feedbacks"), { 
-        userId: userData.phone, userName: userData.name, userPhone: userData.phone, 
-        role: "user", // (Hoặc provider/branch_manager tùy file)
+        userId: userData.phone || "unknown", userName: userData.shopName || userData.fullName || userData.name || "Chưa có tên", userPhone: userData.phone || "unknown", 
+        role: "provider", 
         content: feedbackContent, createdAt: serverTimestamp(), status: "new" 
     });
     openSnackbar({ text: "Đã gửi phản hồi!", type: "success" });
@@ -1262,15 +1463,7 @@ useEffect(() => {
     }
   };
 
-  if (userData.status === "pending") {
-    return (
-      <Box className="m-4 p-6 bg-white rounded-xl flex flex-col items-center text-center shadow-md border border-yellow-100">
-        <CustomIcon icon="zi-warning-solid" className="text-yellow-500 text-5xl mb-3" />
-        <Text.Title size="small">Hồ sơ chờ phê duyệt</Text.Title>
-        <Text size="small" className="text-gray-500 mt-2">Hồ sơ Nhà cung cấp của bạn đang được Admin xét duyệt. Chúng tôi sẽ thông báo khi tài khoản được kích hoạt.</Text>
-      </Box>
-    );
-  }
+
 
   // --- GIAO DIỆN CHÍNH ---
   return (
@@ -1429,7 +1622,20 @@ useEffect(() => {
           <Box className="bg-white rounded-xl overflow-hidden shadow-md border border-gray-50 mb-4">
               <Text.Title size="small" className="p-4 pb-2 text-gray-500 font-bold bg-gray-50">Dịch vụ & Bài đăng</Text.Title>
               <List>
-                  <Item title="Đăng Sản phẩm/Dịch vụ mới" prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-green-50"><Icon icon="zi-plus-circle" className="text-green-600" size={18}/></div>} suffix={<Icon icon="zi-chevron-right" className="text-gray-400"/>} onClick={() => navigate("/post-service")} />
+                  <Item 
+                    title="Đăng Sản phẩm/Dịch vụ mới" 
+                    prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-green-50"><Icon icon="zi-plus-circle" className="text-green-600" size={18}/></div>} 
+                    suffix={<Icon icon="zi-chevron-right" className="text-gray-400"/>} 
+                    onClick={() => {
+                      if (userData.status === 'reviewing') {
+                        openSnackbar({ text: "Cửa hàng của bạn đang được Admin xét duyệt. Vui lòng quay lại sau!", type: "warning" });
+                      } else if (userData.status !== 'active') {
+                        setShowShopRegistrationModal(true);
+                      } else {
+                        navigate("/post-service");
+                      }
+                    }} 
+                  />
                   <Item 
     title="Quản lý đơn hàng" 
     subTitle="Theo dõi tất cả đơn đặt lịch" 
@@ -1789,16 +1995,26 @@ useEffect(() => {
                     </Box>
                   </Box>
 
-                  <Box flex justifyContent="space-between" alignItems="center" className="border-t border-white/20 pt-2.5 mt-4">
-                    <Text size="xxxxSmall" className="italic opacity-85">* Điểm ưu đãi dùng để tạo voucher, chiến dịch quảng cáo.</Text>
-                    <Box 
-                      flex 
-                      alignItems="center" 
-                      className="cursor-pointer active:opacity-75 text-[10px] font-bold bg-white/10 px-2.5 py-0.5 rounded-full border border-white/10"
-                      onClick={() => handleOpenShopWalletHistory('promo')}
-                    >
-                      <Icon icon={"zi-clock" as any} className="mr-1" size={10} />
-                      <span>Xem lịch sử</span>
+                  <Box flex justifyContent="flex-end" alignItems="center" className="border-t border-white/20 pt-2.5 mt-4">
+                    <Box flex className="gap-2">
+                        <Box 
+                          flex 
+                          alignItems="center" 
+                          className="cursor-pointer active:opacity-75 text-[10px] font-bold bg-yellow-400 text-yellow-900 px-2.5 py-1 rounded-full shadow-sm"
+                          onClick={handleConvertPromoToVip}
+                        >
+                          <Icon icon={"zi-sync" as any} className="mr-1" size={12} />
+                          <span>Đổi điểm VIP</span>
+                        </Box>
+                        <Box 
+                          flex 
+                          alignItems="center" 
+                          className="cursor-pointer active:opacity-75 text-[10px] font-bold bg-white/10 px-2.5 py-1 rounded-full border border-white/10"
+                          onClick={() => handleOpenShopWalletHistory('promo')}
+                        >
+                          <Icon icon={"zi-clock" as any} className="mr-1" size={10} />
+                          <span>Xem lịch sử</span>
+                        </Box>
                     </Box>
                   </Box>
                 </Box>
@@ -1826,16 +2042,26 @@ useEffect(() => {
                     </Box>
                   </Box>
 
-                  <Box flex justifyContent="space-between" alignItems="center" className="border-t border-white/20 pt-2.5 mt-4">
-                    <Text size="xxxxSmall" className="italic opacity-85">* Điểm khả dụng là điểm đã tích lũy đủ 48 giờ.</Text>
-                    <Box 
-                      flex 
-                      alignItems="center" 
-                      className="cursor-pointer active:opacity-75 text-[10px] font-bold bg-white/10 px-2.5 py-0.5 rounded-full border border-white/10"
-                      onClick={() => handleOpenShopWalletHistory('interaction')}
-                    >
-                      <Icon icon={"zi-clock" as any} className="mr-1" size={10} />
-                      <span>Xem lịch sử</span>
+                  <Box flex justifyContent="flex-end" alignItems="center" className="border-t border-white/20 pt-2.5 mt-4">
+                    <Box flex className="gap-2">
+                        <Box 
+                          flex 
+                          alignItems="center" 
+                          className="cursor-pointer active:opacity-75 text-[10px] font-bold bg-yellow-400 text-yellow-900 px-2.5 py-1 rounded-full shadow-sm"
+                          onClick={handleConvertInteractionToVip}
+                        >
+                          <Icon icon={"zi-sync" as any} className="mr-1" size={12} />
+                          <span>Đổi điểm VIP</span>
+                        </Box>
+                        <Box 
+                          flex 
+                          alignItems="center" 
+                          className="cursor-pointer active:opacity-75 text-[10px] font-bold bg-white/10 px-2.5 py-1 rounded-full border border-white/10"
+                          onClick={() => handleOpenShopWalletHistory('interaction')}
+                        >
+                          <Icon icon={"zi-clock" as any} className="mr-1" size={10} />
+                          <span>Xem lịch sử</span>
+                        </Box>
                     </Box>
                   </Box>
                 </Box>
@@ -2106,50 +2332,58 @@ useEffect(() => {
                       <Box className="animate-fade-in-up">
                           {loadingFeedbacks ? (
                               <Box flex justifyContent="center" py={5}><Spinner /></Box>
-                          ) : feedbackList.length === 0 ? (
-                              <Box flex flexDirection="column" alignItems="center" py={5}>
-                                  <CustomIcon icon="zi-chat" size={40} className="text-gray-300 mb-2"/>
-                                  <Text className="text-center text-gray-500">Bạn chưa gửi yêu cầu nào.</Text>
-                              </Box>
                           ) : (
-                              feedbackList.map((fb, idx) => {
-                                  // Xử lý an toàn ngày giờ
-                                  const dateObj = fb.createdAt?.toDate ? fb.createdAt.toDate() : (fb.createdAt?.seconds ? new Date(fb.createdAt.seconds * 1000) : null);
+                              (() => {
+                                  let filtered = feedbackList;
+                                  if (feedbackTab === 'new') filtered = feedbackList.filter(fb => fb.status !== 'done');
+                                  else filtered = feedbackList.filter(fb => fb.status === 'done').filter(fb => isWithin15Days(fb.createdAt));
                                   
-                                  return (
-                                  <Box key={idx} className="mb-4 p-3 bg-white rounded-xl border border-gray-200 shadow-md relative overflow-hidden">
-                                      {/* Viền màu trạng thái bên trái */}
-                                      <div className={`absolute top-0 left-0 bottom-0 w-1 ${fb.status === 'done' ? 'bg-green-500' : 'bg-orange-500'}`}></div>
-                                      
-                                      <Box flex justifyContent="space-between" mb={2} pl={2}>
-                                          <Text size="xxxxSmall" className="text-gray-500">
-                                              {dateObj ? `${dateObj.getHours()}:${String(dateObj.getMinutes()).padStart(2, '0')} - ${dateObj.toLocaleDateString('vi-VN')}` : "Vừa xong"}
-                                          </Text>
-                                          <Text size="xxxxSmall" bold className={fb.status === 'done' ? "text-green-600 bg-green-50 px-2 py-0.5 rounded" : "text-orange-600 bg-orange-50 px-2 py-0.5 rounded"}>
-                                              {fb.status === 'done' ? "Đã phản hồi" : "Đang chờ Admin"}
-                                          </Text>
+                                  if (filtered.length === 0) return (
+                                      <Box flex flexDirection="column" alignItems="center" py={5}>
+                                          <CustomIcon icon="zi-chat" size={40} className="text-gray-300 mb-2"/>
+                                          <Text className="text-center text-gray-500">Bạn chưa có yêu cầu nào trong 15 ngày qua.</Text>
                                       </Box>
+                                  );
+                                  
+                                  return filtered.map((fb, idx) => {
+                                      // Xử lý an toàn ngày giờ
+                                      const dateObj = fb.createdAt?.toDate ? fb.createdAt.toDate() : (fb.createdAt?.seconds ? new Date(fb.createdAt.seconds * 1000) : null);
                                       
-                                      <Box pl={2} mb={2}>
-                                          <Text size="small" className="text-gray-800">"{fb.content}"</Text>
-                                      </Box>
-                                      
-                                      {/* Câu trả lời của Admin */}
-                                      {fb.status === 'done' && fb.adminNote && (
-                                          <Box className="bg-blue-50/50 p-3 rounded-lg border border-blue-100 mt-3 ml-2 relative">
-                                              <Box flex alignItems="center" mb={1}>
-                                                  <Box className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center mr-1.5">
-                                                      <CustomIcon icon="zi-user" size={12} className="text-white"/>
-                                                  </Box>
-                                                  <Text size="xSmall" bold className="text-blue-800">Admin trả lời:</Text>
-                                              </Box>
-                                              <Text size="small" className="text-gray-800 leading-relaxed pl-6">
-                                                  {fb.adminNote}
+                                      return (
+                                      <Box key={idx} className="mb-4 p-3 bg-white rounded-xl border border-gray-200 shadow-md relative overflow-hidden">
+                                          {/* Viền màu trạng thái bên trái */}
+                                          <div className={`absolute top-0 left-0 bottom-0 w-1 ${fb.status === 'done' ? 'bg-green-500' : 'bg-orange-500'}`}></div>
+                                          
+                                          <Box flex justifyContent="space-between" mb={2} pl={2}>
+                                              <Text size="xxxxSmall" className="text-gray-500">
+                                                  {dateObj ? `${dateObj.getHours()}:${String(dateObj.getMinutes()).padStart(2, '0')} - ${dateObj.toLocaleDateString('vi-VN')}` : "Vừa xong"}
+                                              </Text>
+                                              <Text size="xxxxSmall" bold className={fb.status === 'done' ? "text-green-600 bg-green-50 px-2 py-0.5 rounded" : "text-orange-600 bg-orange-50 px-2 py-0.5 rounded"}>
+                                                  {fb.status === 'done' ? "Đã phản hồi" : "Đang chờ Admin"}
                                               </Text>
                                           </Box>
-                                      )}
-                                  </Box>
-                              )})
+                                          
+                                          <Box pl={2} mb={2}>
+                                              <Text size="small" className="text-gray-800">"{fb.content}"</Text>
+                                          </Box>
+                                          
+                                          {/* Câu trả lời của Admin */}
+                                          {fb.status === 'done' && fb.adminNote && (
+                                              <Box className="bg-blue-50/50 p-3 rounded-lg border border-blue-100 mt-3 ml-2 relative">
+                                                  <Box flex alignItems="center" mb={1}>
+                                                      <Box className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center mr-1.5">
+                                                          <CustomIcon icon="zi-user" size={12} className="text-white"/>
+                                                      </Box>
+                                                      <Text size="xSmall" bold className="text-blue-800">Admin trả lời:</Text>
+                                                  </Box>
+                                                  <Text size="small" className="text-gray-800 leading-relaxed pl-6">
+                                                      {fb.adminNote}
+                                                  </Text>
+                                              </Box>
+                                          )}
+                                      </Box>
+                                  )});
+                              })()
                           )}
                       </Box>
                   )}
@@ -2332,7 +2566,7 @@ useEffect(() => {
                       Chờ vận chuyển ({orderList.filter(o=>o.status==='confirmed' || o.status==='shipping').length})
                   </Box>
                   <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${orderTab==="history"?"border-gray-500 text-gray-800 font-bold":"border-transparent text-gray-500"}`} onClick={()=>setOrderTab("history")}>
-                      Lịch sử
+                      Lịch sử ({orderList.filter(o => o.status === 'completed' || o.status === 'success' || o.status === 'cancelled').length})
                   </Box>
               </Box>
 
@@ -2496,6 +2730,7 @@ useEffect(() => {
         title="Chi tiết đơn hàng" 
         onClose={() => {
           setSelectedOrderDetail(null);
+          setShowOrderAccount(false);
           setShowCancelInput(false);
           setCancelReasonText("");
         }}
@@ -2530,6 +2765,31 @@ useEffect(() => {
                 <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${statusColor}`}>
                   {statusText}
                 </span>
+              </Box>
+
+              {/* Thông tin tài khoản đặt hàng */}
+              <Box className="bg-white p-3 rounded-xl border border-gray-150 shadow-sm mb-4">
+                <Box 
+                  className={`flex justify-between items-center cursor-pointer ${showOrderAccount ? 'mb-2 border-b border-gray-100 pb-1' : ''}`}
+                  onClick={() => setShowOrderAccount(!showOrderAccount)}
+                >
+                  <Text size="small" bold className="text-gray-800">
+                    Tài khoản đặt hàng
+                  </Text>
+                  <Icon icon={showOrderAccount ? "zi-chevron-up" as any : "zi-chevron-down" as any} size={16} className="text-gray-400" />
+                </Box>
+                {showOrderAccount && (
+                  <Box className="space-y-1.5 text-xs text-gray-600">
+                    <p><strong className="text-gray-700">Tên tài khoản:</strong> {selectedOrderDetail.customerName || selectedOrderDetail.userName || selectedOrderDetail.fullName || "Khách hàng"}</p>
+                    <p><strong className="text-gray-700">Số điện thoại:</strong> {selectedOrderDetail.userId || selectedOrderDetail.customerPhone || selectedOrderDetail.phone || "Không có"}</p>
+                    <div 
+                      className="text-blue-600 font-medium cursor-pointer inline-flex items-center mt-1 border border-blue-100 bg-blue-50 px-2 py-1 rounded"
+                      onClick={() => navigate(`/profile?id=${selectedOrderDetail.userId || selectedOrderDetail.customerPhone || selectedOrderDetail.phone}`)}
+                    >
+                      <Icon icon="zi-user" as any size={12} className="mr-1" /> Trang cá nhân
+                    </div>
+                  </Box>
+                )}
               </Box>
 
               {/* Thông tin giao hàng */}
@@ -3045,6 +3305,112 @@ useEffect(() => {
               </Box>
           </Box>
       </Modal>
+
+      {/* --- MODAL ĐĂNG KÝ/CẬP NHẬT SHOP CHO VIỆC PHÊ DUYỆT --- */}
+      <Modal visible={showShopRegistrationModal} title="Đăng ký Thông tin Cửa hàng" onClose={() => setShowShopRegistrationModal(false)}>
+        <Box p={4} className="bg-white rounded-xl shadow-md border-t-4 border-green-500 overflow-y-auto max-h-[80vh]">
+          <Text size="small" className="text-gray-600 mb-4 text-center">Để đảm bảo quyền lợi và tính hợp pháp, Vui lòng cung cấp các thông tin sau để Ban Quản Trị phê duyệt tài khoản Shop của bạn.</Text>
+          
+          <Box mb={4}>
+            <Input label="Tên Shop" value={regShopName} onChange={(e) => setRegShopName(e.target.value)} required />
+          </Box>
+          <Box mb={4}>
+            <Input label="Tên người quản lý" value={regManagerName} onChange={(e) => setRegManagerName(e.target.value)} required />
+          </Box>
+          <Box mb={4}>
+            <Input label="Số điện thoại người quản lý" type="number" value={regManagerPhone} onChange={(e) => setRegManagerPhone(e.target.value)} required />
+          </Box>
+
+          {/* Chọn Giấy ĐKKD */}
+          <Box mb={4}>
+            <Text size="small" bold className="text-gray-700 mb-2">Bạn có Giấy phép Đăng ký kinh doanh không?</Text>
+            <Select 
+              value={hasBusinessLicense} 
+              onChange={(value) => setHasBusinessLicense(value as string)}
+              closeOnSelect
+            >
+              <Option value="yes" title="Tôi CÓ Giấy ĐKKD" />
+              <Option value="no" title="Tôi KHÔNG CÓ Giấy ĐKKD" />
+            </Select>
+          </Box>
+
+          {hasBusinessLicense === "yes" && (
+            <Box mb={4} className="p-3 bg-blue-50 rounded-lg border border-blue-100">
+              <Text size="small" bold className="text-blue-800 mb-2">Ảnh chụp Giấy ĐKKD *</Text>
+              {licenseImage ? (
+                <Box className="relative mb-2 inline-block">
+                  <img src={licenseImage} alt="Giấy ĐKKD" className="w-full h-32 object-cover rounded-lg border border-gray-300" />
+                  <Box className="absolute top-1 right-1 bg-white rounded-full p-1 shadow cursor-pointer" onClick={() => setLicenseImage(null)}>
+                    <CustomIcon icon="zi-close" className="text-red-500" size={16} />
+                  </Box>
+                </Box>
+              ) : (
+                <Box className="flex items-center justify-center border-2 border-dashed border-blue-300 bg-white rounded-lg h-24 relative overflow-hidden">
+                  {isUploadingLicense ? <Spinner visible /> : (
+                    <Box className="text-center text-blue-500">
+                      <CustomIcon icon="zi-upload" size={24} />
+                      <Text size="xSmall" className="mt-1">Tải ảnh lên</Text>
+                    </Box>
+                  )}
+                  <input type="file" accept="image/*" onChange={handleUploadLicenseImage} className="absolute inset-0 opacity-0 cursor-pointer" />
+                </Box>
+              )}
+            </Box>
+          )}
+
+          {hasBusinessLicense === "no" && (
+            <Box mb={4} className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+              <label className="flex items-start">
+                <input type="checkbox" checked={agreeToLiability} onChange={(e) => setAgreeToLiability(e.target.checked)} className="mt-1 mr-2 flex-shrink-0 accent-orange-600" />
+                <Text size="small" className="text-gray-700 leading-snug">
+                  Tôi <b>Cam kết chịu trách nhiệm 100% trước cơ quan pháp luật</b> về việc kinh doanh hợp pháp các sản phẩm/dịch vụ trên nền tảng.
+                </Text>
+              </label>
+            </Box>
+          )}
+
+          {/* Điều khoản */}
+          <Box mb={4}>
+            <label className="flex items-center">
+              <input type="checkbox" checked={agreeToTerms} onChange={(e) => setAgreeToTerms(e.target.checked)} className="mr-2 accent-green-600" />
+              <Text size="small" className="text-gray-700">
+                Tôi đồng ý với{" "}
+                <span className="text-blue-600 underline font-bold cursor-pointer" onClick={() => setShowTermsModal(true)}>Điều khoản thoả thuận</span>.
+              </Text>
+            </label>
+          </Box>
+
+          <Button fullWidth onClick={handleSubmitRegistration} loading={isSubmittingRegistration}>Gửi admin phê duyệt</Button>
+        </Box>
+      </Modal>
+
+      {/* --- MODAL ĐIỀU KHOẢN THỎA THUẬN --- */}
+      <Modal visible={showTermsModal} title="Điều khoản Thoả thuận" onClose={() => setShowTermsModal(false)}>
+        <Box p={4} className="max-h-[70vh] overflow-y-auto">
+          <Text.Title size="small" className="mb-2 text-green-700">1. Quy định về Hàng hóa, Dịch vụ</Text.Title>
+          <Text size="small" className="text-gray-600 mb-3 text-justify">
+            Cửa hàng cam kết cung cấp hàng hóa/dịch vụ đảm bảo chất lượng, đúng theo mô tả, tuân thủ nghiêm ngặt mọi quy định của Pháp luật Việt Nam về việc kinh doanh, buôn bán. Tuyệt đối không kinh doanh hàng cấm, hàng giả, hàng kém chất lượng.
+          </Text>
+          
+          <Text.Title size="small" className="mb-2 text-green-700">2. Chính sách Chiết khấu</Text.Title>
+          <Text size="small" className="text-gray-600 mb-3 text-justify">
+            Để gia tăng lợi ích cho cộng đồng, Cửa hàng cam kết cung cấp mức ưu đãi/chiết khấu <b>ít nhất là 20%</b> cho người dùng từ hệ thống Campus Green Biz.
+          </Text>
+          
+          <Text.Title size="small" className="mb-2 text-green-700">3. Nghĩa vụ Thuế & Pháp lý</Text.Title>
+          <Text size="small" className="text-gray-600 mb-3 text-justify">
+            Chủ cửa hàng tự chịu trách nhiệm kê khai và nộp thuế đối với hoạt động kinh doanh của mình. Trong trường hợp không có Giấy ĐKKD, Chủ cửa hàng phải tự chịu trách nhiệm hoàn toàn 100% trước cơ quan pháp luật.
+          </Text>
+          
+          <Text.Title size="small" className="mb-2 text-red-600">4. Miễn trừ trách nhiệm của Nền tảng</Text.Title>
+          <Text size="small" className="text-gray-600 mb-4 text-justify">
+            Campus Green Biz hoạt động với tư cách là nền tảng trung gian kết nối. Nền tảng <b>được miễn trừ 100% trách nhiệm</b> đối với các tranh chấp, khiếu nại liên quan đến chất lượng sản phẩm, vi phạm bản quyền, hay các vấn đề pháp lý do hoạt động kinh doanh của Shop gây ra.
+          </Text>
+
+          <Button fullWidth onClick={() => setShowTermsModal(false)} variant="secondary">Đã hiểu và Đóng</Button>
+        </Box>
+      </Modal>
+
     </Box>
   );
 };

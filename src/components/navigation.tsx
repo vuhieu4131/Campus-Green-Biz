@@ -25,7 +25,7 @@ const StoreIcon = ({ active }: { active?: boolean }) => {
   );
 };
 
-const tabsKeys = ["/", "/store", "/create-post", "/notification", "/profile"];
+const tabsKeys = ["/", "/store", "/create-post", "/chat-list", "/profile"];
 
 export const NO_BOTTOM_NAVIGATION_PAGES = ["/search", "/category", "/result", "/create-post", "/cart"];
 
@@ -35,10 +35,12 @@ export const Navigation: FC = () => {
   const location = useLocation();
   const [showAuth, setShowAuth] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   useEffect(() => {
     let unsub1: (() => void) | undefined;
     let unsub2: (() => void) | undefined;
+    let unsub3: (() => void) | undefined;
 
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
@@ -72,8 +74,27 @@ export const Navigation: FC = () => {
             setUnreadCount(uniqueIds.size);
           });
         });
+
+        // Chat unread tracking
+        const q3 = query(
+          collection(db, "chats"),
+          where("participants", "array-contains", user.uid)
+        );
+
+        unsub3 = onSnapshot(q3, (snap3) => {
+          let count = 0;
+          snap3.docs.forEach(doc => {
+            const data = doc.data();
+            if (data.unreadCount && data.unreadCount[user.uid]) {
+              count += data.unreadCount[user.uid];
+            }
+          });
+          setUnreadChatCount(count);
+        });
+
       } else {
         setUnreadCount(0);
+        setUnreadChatCount(0);
       }
     });
 
@@ -81,6 +102,7 @@ export const Navigation: FC = () => {
       unsubscribeAuth();
       if (unsub1) unsub1();
       if (unsub2) unsub2();
+      if (unsub3) unsub3();
     };
   }, []);
 
@@ -128,26 +150,24 @@ export const Navigation: FC = () => {
         </div>
       ),
     },
-    "/notification": {
-      label: "Thông báo",
+    "/chat-list": {
+      label: "Tin nhắn",
       icon: (
         <div className="relative">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
-          {unreadCount > 0 && (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+          {unreadChatCount > 0 && (
             <span className="absolute -top-1.5 -right-2 min-w-[15px] h-3.5 rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center px-1 shadow-[0_1px_4px_rgba(0,0,0,0.2)]">
-              {unreadCount > 99 ? '99+' : unreadCount}
+              {unreadChatCount > 99 ? '99+' : unreadChatCount}
             </span>
           )}
         </div>
       ),
       activeIcon: (
         <div className="relative">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" />
-          </svg>
-          {unreadCount > 0 && (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" /></svg>
+          {unreadChatCount > 0 && (
             <span className="absolute -top-1.5 -right-2 min-w-[15px] h-3.5 rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center px-1 shadow-[0_1px_4px_rgba(0,0,0,0.2)]">
-              {unreadCount > 99 ? '99+' : unreadCount}
+              {unreadChatCount > 99 ? '99+' : unreadChatCount}
             </span>
           )}
         </div>
@@ -165,7 +185,7 @@ export const Navigation: FC = () => {
   }), [unreadCount]);
 
   const noBottomNav = useMemo(() => {
-    if (location.pathname.startsWith("/detail")) {
+    if (location.pathname.startsWith("/detail") || location.pathname.startsWith("/chat-detail")) {
       return true;
     }
     return NO_BOTTOM_NAVIGATION_PAGES.includes(location.pathname);

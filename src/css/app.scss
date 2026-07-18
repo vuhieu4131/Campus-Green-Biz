@@ -147,6 +147,10 @@ body {
   background-color: #14502e !important;
   color: white !important;
 }
+.zaui-header svg, .zaui-header .zaui-icon {
+  color: white !important;
+  fill: white !important;
+}
 
 /* Full screen order management modal */
 .order-management-modal {

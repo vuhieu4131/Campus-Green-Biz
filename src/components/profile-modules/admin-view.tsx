@@ -142,7 +142,73 @@ export const AdminView: FC<AdminProps> = ({ userData, onLogout }) => {
   const [confirmPass, setConfirmPass] = useState("");
   const [passLoading, setPassLoading] = useState(false);
   
+  // --- STATE PHÊ DUYỆT ĐĂNG KÝ SHOP ---
+  const [showShopApprovalModal, setShowShopApprovalModal] = useState(false);
+  const [selectedShopToApprove, setSelectedShopToApprove] = useState<any>(null);
+  const [showRejectReasonInput, setShowRejectReasonInput] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [isProcessingApproval, setIsProcessingApproval] = useState(false);
+
   const { openSnackbar } = useSnackbar();
+
+  const handleOpenShopApproval = (shop: any) => {
+    setSelectedShopToApprove(shop);
+    setShowShopApprovalModal(true);
+    setShowRejectReasonInput(false);
+    setRejectReason("");
+  };
+
+  const handleConfirmApproveShop = async () => {
+    if (!selectedShopToApprove) return;
+    setIsProcessingApproval(true);
+    try {
+      await updateDoc(doc(db, "shops", selectedShopToApprove.id), { status: "active" });
+      await addDoc(collection(db, "notifications"), {
+        userId: selectedShopToApprove.id,
+        title: "Tài khoản Cửa hàng đã được duyệt",
+        content: `Chúc mừng! Cửa hàng ${selectedShopToApprove.shopName || ""} đã được Ban Quản trị phê duyệt. Bây giờ bạn có thể bắt đầu đăng sản phẩm/dịch vụ.`,
+        type: "success",
+        createdAt: serverTimestamp(),
+        isRead: false
+      });
+      openSnackbar({ text: "Đã duyệt Shop thành công!", type: "success" });
+      setShowShopApprovalModal(false);
+      fetchData("providers");
+    } catch (err) {
+      console.error(err);
+      openSnackbar({ text: "Lỗi hệ thống", type: "error" });
+    } finally {
+      setIsProcessingApproval(false);
+    }
+  };
+
+  const handleRejectShop = async () => {
+    if (!selectedShopToApprove) return;
+    if (!rejectReason) {
+      openSnackbar({ text: "Vui lòng nhập lý do từ chối!", type: "error" });
+      return;
+    }
+    setIsProcessingApproval(true);
+    try {
+      await updateDoc(doc(db, "shops", selectedShopToApprove.id), { status: "rejected" });
+      await addDoc(collection(db, "notifications"), {
+        userId: selectedShopToApprove.id,
+        title: "Từ chối phê duyệt Cửa hàng",
+        content: `Rất tiếc, yêu cầu phê duyệt cửa hàng của bạn bị từ chối với lý do: ${rejectReason}. Vui lòng cập nhật lại thông tin.`,
+        type: "error",
+        createdAt: serverTimestamp(),
+        isRead: false
+      });
+      openSnackbar({ text: "Đã từ chối Shop!", type: "success" });
+      setShowShopApprovalModal(false);
+      fetchData("providers");
+    } catch (err) {
+      console.error(err);
+      openSnackbar({ text: "Lỗi hệ thống", type: "error" });
+    } finally {
+      setIsProcessingApproval(false);
+    }
+  };
 
   // 👉 THÊM MỚI: State cho Thống kê và Cài đặt
   const [adminStats, setAdminStats] = useState({ totalRevenue: 0, totalOrders: 0, totalCollectedFee: 0, totalUnpaidFee: 0 });
@@ -237,9 +303,9 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                 setAllServices(svcs);
 
                 // 2. Tải trực tiếp danh sách Nhà cung cấp (Chỉ lấy shop đã duyệt)
-                const provSnap = await getDocs(query(collection(db, "users"), where("role", "==", "provider"), where("status", "==", "active")));
+                const provSnap = await getDocs(query(collection(db, "shops"), where("status", "==", "active")));
                 const provs = provSnap.docs.map(doc => ({ 
-                    id: doc.id, phone: doc.data().phone, name: doc.data().name 
+                    id: doc.id, phone: doc.data().phone || doc.id, name: doc.data().name || doc.data().shopName || doc.data().representativeName 
                 }));
                 setAllProvidersList(provs);
             } catch (error) { console.error("Lỗi tải dữ liệu Voucher:", error); }
@@ -373,6 +439,33 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
       if (q) {
         const snapshot = await getDocs(q);
         let rawData = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
+        
+        // 👉 TỰ ĐỘNG LÀM SẠCH: XÓA CÁC SHOP ĐĂNG KÝ SAU 30 NGÀY KHÔNG HOÀN THIỆN
+        if (featureId === "providers") {
+            const now = new Date();
+            const validShops = [];
+            for (const shop of rawData) {
+                if (shop.status === 'pending' || !shop.status || shop.status === 'rejected') {
+                    const dateToCheck = shop.registrationUpdatedAt ? 
+                                        (shop.registrationUpdatedAt.toDate ? shop.registrationUpdatedAt.toDate() : new Date(shop.registrationUpdatedAt)) : 
+                                        (shop.createdAt ? (shop.createdAt.toDate ? shop.createdAt.toDate() : new Date(shop.createdAt)) : null);
+                    
+                    if (dateToCheck) {
+                        const diffTime = Math.abs(now.getTime() - dateToCheck.getTime());
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        if (diffDays > 30) {
+                            try {
+                                await setDoc(doc(db, "users", shop.id), { ...shop, role: "user", status: "active" });
+                                await deleteDoc(doc(db, "shops", shop.id));
+                            } catch (e) { console.error(e); }
+                            continue; 
+                        }
+                    }
+                }
+                validShops.push(shop);
+            }
+            rawData = validShops;
+        }
         
         // 👉 XỬ LÝ RIÊNG: LỌC VÀ GOM NHÓM CHO TÍNH NĂNG ĐỐI SOÁT PHÍ
         // 👉 XỬ LÝ RIÊNG: LỌC VÀ GOM NHÓM CHO TÍNH NĂNG ĐỐI SOÁT PHÍ
@@ -870,6 +963,25 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
     catch (error) { openSnackbar({ text: "Lỗi xóa", type: "error" }); }
   };
 
+  const handleDeleteShop = async (shop: any) => {
+    try { 
+        // 1. Lưu sang bảng users với vai trò là user bình thường
+        await setDoc(doc(db, "users", shop.id), {
+            ...shop,
+            role: "user",
+            status: "active"
+        });
+        // 2. Xóa khỏi bảng shops
+        await deleteDoc(doc(db, "shops", shop.id)); 
+        openSnackbar({ text: "Đã chuyển Shop thành Người dùng!", type: "success" }); 
+        fetchData("providers"); 
+    } 
+    catch (error) { 
+        console.error(error);
+        openSnackbar({ text: "Lỗi khi chuyển đổi", type: "error" }); 
+    }
+  };
+
   const handleAddBanner = async () => {
     if (!bannerInput.trim()) return;
     try { await addDoc(collection(db, "banners"), { image: bannerInput.trim(), link: bannerLinkInput.trim(), type: bannerTab, active: true, createdAt: serverTimestamp() }); setBannerInput(""); setBannerLinkInput(""); openSnackbar({ text: "Thêm thành công!", type: "success" }); fetchData("banners"); } 
@@ -949,7 +1061,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
 
   const handleProcessFeedback = async () => {
       if (!selectedFeedback) return;
-      try { await updateDoc(doc(db, "feedbacks", selectedFeedback.id), { status: "done", adminNote, processedBy: userData.name, processedAt: serverTimestamp() }); openSnackbar({ text: "Đã xử lý!", type: "success" }); setReplyModalVisible(false); setAdminNote(""); fetchData("feedbacks"); } 
+      try { await updateDoc(doc(db, "feedbacks", selectedFeedback.id), { status: "done", adminNote, processedBy: userData.name, processedAt: serverTimestamp(), userRead: false }); openSnackbar({ text: "Đã xử lý!", type: "success" }); setReplyModalVisible(false); setAdminNote(""); fetchData("feedbacks"); } 
       catch (error) { openSnackbar({ text: "Lỗi", type: "error" }); }
   };
 
@@ -1086,17 +1198,27 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
             processedList.sort((a, b) => (b._orderCount || 0) - (a._orderCount || 0));
         }
 
-        const pPending = processedList.filter(p => p.status === 'pending' || !p.status);
+        const pRegistering = processedList.filter(p => p.status === 'pending' || !p.status || p.status === 'rejected');
+        const pReviewing = processedList.filter(p => p.status === 'reviewing');
         const pActive = processedList.filter(p => p.status === 'active');
-        const pDisplay = providerTab === 'pending' ? pPending : pActive;
+        
+        let pDisplay: any[] = [];
+        if (providerTab === 'registering' || providerTab === 'pending') {
+            pDisplay = pRegistering;
+        } else if (providerTab === 'reviewing') {
+            pDisplay = pReviewing;
+        } else {
+            pDisplay = pActive;
+        }
 
         return (
           <Box className="bg-white h-full flex flex-col hide-scroll">
             {/* THANH CÔNG CỤ TÌM KIẾM VÀ LỌC */}
             <Box className="p-3 bg-white shrink-0 z-10">
                 <Box flex className="mb-3 border-b border-gray-200">
-                    <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${providerTab==="pending"?"border-orange-500 text-orange-600 font-bold":"border-transparent text-gray-500"}`} onClick={()=>setProviderTab("pending")}>Cần duyệt ({pPending.length})</Box>
-                    <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${providerTab==="active"?"border-orange-500 text-orange-600 font-bold":"border-transparent text-gray-500"}`} onClick={()=>setProviderTab("active")}>Đã duyệt ({pActive.length})</Box>
+                    <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${(providerTab==="registering" || providerTab==="pending")?"border-orange-500 text-orange-600 font-bold text-xs":"border-transparent text-gray-500 text-xs"}`} onClick={()=>setProviderTab("registering")}>Đăng ký ({pRegistering.length})</Box>
+                    <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${providerTab==="reviewing"?"border-orange-500 text-orange-600 font-bold text-xs":"border-transparent text-gray-500 text-xs"}`} onClick={()=>setProviderTab("reviewing")}>Chờ duyệt ({pReviewing.length})</Box>
+                    <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${providerTab==="active"?"border-orange-500 text-orange-600 font-bold text-xs":"border-transparent text-gray-500 text-xs"}`} onClick={()=>setProviderTab("active")}>Đã duyệt ({pActive.length})</Box>
                 </Box>
                 
                 <Input 
@@ -1131,7 +1253,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                 )}
                             </Box>
                             <Box ml={3} className="flex-1">
-    <Text bold size="small" className="line-clamp-1">{p.name}</Text>
+    <Text bold size="small" className="line-clamp-1">{p.name || p.shopName || p.phone}</Text>
     <Text size="xxSmall" className="text-gray">{p.phone}</Text>
     {/* 👉 Hiển thị thêm địa chỉ */}
     {p.address && (
@@ -1141,8 +1263,16 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
         </Text>
     )}
 </Box>
-                            <Text size="xxSmall" className={`shrink-0 ml-2 ${p.status==="active"?"text-green-500 font-bold":"text-yellow-500 font-bold"}`}>
-                                {p.status==="active"?"Đã duyệt":"Chờ duyệt"}
+                            <Text size="xxSmall" className={`shrink-0 ml-2 font-bold ${
+                                p.status === "active" ? "text-green-500" :
+                                p.status === "reviewing" ? "text-blue-500" :
+                                p.status === "rejected" ? "text-red-500" :
+                                "text-yellow-500"
+                            }`}>
+                                {p.status === "active" ? "Đã duyệt" :
+                                 p.status === "reviewing" ? "Chờ duyệt" :
+                                 p.status === "rejected" ? "Bị từ chối" :
+                                 "Chưa nộp HS"}
                             </Text>
                         </Box>
 
@@ -1161,12 +1291,19 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                         )}
 
                         <Box flex className="gap-2">
-                            <Button className="flex-1 bg-white text-red-600 border border-red-200" size="small" onClick={() => handleDeleteItem("shops", p.id)}>
+                            <Button className="flex-1 bg-white text-red-600 border border-red-200" size="small" onClick={() => handleDeleteShop(p)}>
                                 Xóa
                             </Button>
-                            <Button className="flex-1" size="small" variant={p.status==="active"?"secondary":"primary"} onClick={() => handleToggleProviderStatus(p)}>
-                                {p.status==="active"?"Khóa":"Duyệt ngay"}
-                            </Button>
+                            {(providerTab !== "registering" && providerTab !== "pending") && (
+                                <Button 
+                                    className="flex-1" 
+                                    size="small" 
+                                    variant={p.status === "active" ? "secondary" : "primary"} 
+                                    onClick={() => p.status === "active" ? handleToggleProviderStatus(p) : handleOpenShopApproval(p)}
+                                >
+                                    {p.status === "active" ? "Khóa" : "Duyệt ngay"}
+                                </Button>
+                            )}
                         </Box>
                     </Box>
                 ))}
@@ -1687,8 +1824,8 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
           return (
               <Box p={0}>
                   <Box flex className="mb-4 border-b border-gray-200 px-2 pt-2">
-                      <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${voucherTab==="current"?"border-blue-600 text-blue-600 font-bold":"border-transparent text-gray-500"}`} onClick={()=>setVoucherTab("current")}>Chiến dịch hiện tại</Box>
-                      <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${voucherTab==="history"?"border-blue-600 text-blue-600 font-bold":"border-transparent text-gray-500"}`} onClick={()=>setVoucherTab("history")}>Lịch sử ({dataList.length})</Box>
+                      <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${voucherTab==="current"?"border-blue-600 text-blue-600 font-bold":"border-transparent text-gray-500"}`} onClick={()=>setVoucherTab("current")}>Đang diễn ra</Box>
+                      <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${voucherTab==="history"?"border-blue-600 text-blue-600 font-bold":"border-transparent text-gray-500"}`} onClick={()=>setVoucherTab("history")}>Lịch sử (Đã hoàn thành)</Box>
                   </Box>
 
                   {voucherTab === "current" ? (
@@ -1771,7 +1908,9 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                               <Text size="xxxxSmall" className="text-gray-500">Mở ép buộc không cần chờ thời gian</Text>
                                           </Box>
                                           <input type="checkbox" className="w-5 h-5 accent-blue-600" checked={voucherConfig.isOpen} onChange={(e) => setVoucherConfig({...voucherConfig, isOpen: e.target.checked})} />
-                                          {/* 👉 KHUNG TÍCH CHỌN SẢN PHẨM / DỊCH VỤ GIỚI HẠN */}
+                                      </Box>
+                                      
+                                      {/* 👉 KHUNG TÍCH CHỌN SẢN PHẨM / DỊCH VỤ GIỚI HẠN */}
                                       <Box className="mt-4 pt-4 border-t border-gray-100">
                                           <Text size="small" bold className="mb-1 text-gray-700">Giới hạn Dịch vụ áp dụng</Text>
                                           <Text size="xxxxSmall" className="text-gray-500 mb-2 italic">
@@ -1789,9 +1928,10 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                                       placeholder="Lọc theo Nhà cung cấp"
                                                   >
                                                       <Option value="all" title="-- Tất cả Nhà cung cấp --" />
-                                                      {allProvidersList.map((shop) => (
-                                                          <Option key={shop.id} value={shop.phone} title={shop.name || shop.phone} />
-                                                      ))}
+                                                      {allProvidersList.map((shop) => {
+                                                          const displayName = shop.name ? `${shop.name} (${shop.phone})` : shop.phone;
+                                                          return <Option key={shop.id} value={shop.phone} title={displayName} />;
+                                                      })}
                                                   </Select>
                                               ) : (
                                                   <Box p={2} flex justifyContent="center"><Spinner visible={true} logo={""} /></Box>
@@ -1831,7 +1971,6 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                               })}
                                           </Box>
                                       </Box>
-                                      </Box>
                                   </Box>
                                   <Box flex className="gap-2">
                                       <Button variant="secondary" className="flex-1 bg-gray-100 text-gray-600 border-none" onClick={() => setIsEditingVoucher(false)}>
@@ -1850,30 +1989,75 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                           {dataList.length === 0 ? (
                               <Text className="text-center text-gray-500 mt-4">Chưa có lịch sử chiến dịch nào.</Text>
                           ) : (
-                              dataList.map(camp => (
+                              dataList.map(camp => {
+                                  // TÍNH TOÁN TRẠNG THÁI HIỂN THỊ TRONG LỊCH SỬ
+                                  const now = new Date().getTime();
+                                  let campStatus = "Chưa thiết lập";
+                                  let campColor = "text-gray-500 bg-gray-100 border-gray-200";
+                                  if (camp.isOpen) {
+                                      campStatus = "Đang mở (Thủ công)";
+                                      campColor = "text-green-600 bg-green-100 border-green-200";
+                                  } else if (camp.startTime && camp.endTime) {
+                                      const start = new Date(camp.startTime).getTime();
+                                      const end = new Date(camp.endTime).getTime();
+                                      if (now < start) {
+                                          campStatus = "Sắp diễn ra";
+                                          campColor = "text-yellow-600 bg-yellow-100 border-yellow-200";
+                                      } else if (now >= start && now <= end) {
+                                          campStatus = "Đang diễn ra";
+                                          campColor = "text-green-600 bg-green-100 border-green-200";
+                                      } else {
+                                          campStatus = "Đã kết thúc";
+                                          campColor = "text-red-600 bg-red-100 border-red-200";
+                                      }
+                                  }
+
+                                  return (
                                   <Box key={camp.id} className="mb-3 p-3 bg-white rounded-xl border border-gray-200 shadow-md flex justify-between items-center">
                                       <Box className="flex-1 pr-2">
-                                          <Text bold size="small" className="text-gray-800 line-clamp-1">{camp.title || "Không có tên"}</Text>
-                                          <Text size="xxxxSmall" className="text-gray-500 mt-1">
+                                          <Box flex alignItems="center" mb={1}>
+                                              <Text bold size="small" className="text-gray-800 line-clamp-1 flex-1 mr-2">{camp.title || "Không có tên"}</Text>
+                                              <Box className={`px-2 py-0.5 rounded text-[9px] font-bold shrink-0 ${campColor}`}>
+                                                  {campStatus}
+                                              </Box>
+                                          </Box>
+                                          <Text size="xxxxSmall" className="text-gray-500">
                                               Bắt đầu: {camp.startTime ? new Date(camp.startTime).toLocaleString('vi-VN') : 'Không rõ'}<br/>
                                               Kết thúc: {camp.endTime ? new Date(camp.endTime).toLocaleString('vi-VN') : 'Không rõ'}
                                           </Text>
                                       </Box>
-                                      <Button size="small" variant="secondary" onClick={() => {
-                                          setVoucherConfig({ 
-                                              title: camp.title, 
-                                              startTime: camp.startTime, 
-                                              endTime: camp.endTime, 
-                                              isOpen: false,
-                                              applicableProducts: camp.applicableProducts || [] // 👉 Đã thêm: Kéo danh sách đã chọn của đợt cũ ra
-                                          });
-                                          setVoucherTab("current");
-                                          setIsEditingVoucher(true);
-                                      }}>
-                                          Dùng lại
-                                      </Button>
+                                      <Box flex flexDirection="column" className="space-y-1.5 shrink-0 ml-2">
+                                          <Button size="small" variant="secondary" className="h-7 text-[11px] px-3 w-20" onClick={() => {
+                                              setVoucherConfig({ 
+                                                  title: camp.title, 
+                                                  startTime: camp.startTime, 
+                                                  endTime: camp.endTime, 
+                                                  isOpen: false,
+                                                  applicableProducts: camp.applicableProducts || []
+                                              });
+                                              setVoucherTab("current");
+                                              setIsEditingVoucher(true);
+                                          }}>
+                                              Dùng lại
+                                          </Button>
+                                          {campStatus !== "Đã kết thúc" && (
+                                              <Button size="small" variant="secondary" className="h-7 text-[11px] px-3 w-20 bg-orange-50 text-orange-600 border-orange-200" onClick={async () => {
+                                                  try {
+                                                      await updateDoc(doc(db, "voucher_campaigns", camp.id), { isOpen: false, endTime: new Date().toISOString() });
+                                                      openSnackbar({ text: "Đã dừng đợt Voucher!", type: "success" });
+                                                      fetchData("vouchers");
+                                                  } catch(e) {}
+                                              }}>
+                                                  Stop
+                                              </Button>
+                                          )}
+                                          <Button size="small" variant="secondary" className="h-7 text-[11px] px-3 w-20 bg-red-50 text-red-600 border-red-200" onClick={() => handleDeleteItem("voucher_campaigns", camp.id)}>
+                                              Xóa
+                                          </Button>
+                                      </Box>
                                   </Box>
-                              ))
+                                  );
+                              })
                           )}
                       </Box>
                   )}
@@ -2190,10 +2374,13 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
 
   return (
     <Box>
-      <Box className="bg-blue-600 p-6 text-white mb-4 shadow-md">
+      <Box 
+        className="bg-blue-600 px-4 pb-6 text-white mb-4 shadow-md"
+        style={{ paddingTop: 'calc(var(--zaui-safe-area-inset-top, 40px) + 12px)' }}
+      >
         <Box flex alignItems="center" justifyContent="space-between">
             <Box flex alignItems="center"><Avatar src={userData.avatar} size={48} /><Box ml={3}><Text.Title className="text-white" size="small">ADMIN</Text.Title><Text size="small">Xin chào, {userData.name}</Text></Box></Box>
-            <Box flex>
+            <Box flex style={{ paddingRight: '80px' }}>
                 <Box onClick={() => setShowChangePass(true)} className="bg-blue-700 p-2 rounded-full cursor-pointer active:opacity-80 mr-2"><CustomIcon icon="zi-lock" className="text-white" /></Box>
                 <Box onClick={onLogout} className="bg-blue-700 p-2 rounded-full cursor-pointer active:opacity-80"><CustomIcon icon="zi-leave" className="text-white" /></Box>
             </Box>
@@ -2257,7 +2444,10 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
       {selectedFeature && (
           <Box className="fixed inset-0 bg-white z-[100] flex flex-col h-[100vh] w-[100vw] animate-fade-in">
               {/* Header Điều hướng */}
-              <Box className="bg-white border-b border-gray-200 px-4 py-3 flex items-center shadow-md shrink-0">
+              <Box 
+                  className="bg-white border-b border-gray-200 px-4 py-3 flex items-center shadow-md shrink-0"
+                  style={{ paddingTop: "calc(var(--zaui-safe-area-inset-top, 24px) + 12px)" }}
+              >
                   <Box onClick={() => setSelectedFeature(null)} className="mr-3 cursor-pointer p-1 flex items-center">
                       <CustomIcon icon="zi-arrow-left" size={24} className="text-blue-600" />
                   </Box>
@@ -2680,6 +2870,69 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
           />
         </Box>
       </Modal>
+
+      {/* --- MODAL PHÊ DUYỆT ĐĂNG KÝ SHOP --- */}
+      <Modal visible={showShopApprovalModal} title="Phê duyệt Cửa hàng" onClose={() => setShowShopApprovalModal(false)}>
+        {selectedShopToApprove && (
+          <Box p={4} className="bg-white rounded-xl shadow-md border-t-4 border-orange-500 overflow-y-auto max-h-[80vh]">
+            <Text.Title size="small" className="mb-4 text-orange-600 border-b pb-2">Thông tin Đăng ký Shop</Text.Title>
+            
+            <Box mb={2}><Text size="small" bold>Tên Cửa hàng:</Text> <Text size="small" className="text-gray-700">{selectedShopToApprove.shopName || selectedShopToApprove.name || "Chưa cập nhật"}</Text></Box>
+            <Box mb={2}><Text size="small" bold>Người quản lý:</Text> <Text size="small" className="text-gray-700">{selectedShopToApprove.managerName || "Chưa cập nhật"}</Text></Box>
+            <Box mb={4}><Text size="small" bold>SĐT liên hệ:</Text> <Text size="small" className="text-blue-600 font-medium">{selectedShopToApprove.managerPhone || selectedShopToApprove.phone || "Chưa cập nhật"}</Text></Box>
+
+            <Box mb={4}>
+              <Text size="small" bold className="mb-2">Giấy phép Đăng ký Kinh doanh:</Text>
+              {selectedShopToApprove.hasBusinessLicense ? (
+                selectedShopToApprove.licenseImage ? (
+                  <Box className="mt-2 border rounded-lg overflow-hidden">
+                    <img src={selectedShopToApprove.licenseImage} alt="Giấy ĐKKD" className="w-full object-contain" />
+                  </Box>
+                ) : (
+                  <Text size="small" className="text-red-500 italic">Có ĐKKD nhưng chưa thấy ảnh đính kèm.</Text>
+                )
+              ) : (
+                <Box className="p-3 bg-yellow-50 rounded-lg border border-yellow-200 mt-2">
+                  <Text size="small" className="text-yellow-800 font-medium">
+                    Shop KHÔNG CÓ Giấy ĐKKD. <br/>
+                    {selectedShopToApprove.agreeToLiability ? 
+                      "✅ Đã xác nhận: Cam kết tự chịu 100% trách nhiệm trước pháp luật." : 
+                      "❌ Chưa xác nhận chịu trách nhiệm."}
+                  </Text>
+                </Box>
+              )}
+            </Box>
+            
+            <Box mb={4} className="p-3 bg-green-50 rounded-lg border border-green-200">
+              <Text size="small" className="text-green-800 font-medium">
+                {selectedShopToApprove.agreeToTerms ? "✅ Đã đồng ý với Điều khoản nền tảng (Chiết khấu 20%, miễn trừ trách nhiệm...)" : "❌ Chưa đồng ý điều khoản."}
+              </Text>
+            </Box>
+
+            {!showRejectReasonInput ? (
+              <Box flex className="gap-2 mt-4">
+                <Button className="flex-1 bg-white text-red-600 border border-red-200" onClick={() => setShowRejectReasonInput(true)} disabled={isProcessingApproval}>Từ chối</Button>
+                <Button className="flex-1 bg-green-600 border-none" onClick={handleConfirmApproveShop} loading={isProcessingApproval}>Xác nhận Duyệt</Button>
+              </Box>
+            ) : (
+              <Box className="mt-4 p-3 bg-gray-50 rounded-lg border">
+                <Text size="small" bold className="mb-2 text-red-600">Lý do từ chối:</Text>
+                <TextArea 
+                  value={rejectReason} 
+                  onChange={(e) => setRejectReason(e.target.value)} 
+                  placeholder="Ví dụ: Hình ảnh mờ, thông tin không hợp lệ..." 
+                  rows={3} 
+                />
+                <Box flex className="gap-2 mt-3">
+                  <Button className="flex-1 bg-white text-gray-600 border border-gray-200" onClick={() => setShowRejectReasonInput(false)}>Hủy</Button>
+                  <Button className="flex-1 bg-red-600 border-none" onClick={handleRejectShop} loading={isProcessingApproval}>Xác nhận Từ chối</Button>
+                </Box>
+              </Box>
+            )}
+          </Box>
+        )}
+      </Modal>
+
     </Box>
   );
 };

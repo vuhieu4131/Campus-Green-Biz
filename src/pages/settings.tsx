@@ -8,6 +8,16 @@ import { SectionBox } from "../components/section-box";
 import { openShareSheet } from "zmp-sdk/apis";
 import { useRecoilState } from "recoil";
 import { cartState } from "../state";
+import OrderCancelModal from "../components/profile-modules/order-cancel-modal";
+import RateOrderModal from "../components/profile-modules/rate-order-modal";
+
+const isWithin15Days = (createdAt: any) => {
+  if (!createdAt) return true;
+  const date = createdAt.toDate ? createdAt.toDate() : (createdAt.seconds ? new Date(createdAt.seconds * 1000) : new Date(createdAt));
+  const fifteenDaysAgo = new Date();
+  fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
+  return date >= fifteenDaysAgo;
+};
 
 interface UserPersonalMenuProps {
   onReferralClick: () => void;
@@ -1074,8 +1084,8 @@ const SettingsPage: FC = () => {
             <Box className="flex justify-center items-center py-10">
               <Spinner />
             </Box>
-          ) : walletHistoryList.length > 0 ? (
-            walletHistoryList.map((item, idx) => {
+          ) : walletHistoryList.filter(item => isWithin15Days(item.createdAt)).length > 0 ? (
+            walletHistoryList.filter(item => isWithin15Days(item.createdAt)).map((item, idx) => {
               const isPlus = item.type === 'plus';
               const displayDate = item.createdAt 
                 ? (item.createdAt.toDate ? item.createdAt.toDate().toLocaleString('vi-VN') : new Date(item.createdAt.seconds * 1000).toLocaleString('vi-VN')) 
@@ -1358,8 +1368,8 @@ const SettingsPage: FC = () => {
                 <Box className="flex justify-center items-center py-10">
                   <Spinner />
                 </Box>
-              ) : myOrders.filter(o => ['completed', 'success', 'cancelled'].includes(o.status)).length > 0 ? (
-                myOrders.filter(o => ['completed', 'success', 'cancelled'].includes(o.status)).map((order, idx) => {
+              ) : myOrders.filter(o => ['completed', 'success', 'cancelled'].includes(o.status)).filter(o => isWithin15Days(o.createdAt)).length > 0 ? (
+                myOrders.filter(o => ['completed', 'success', 'cancelled'].includes(o.status)).filter(o => isWithin15Days(o.createdAt)).map((order, idx) => {
                   const statusUI = getStatusDisplay(order.status);
                   const orderCode = order.orderCode || order.id.slice(0, 8).toUpperCase();
                   const totalAmount = order.totalAmount || order.totalPrice || order.total || 0;
