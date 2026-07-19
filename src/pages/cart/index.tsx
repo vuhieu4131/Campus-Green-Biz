@@ -5,7 +5,7 @@ import { useRecoilState, useRecoilValue } from "recoil";
 import { cartState } from "../../state";
 import { useNavigate } from "react-router-dom";
 import { db, auth } from "../../firebase";
-import { collection, addDoc, getDocs, query, where, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, where, serverTimestamp, updateDoc, doc } from "firebase/firestore";
 
 const CartPage: FC = () => {
   const [cart, setCart] = useRecoilState(cartState);
@@ -32,7 +32,7 @@ const CartPage: FC = () => {
   const [selectedDistrictCode, setSelectedDistrictCode] = useState<number | null>(null);
 
   // Address Collapse Switch (For quick campus/dorm address input)
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
 
   // Voucher States
   const [vouchers, setVouchers] = useState<any[]>([]);
@@ -234,7 +234,7 @@ const CartPage: FC = () => {
     fetchVouchers();
   }, []);
 
-  const [productNames, setProductNames] = useState<{[key: string]: string}>({});
+  const [productDetails, setProductDetails] = useState<{[key: string]: {name: string, shopName: string}}>({});
 
   useEffect(() => {
     const fetchProductNames = async () => {
@@ -248,7 +248,7 @@ const CartPage: FC = () => {
 
       try {
         const idArray = Array.from(allIds);
-        const nameMap: {[key: string]: string} = {};
+        const detailsMap: {[key: string]: {name: string, shopName: string}} = {};
         
         for (let i = 0; i < idArray.length; i += 10) {
           const chunk = idArray.slice(i, i + 10);
@@ -256,10 +256,13 @@ const CartPage: FC = () => {
           const snap = await getDocs(q);
           snap.forEach(doc => {
             const data = doc.data();
-            nameMap[doc.id] = data.title || data.name || doc.id;
+            detailsMap[doc.id] = {
+              name: data.title || data.name || doc.id,
+              shopName: data.shopName || "Khác"
+            };
           });
         }
-        setProductNames(nameMap);
+        setProductDetails(detailsMap);
       } catch (err) {
         console.error("Lỗi lấy tên sản phẩm:", err);
       }
@@ -458,10 +461,12 @@ const CartPage: FC = () => {
         }
       }
 
+      const currentOrderCode = generateOrderCode();
+
       // 1. Ghi đơn hàng vào Firestore cho các sản phẩm của shop hiện tại
       await addDoc(collection(db, "orders"), {
         userId: userPhone,
-        orderCode: generateOrderCode(),
+        orderCode: currentOrderCode,
         shopId: orderShopId,
         providerId: orderShopId,
         items: activeCartItems.map(i => ({
@@ -488,6 +493,34 @@ const CartPage: FC = () => {
         shopName: activeShop,
         createdAt: serverTimestamp()
       });
+
+      // 1.5. Cập nhật trạng thái voucher thành đã sử dụng
+      if (selectedVoucher && selectedVoucher.id) {
+        try {
+          let userId = auth.currentUser?.uid || userPhone;
+          if (userPhone) {
+            const qShop = query(collection(db, "shops"), where("phone", "==", userPhone));
+            const shopSnap = await getDocs(qShop);
+            if (!shopSnap.empty) {
+                userId = shopSnap.docs[0].id;
+            } else {
+                const qUser = query(collection(db, "users"), where("phone", "==", userPhone));
+                const userSnap = await getDocs(qUser);
+                if (!userSnap.empty) {
+                    const uidMatch = userSnap.docs.find(d => d.id === auth.currentUser?.uid);
+                    userId = uidMatch ? uidMatch.id : userSnap.docs[0].id;
+                }
+            }
+          }
+          await updateDoc(doc(db, `users/${userId}/my_vouchers`, selectedVoucher.id), {
+            isUsed: true,
+            usedAt: serverTimestamp(),
+            orderCode: currentOrderCode
+          });
+        } catch (e) {
+          console.error("Lỗi cập nhật trạng thái voucher:", e);
+        }
+      }
 
       // 2. Xóa các sản phẩm đã thanh toán của shop hiện tại ra khỏi giỏ hàng
       setCart(prevCart => prevCart.filter(item => (item.product.shopName || "Gian hàng khác") !== activeShop));
@@ -801,14 +834,11 @@ const CartPage: FC = () => {
         onClose={() => setShowVoucherModal(false)}
       >
         <Box p={4} className="max-h-[50vh] overflow-y-auto space-y-3">
-          {applicableVouchers.map((v) => {
-            let applicableText = "Toàn bộ dịch vụ";
-            if (v.applicableProducts && v.applicableProducts.length > 0) {
-              const names = v.applicableProducts.map((pid: string) => productNames[pid] || "Sản phẩm");
-              applicableText = names.join(", ");
-            }
+          {vouchers.map((v) => {
+            const isApplicable = applicableVouchers.some(av => av.id === v.id);
 
             let createdAtStr = "";
+            let expirationDateStr = "";
             if (v.createdAt) {
               let d: Date | null = null;
               if (typeof v.createdAt.toDate === "function") {
@@ -821,53 +851,125 @@ const CartPage: FC = () => {
               
               if (d && !isNaN(d.getTime())) {
                   createdAtStr = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}:${d.getSeconds().toString().padStart(2, '0')}, ${d.getDate().toString().padStart(2, '0')}/${(d.getMonth()+1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+                  const expDate = new Date(d.getTime() + 30 * 24 * 60 * 60 * 1000);
+                  expirationDateStr = expDate.toLocaleDateString('vi-VN');
               }
             }
 
             return (
               <Box 
                 key={v.id} 
-                className={`p-3 border rounded-xl cursor-pointer transition-all flex justify-between items-center ${
+                className={`mb-4 border flex justify-between items-center p-4 rounded-xl shadow-sm relative overflow-hidden transition-all ${
+                  !isApplicable ? "bg-gray-100 border-gray-200 opacity-60 cursor-not-allowed" :
                   selectedVoucher?.id === v.id 
-                    ? "border-[#14502e] bg-green-50/70" 
-                    : "border-gray-200 bg-white active:bg-gray-50"
+                    ? "border-[#14502e] bg-gradient-to-br from-[#f0fdf4] to-white shadow-md cursor-pointer" 
+                    : "border-orange-200 bg-gradient-to-br from-[#fff7f0] to-white shadow-md cursor-pointer active:opacity-80"
                 }`}
                 onClick={() => {
+                  if (!isApplicable) return;
                   setSelectedVoucher(v);
                   setShowVoucherModal(false);
                   openSnackbar({ text: `Đã áp dụng ${v.title}!`, type: "success" });
                 }}
               >
-                <Box className="flex-1 pr-2">
-                  <Box flex alignItems="center" className="mb-1">
-                    <Text bold size="small" className="text-gray-800 mr-2">{v.title}</Text>
+                {/* Decorative circles */}
+                {isApplicable && (
+                  <>
+                    <div className={`absolute -left-3 top-1/2 w-6 h-6 bg-white rounded-full transform -translate-y-1/2 border-r shadow-inner ${selectedVoucher?.id === v.id ? 'border-[#14502e]' : 'border-orange-200'}`}></div>
+                    <div className={`absolute -right-3 top-1/2 w-6 h-6 bg-white rounded-full transform -translate-y-1/2 border-l shadow-inner ${selectedVoucher?.id === v.id ? 'border-[#14502e]' : 'border-orange-200'}`}></div>
+                  </>
+                )}
+                {!isApplicable && (
+                  <>
+                    <div className="absolute -left-3 top-1/2 w-6 h-6 bg-white rounded-full transform -translate-y-1/2 border-r border-gray-200 shadow-inner"></div>
+                    <div className="absolute -right-3 top-1/2 w-6 h-6 bg-white rounded-full transform -translate-y-1/2 border-l border-gray-200 shadow-inner"></div>
+                  </>
+                )}
+
+                <Box className="flex-1 pr-4 relative z-10">
+                  <Box flex alignItems="center" className="mb-2">
+                    <Text bold size="normal" className={`mr-2 ${!isApplicable ? 'text-gray-500' : 'text-orange-700'}`}>{v.title}</Text>
                     {v.code && (
-                      <Box className="px-1.5 py-0.5 rounded border border-gray-200 bg-gray-50">
-                        <Text size="xxxxSmall" className="text-gray-600 font-bold tracking-wider">MÃ: {v.code}</Text>
+                      <Box className={`px-2.5 py-1 rounded-md border ${isApplicable ? 'border-blue-200 bg-blue-50 shadow-sm' : 'border-gray-300 bg-gray-200'}`}>
+                        <Text size="small" className={`font-bold tracking-wider ${isApplicable ? 'text-blue-600' : 'text-gray-500'}`}>
+                          MÃ: <span className={isApplicable ? 'text-blue-800 font-black' : 'text-gray-700'}>{v.code}</span>
+                        </Text>
                       </Box>
                     )}
                   </Box>
-                  <Text size="xxxxSmall" className="text-gray-600 mb-0.5 block">
-                    Đơn tối thiểu: {((v.minOrderValue || (v.value * 10)) / 1000)}k
-                  </Text>
-                  <Text size="xxxxSmall" className="text-gray-600 mb-0.5 block">
-                    {v.discountType === "percent" ? `Giảm: ${v.value}%` : `Giảm: ${v.value?.toLocaleString("vi-VN")}đ`}
-                  </Text>
-                  {createdAtStr && (
-                    <Text size="xxxxSmall" className="text-gray-400 italic block mb-1">Ngày đổi: {createdAtStr}</Text>
-                  )}
-                  <Box className="border-t border-dashed border-gray-200 mt-2 pt-2">
-                    <Text size="xxxxSmall" className="text-gray-600 font-medium">
-                      Phạm vi áp dụng: <span className="italic font-normal text-gray-500">{applicableText}</span>
-                    </Text>
+                  <Box className="flex flex-col space-y-1">
+                    <Box flex alignItems="center">
+                      <Icon icon="zi-info-circle" size={14} className="text-gray-500 mr-1.5 shrink-0" />
+                      <Text size="xSmall" bold className="text-gray-700 mr-1">Điều kiện:</Text>
+                      <Text size="xSmall" bold className={isApplicable ? 'text-orange-700' : 'text-gray-500'}>
+                        Đơn tối thiểu {(v.minOrderValue || ((v.value || 0) * 10)).toLocaleString('vi-VN')}đ
+                      </Text>
+                    </Box>
+                  </Box>
+                  
+                  <Box className={`border-t border-dashed mt-2 pt-2 flex flex-col space-y-1 ${isApplicable ? 'border-orange-200/60' : 'border-gray-300'}`}>
+                    {createdAtStr && (
+                      <Text size="xxxxSmall" className="text-gray-400">Ngày đổi: {createdAtStr}</Text>
+                    )}
+                    {expirationDateStr && (
+                      <Text size="xSmall" bold className={isApplicable ? "text-red-500" : "text-gray-400"}>Sử dụng trước ngày {expirationDateStr}</Text>
+                    )}
+                  </Box>
+
+                  <Box className={`border-t border-dashed mt-3 pt-3 flex flex-col space-y-1 ${isApplicable ? 'border-orange-200/60' : 'border-gray-300'}`}>
+                    <Text size="xSmall" bold className="text-gray-700 mb-1">Phạm vi áp dụng:</Text>
+                    {(!v.applicableProducts || v.applicableProducts.length === 0) ? (
+                      <Text size="small" className={`italic font-normal ${isApplicable ? 'text-gray-600' : 'text-gray-500'}`}>
+                        Toàn bộ dịch vụ trên hệ thống
+                      </Text>
+                    ) : (
+                      <Box className="flex flex-col mt-1">
+                        {(() => {
+                          const grouped: Record<string, string[]> = {};
+                          v.applicableProducts.forEach((pid: string) => {
+                            const details = productDetails[pid];
+                            const shopName = details?.shopName || "Khác";
+                            const productName = details?.name || "Sản phẩm này";
+                            if (!grouped[shopName]) grouped[shopName] = [];
+                            grouped[shopName].push(productName);
+                          });
+                          
+                          return Object.entries(grouped).map(([shopName, productNames]) => (
+                            <Box key={shopName} className="mb-2 last:mb-0">
+                              <Box 
+                                flex 
+                                alignItems="center" 
+                                className={`mb-1.5 py-1 px-2 rounded-lg w-max max-w-full shadow-sm ${isApplicable ? 'bg-orange-50 border border-orange-100 text-orange-600' : 'bg-gray-100 border border-gray-200 text-gray-500'}`}
+                              >
+                                <Text size="xxxxSmall" bold className="line-clamp-1">{shopName}</Text>
+                              </Box>
+                              {productNames.map((pName, i) => (
+                                <Box key={i} flex alignItems="start" className="mb-0.5 pl-1">
+                                  <Icon icon="zi-check" size={14} className={`mr-1 mt-0.5 shrink-0 ${isApplicable ? 'text-green-600' : 'text-gray-400'}`} />
+                                  <Text size="xxxxSmall" className={`${isApplicable ? 'text-gray-700' : 'text-gray-400'} leading-tight`}>{pName}</Text>
+                                </Box>
+                              ))}
+                            </Box>
+                          ));
+                        })()}
+                      </Box>
+                    )}
+                    
+                    {!isApplicable && (
+                      <Text size="xxxxSmall" bold className="text-red-500 italic mt-1.5">
+                        * Chưa đủ điều kiện áp dụng
+                      </Text>
+                    )}
                   </Box>
                 </Box>
+                
                 <Box 
-                  className={`w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 ${
-                    selectedVoucher?.id === v.id ? "border-[#14502e] bg-[#14502e] text-white" : "border-gray-300"
+                  className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 relative z-10 ${
+                    !isApplicable ? "border-gray-300 bg-gray-200" :
+                    selectedVoucher?.id === v.id ? "border-[#14502e] bg-[#14502e] text-white" : "border-gray-300 bg-white"
                   }`}
                 >
-                  {selectedVoucher?.id === v.id && <Icon icon="zi-check" size={10} />}
+                  {selectedVoucher?.id === v.id && <Icon icon="zi-check" size={14} />}
                 </Box>
               </Box>
             );
@@ -887,8 +989,10 @@ const CartPage: FC = () => {
             </Button>
           )}
 
-          {applicableVouchers.length === 0 && (
-            <Text className="text-gray-400 text-center block py-4">Không có mã giảm giá khả dụng</Text>
+          {vouchers.length === 0 && (
+            <Box className="py-8 text-center">
+              <Text className="text-gray-500">Bạn chưa có mã giảm giá nào.</Text>
+            </Box>
           )}
         </Box>
       </Modal>

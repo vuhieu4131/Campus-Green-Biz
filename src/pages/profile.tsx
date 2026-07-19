@@ -167,6 +167,65 @@ const NewMemberView: FC<{
 
   const [followingCount, setFollowingCount] = useState(0);
 
+  const [showFollowers, setShowFollowers] = useState(false);
+  const [showFollowing, setShowFollowing] = useState(false);
+  const [followersList, setFollowersList] = useState<any[]>([]);
+  const [followingList, setFollowingList] = useState<any[]>([]);
+  const [loadingStats, setLoadingStats] = useState(false);
+
+  const handleShowFollowers = async () => {
+    if (followers.length === 0) return;
+    setShowFollowers(true);
+    setLoadingStats(true);
+    try {
+      const matched: any[] = [];
+      const chunks = [];
+      for (let i = 0; i < followers.length; i += 10) {
+        chunks.push(followers.slice(i, i + 10));
+      }
+      
+      for (const chunk of chunks) {
+        // Unfortunately, Firestore doesn't allow 'in' query on document ID easily without using documentId() which is imported separately. 
+        // We will just fetch the specific docs by ID directly to be safe and robust.
+        const userPromises = chunk.map(id => getDoc(doc(db, "users", id)));
+        const shopPromises = chunk.map(id => getDoc(doc(db, "shops", id)));
+        
+        const [uDocs, sDocs] = await Promise.all([
+          Promise.all(userPromises),
+          Promise.all(shopPromises)
+        ]);
+        
+        uDocs.forEach(d => { if (d.exists()) matched.push({ id: d.id, ...d.data(), type: 'user' }) });
+        sDocs.forEach(d => { if (d.exists()) matched.push({ id: d.id, ...d.data(), type: 'shop' }) });
+      }
+      
+      setFollowersList(matched);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
+  const handleShowFollowing = async () => {
+    if (followingCount === 0) return;
+    setShowFollowing(true);
+    setLoadingStats(true);
+    try {
+      const [uSnap, sSnap] = await Promise.all([
+        getDocs(query(collection(db, "users"), where("followers", "array-contains", user.id))),
+        getDocs(query(collection(db, "shops"), where("followers", "array-contains", user.id)))
+      ]);
+      const users = uSnap.docs.map(d => ({ id: d.id, ...d.data(), type: 'user' }));
+      const shops = sSnap.docs.map(d => ({ id: d.id, ...d.data(), type: 'shop' }));
+      setFollowingList([...users, ...shops]);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
   useEffect(() => {
     const fetchFollowingCount = async () => {
       if (!user?.id) return;
@@ -444,19 +503,21 @@ const NewMemberView: FC<{
 
       {/* 5. Thống kê */}
       <Box className="flex justify-around mt-6 mb-4 px-4">
-        <Box className="text-center">
-          <Text.Title className="font-bold text-lg">{posts.length}</Text.Title>
+        <Box className="text-center cursor-pointer active:opacity-70" onClick={() => setActiveTab('posts')}>
+          <Text.Title className="font-bold text-lg">
+            {posts.filter(post => !post.attachedProduct).length + linkedPosts.length + sharedPosts.length}
+          </Text.Title>
           <Text size="small" className="text-gray-600">
             bài viết
           </Text>
         </Box>
-        <Box className="text-center">
+        <Box className="text-center cursor-pointer active:opacity-70" onClick={handleShowFollowers}>
           <Text.Title className="font-bold text-lg">{followers.length}</Text.Title>
           <Text size="small" className="text-gray-600">
             người theo dõi
           </Text>
         </Box>
-        <Box className="text-center">
+        <Box className="text-center cursor-pointer active:opacity-70" onClick={handleShowFollowing}>
           <Text.Title className="font-bold text-lg">{followingCount}</Text.Title>
           <Text size="small" className="text-gray-600">
             đang theo dõi
@@ -471,43 +532,54 @@ const NewMemberView: FC<{
           style={{ borderColor: activeTab === 'posts' ? "#14502e" : "transparent" }}
           onClick={() => setActiveTab('posts')}
         >
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill={activeTab === 'posts' ? "#14502e" : "#9ca3af"}
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <rect x="3" y="3" width="8" height="8" rx="1" />
-            <rect x="13" y="3" width="8" height="8" rx="1" />
-            <rect x="3" y="13" width="8" height="8" rx="1" />
-            <rect x="13" y="13" width="8" height="8" rx="1" />
-          </svg>
+          <Box className="flex items-center">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill={activeTab === 'posts' ? "#14502e" : "#9ca3af"}
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <rect x="3" y="3" width="8" height="8" rx="1" />
+              <rect x="13" y="3" width="8" height="8" rx="1" />
+              <rect x="3" y="13" width="8" height="8" rx="1" />
+              <rect x="13" y="13" width="8" height="8" rx="1" />
+            </svg>
+            <span className={`ml-1.5 text-xs font-medium ${activeTab === 'posts' ? 'text-[#14502e]' : 'text-gray-400'}`}>
+              ({posts.filter(post => !post.attachedProduct).length})
+            </span>
+          </Box>
         </Box>
         <Box 
           className={`flex-1 flex justify-center py-3 cursor-pointer ${activeTab === 'saved' ? 'border-b-2 text-[#14502e]' : 'text-gray-400'}`}
           style={{ borderColor: activeTab === 'saved' ? "#14502e" : "transparent" }}
           onClick={() => setActiveTab('saved')}
         >
-          <span className="inline-flex">
+          <Box className="flex items-center">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
               <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
             </svg>
-          </span>
+            <span className={`ml-1.5 text-xs font-medium ${activeTab === 'saved' ? 'text-[#14502e]' : 'text-gray-400'}`}>
+              ({linkedPosts.length})
+            </span>
+          </Box>
         </Box>
         <Box 
           className={`flex-1 flex justify-center py-3 cursor-pointer ${activeTab === 'shared' ? 'border-b-2 text-[#14502e]' : 'text-gray-400'}`}
           style={{ borderColor: activeTab === 'shared' ? "#14502e" : "transparent" }}
           onClick={() => setActiveTab('shared')}
         >
-          <span className="inline-flex">
+          <Box className="flex items-center">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
               <polyline points="16 6 12 2 8 6"></polyline>
               <line x1="12" y1="2" x2="12" y2="15"></line>
             </svg>
-          </span>
+            <span className={`ml-1.5 text-xs font-medium ${activeTab === 'shared' ? 'text-[#14502e]' : 'text-gray-400'}`}>
+              ({sharedPosts.length})
+            </span>
+          </Box>
         </Box>
       </Box>
 
@@ -790,6 +862,42 @@ const NewMemberView: FC<{
           </Button>
         </Box>
       </Sheet>
+
+      <Modal visible={showFollowers} title="Người theo dõi" onClose={() => setShowFollowers(false)} actions={[{ text: "Đóng", onClick: () => setShowFollowers(false), highLight: true }]}>
+        <Box p={2} style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+          {loadingStats ? <Box flex justifyContent="center" py={4}><Spinner /></Box> : (
+            followersList.map((item, idx) => (
+              <Box key={idx} flex alignItems="center" justifyContent="space-between" className="mb-3 pb-3 border-b border-gray-100 last:border-0" onClick={() => { if (item.type === 'shop') { setShowFollowers(false); navigate(`/shop-details/${item.id}`); } }}>
+                <Box flex alignItems="center">
+                  <Avatar src={item.avatar || item.shopImage || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png"} size={40} className="border" />
+                  <Box ml={3}>
+                    <Text size="small" bold>{item.name || item.fullName || item.shopName || "Khách hàng"}</Text>
+                  </Box>
+                </Box>
+                {item.type === 'shop' && <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-orange-100 text-orange-600 border border-orange-200">Shop</span>}
+              </Box>
+            ))
+          )}
+        </Box>
+      </Modal>
+
+      <Modal visible={showFollowing} title="Đang theo dõi" onClose={() => setShowFollowing(false)} actions={[{ text: "Đóng", onClick: () => setShowFollowing(false), highLight: true }]}>
+        <Box p={2} style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+          {loadingStats ? <Box flex justifyContent="center" py={4}><Spinner /></Box> : (
+            followingList.map((item, idx) => (
+              <Box key={idx} flex alignItems="center" justifyContent="space-between" className="mb-3 pb-3 border-b border-gray-100 last:border-0" onClick={() => { if (item.type === 'shop') { setShowFollowing(false); navigate(`/shop-details/${item.id}`); } }}>
+                <Box flex alignItems="center">
+                  <Avatar src={item.avatar || item.shopImage || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png"} size={40} className="border" />
+                  <Box ml={3}>
+                    <Text size="small" bold>{item.name || item.fullName || item.shopName || "Khách hàng"}</Text>
+                  </Box>
+                </Box>
+                {item.type === 'shop' && <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-orange-100 text-orange-600 border border-orange-200">Shop</span>}
+              </Box>
+            ))
+          )}
+        </Box>
+      </Modal>
 
       {/* Hidden File Input */}
       <input 

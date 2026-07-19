@@ -1897,6 +1897,24 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
           );
         }
         case "vouchers": 
+          const now = new Date().getTime();
+          const ongoingCampaigns = dataList.filter(camp => {
+              if (camp.isOpen) return true;
+              if (camp.startTime && camp.endTime) {
+                  const end = new Date(camp.endTime).getTime();
+                  return now <= end;
+              }
+              return true;
+          });
+          const historyCampaigns = dataList.filter(camp => {
+              if (camp.isOpen) return false;
+              if (camp.startTime && camp.endTime) {
+                  const end = new Date(camp.endTime).getTime();
+                  return now > end;
+              }
+              return false;
+          });
+
           // TÍNH TRẠNG THÁI HIỂN THỊ
           let currentStatus = "Chưa thiết lập";
           let statusColor = "text-gray-500 bg-gray-100 border-gray-200";
@@ -1905,7 +1923,6 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
               currentStatus = "Đang mở (Thủ công)";
               statusColor = "text-green-600 bg-green-100 border-green-200";
           } else if (voucherConfig.startTime && voucherConfig.endTime) {
-              const now = new Date().getTime();
               const start = new Date(voucherConfig.startTime).getTime();
               const end = new Date(voucherConfig.endTime).getTime();
 
@@ -1933,49 +1950,77 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                           {/* 👉 NẾU ĐANG Ở CHẾ ĐỘ XEM TỔNG QUAN */}
                           {!isEditingVoucher ? (
                               <Box className="animate-fade-in">
-                                  <Box flex justifyContent="space-between" alignItems="center" className="mb-3">
-                                      <Text size="small" bold className="text-gray-800">Tổng quan Chiến dịch</Text>
-                                      <Box className={`px-2 py-1 rounded border text-[10px] font-bold ${statusColor}`}>
-                                          {currentStatus}
-                                      </Box>
-                                  </Box>
-
-                                  <Box className="bg-white p-4 rounded-xl border border-gray-200 shadow-md mb-4">
-                                      <Text size="normal" bold className="text-blue-600 mb-4">{voucherConfig.title || "Chưa có tên chiến dịch"}</Text>
-                                      
-                                      <Box flex alignItems="center" mb={2}>
-                                          <CustomIcon icon="zi-clock-1" className="text-gray-400 mr-2" size={16} />
-                                          <Text size="small" className="text-gray-600">
-                                              <span className="font-semibold text-gray-800">Bắt đầu: </span><br/>
-                                              {voucherConfig.startTime ? new Date(voucherConfig.startTime).toLocaleString('vi-VN') : "Chưa thiết lập"}
-                                          </Text>
-                                      </Box>
-                                      
-                                      <Box flex alignItems="center" mb={4}>
-                                          <CustomIcon icon="zi-clock-2" className="text-gray-400 mr-2" size={16} />
-                                          <Text size="small" className="text-gray-600">
-                                              <span className="font-semibold text-gray-800">Kết thúc: </span><br/>
-                                              {voucherConfig.endTime ? new Date(voucherConfig.endTime).toLocaleString('vi-VN') : "Chưa thiết lập"}
-                                          </Text>
-                                      </Box>
-
-                                      <Box className="bg-gray-50 p-2 rounded border border-gray-100 flex items-center">
-                                          <CustomIcon icon={voucherConfig.isOpen ? "zi-check-circle-solid" : "zi-close-circle-solid"} className={voucherConfig.isOpen ? "text-green-500 mr-2" : "text-gray-400 mr-2"} size={16} />
-                                          <Text size="xSmall" className="text-gray-600">Công tắc mở thủ công: <span className="font-bold">{voucherConfig.isOpen ? "BẬT" : "TẮT"}</span></Text>
-                                      </Box>
-                                  </Box>
-
-                                  <Box flex className="gap-2">
-                                      <Button variant="secondary" className="flex-1 bg-white border border-blue-600 text-blue-600" onClick={() => setIsEditingVoucher(true)}>
-                                          Chỉnh sửa
-                                      </Button>
-                                      <Button className="flex-1 bg-blue-600" onClick={() => {
-                                          setVoucherConfig({ title: "", startTime: "", endTime: "", isOpen: false, applicableProducts: [] }); // 👉 Đã thêm mảng rỗng để reset
+                                  <Box flex justifyContent="space-between" alignItems="center" className="mb-4">
+                                      <Text size="small" bold className="text-gray-800">Chiến dịch đang diễn ra</Text>
+                                      <Button size="small" className="bg-blue-600 px-3 h-8 text-[12px]" onClick={() => {
+                                          setVoucherConfig({ title: "", startTime: "", endTime: "", isOpen: false, applicableProducts: [] });
                                           setIsEditingVoucher(true);
                                       }}>
-                                          Mở chiến dịch mới
+                                          + Mở chiến dịch mới
                                       </Button>
                                   </Box>
+                                  
+                                  {ongoingCampaigns.length === 0 ? (
+                                      <Text className="text-center text-gray-500 mt-4 mb-4">Không có chiến dịch nào đang diễn ra.</Text>
+                                  ) : (
+                                      ongoingCampaigns.map(camp => {
+                                          let campStatus = "Chưa thiết lập";
+                                          let campColor = "text-gray-500 bg-gray-100 border-gray-200";
+                                          if (camp.isOpen) {
+                                              campStatus = "Đang mở (Thủ công)";
+                                              campColor = "text-green-600 bg-green-100 border-green-200";
+                                          } else if (camp.startTime && camp.endTime) {
+                                              const start = new Date(camp.startTime).getTime();
+                                              if (now < start) {
+                                                  campStatus = "Sắp diễn ra";
+                                                  campColor = "text-yellow-600 bg-yellow-100 border-yellow-200";
+                                              } else {
+                                                  campStatus = "Đang diễn ra";
+                                                  campColor = "text-green-600 bg-green-100 border-green-200";
+                                              }
+                                          }
+                                          
+                                          return (
+                                              <Box key={camp.id} className="mb-3 p-3 bg-white rounded-xl border border-gray-200 shadow-md flex justify-between items-center">
+                                                  <Box className="flex-1 pr-2">
+                                                      <Box flex alignItems="center" mb={1}>
+                                                          <Text bold size="small" className="text-gray-800 line-clamp-1 flex-1 mr-2">{camp.title || "Không có tên"}</Text>
+                                                          <Box className={`px-2 py-0.5 rounded text-[9px] font-bold shrink-0 ${campColor}`}>
+                                                              {campStatus}
+                                                          </Box>
+                                                      </Box>
+                                                      <Text size="xxxxSmall" className="text-gray-500">
+                                                          Bắt đầu: {camp.startTime ? new Date(camp.startTime).toLocaleString('vi-VN') : 'Không rõ'}<br/>
+                                                          Kết thúc: {camp.endTime ? new Date(camp.endTime).toLocaleString('vi-VN') : 'Không rõ'}
+                                                      </Text>
+                                                  </Box>
+                                                  <Box flex flexDirection="column" className="space-y-1.5 shrink-0 ml-2">
+                                                      <Button size="small" variant="secondary" className="h-7 text-[11px] px-3 w-20" onClick={() => {
+                                                          setVoucherConfig({ 
+                                                              title: camp.title, 
+                                                              startTime: camp.startTime, 
+                                                              endTime: camp.endTime, 
+                                                              isOpen: false,
+                                                              applicableProducts: camp.applicableProducts || []
+                                                          });
+                                                          setIsEditingVoucher(true);
+                                                      }}>
+                                                          Dùng lại
+                                                      </Button>
+                                                      <Button size="small" variant="secondary" className="h-7 text-[11px] px-3 w-20 bg-orange-50 text-orange-600 border-orange-200" onClick={async () => {
+                                                          try {
+                                                              await updateDoc(doc(db, "voucher_campaigns", camp.id), { isOpen: false, endTime: new Date().toISOString() });
+                                                              openSnackbar({ text: "Đã dừng đợt Voucher!", type: "success" });
+                                                              fetchData("vouchers");
+                                                          } catch(e) {}
+                                                      }}>
+                                                          Stop
+                                                      </Button>
+                                                  </Box>
+                                              </Box>
+                                          );
+                                      })
+                                  )}
                               </Box>
                           ) : (
                               /* 👉 NẾU ĐANG Ở CHẾ ĐỘ NHẬP LIỆU (FORM) */
@@ -2086,10 +2131,10 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                   ) : (
                       // TAB 2: LỊCH SỬ CHIẾN DỊCH ĐÃ TẠO
                       <Box p={2}>
-                          {dataList.length === 0 ? (
+                          {historyCampaigns.length === 0 ? (
                               <Text className="text-center text-gray-500 mt-4">Chưa có lịch sử chiến dịch nào.</Text>
                           ) : (
-                              dataList.map(camp => {
+                              historyCampaigns.map(camp => {
                                   // TÍNH TOÁN TRẠNG THÁI HIỂN THỊ TRONG LỊCH SỬ
                                   const now = new Date().getTime();
                                   let campStatus = "Chưa thiết lập";

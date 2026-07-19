@@ -18,6 +18,7 @@ import WalletPage from "pages/wallet";
 import CreatePostPage from "pages/create-post";
 import PostDetailPage from "pages/post-detail";
 import ProductDetailPage from "pages/product-detail";
+import TermsPage from "pages/terms";
 import { getSystemInfo } from "zmp-sdk";
 import { ScrollRestoration } from "./scroll-restoration";
 import { useHandlePayment } from "hooks";
@@ -162,6 +163,7 @@ export const Layout: FC = () => {
             <Route path="/admin-dashboard" element={<AdminDashboardPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/account-info" element={<AccountInfoPage />} />
+            <Route path="/terms" element={<TermsPage />} />
             <Route path="/wallet" element={<WalletPage />} />
             <Route path="/create-post" element={<CreatePostPage />} />
             <Route path="/post-detail" element={<PostDetailPage />} />

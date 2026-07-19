@@ -5,7 +5,7 @@ import {
   AlertTriangle, Bell, Edit, BarChart, Cpu, Copy, Edit2, XCircle,
   Plus, Bookmark, Camera, Settings, ChevronDown, BellOff, ArrowLeft,
   Lock, Users, Heart, Shield, ShoppingBag, ShoppingCart, CheckCircle2, ChevronLeft, Send,
-  MoreHorizontal, Trash2, Award, Gem, Crown
+  MoreHorizontal, Trash2, Award, Gem, Crown, Store
 } from 'lucide-react';
 
 interface CustomIconProps extends React.HTMLAttributes<HTMLSpanElement> {
@@ -66,7 +66,8 @@ const CustomIcon: React.FC<CustomIconProps> = ({ icon, className, size = 24, sty
     'zi-delete': <Trash2 size={size} />,
     'zi-shield-solid': <Award size={size} fill="currentColor" />,
     'zi-diamond': <Gem size={size} />,
-    'zi-diamond-solid': <Crown size={size} fill="currentColor" />
+    'zi-diamond-solid': <Crown size={size} fill="currentColor" />,
+    'zi-store': <Store size={size} />
   };
 
   const renderedIcon = iconMap[icon] || <Shield size={size} />; // fallback

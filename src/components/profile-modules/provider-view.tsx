@@ -1775,20 +1775,28 @@ useEffect(() => {
               </Box>
 
               {Number(pointsToBuy) > 0 && (
-                <Box className="flex flex-col items-center border border-gray-100 rounded-xl p-4 bg-gray-50 mb-2">
-                  <Text bold size="small" className="text-gray-700 mb-1">Thông tin thanh toán:</Text>
-                  <Text size="xSmall" className="text-gray-500 mb-2">Số tiền: <span className="text-[#14502e] font-bold text-sm">{(Number(pointsToBuy) * 1000).toLocaleString('vi-VN')} đ</span></Text>
+                <Box className="flex flex-col border border-gray-100 rounded-xl p-4 bg-gray-50 mb-2 text-left">
+                  <Text bold size="small" className="text-gray-700 mb-1 text-center">Thông tin thanh toán:</Text>
+                  <Text size="xSmall" className="text-gray-500 mb-3 text-center">Số tiền: <span className="text-[#14502e] font-bold text-sm">{(Number(pointsToBuy) * 1000).toLocaleString('vi-VN')} đ</span></Text>
                   
-                  <Box className="bg-white p-2 rounded-xl shadow-md border mb-3 flex items-center justify-center">
+                  {adminBankInfoText && (
+                    <Text size="xSmall" className="text-gray-700 whitespace-pre-line leading-relaxed mb-3">
+                        {adminBankInfoText}
+                    </Text>
+                  )}
+
+                  <Box className="bg-white p-2 rounded-xl shadow-md border mb-3 flex items-center justify-center self-center">
                     <img 
-                      src={`https://img.vietqr.io/image/MB-9999999999-compact.png?amount=${Number(pointsToBuy) * 1000}&addInfo=${encodeURIComponent(userData.phone + "need" + pointsToBuy)}&accountName=GREENBIZ%20ADMIN`} 
+                      src={adminBankQrLink || `https://img.vietqr.io/image/MB-9999999999-compact.png?amount=${Number(pointsToBuy) * 1000}&addInfo=${encodeURIComponent(userData.phone + "need" + pointsToBuy)}&accountName=GREENBIZ%20ADMIN`} 
                       alt="QR Thanh toán" 
                       className="w-48 h-48 object-contain"
                     />
                   </Box>
 
                   <Box className="bg-purple-100/50 border border-purple-200 p-2.5 rounded-lg w-full text-center mb-4">
-                    <Text size="xxxxSmall" className="text-gray-500 block mb-0.5 font-medium">Nội dung chuyển khoản (Đã tích hợp trong QR):</Text>
+                    <Text size="xxxxSmall" className="text-gray-500 block mb-0.5 font-medium">
+                      {adminBankQrLink ? "Nội dung chuyển khoản bắt buộc:" : "Nội dung chuyển khoản (Đã tích hợp trong QR):"}
+                    </Text>
                     <Text size="xSmall" bold className="text-purple-700 tracking-wide select-all">
                       {userData.phone}need{pointsToBuy}
                     </Text>

@@ -5,7 +5,7 @@ import { auth, db } from "../firebase";
 import { signOut, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
 import { doc, getDoc, collection, query, where, getDocs, orderBy, updateDoc, increment, addDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
 import { SectionBox } from "../components/section-box";
-import { openShareSheet } from "zmp-sdk/apis";
+import { openShareSheet, openChat } from "zmp-sdk/apis";
 import { useRecoilState } from "recoil";
 import { cartState } from "../state";
 
@@ -45,12 +45,12 @@ const UserPersonalMenu: FC<UserPersonalMenuProps> = ({ onReferralClick, onShareC
   );
 };
 
-const UserUtilities: FC<{ onLogout: () => void }> = ({ onLogout }) => {
+const UserUtilities: FC<{ onLogout: () => void, onContactClick: () => void }> = ({ onLogout, onContactClick }) => {
   const navigate = useNavigate();
   return (
     <SectionBox title="Tiện ích khác">
       <List>
-        <List.Item onClick={() => navigate('/contact')} title="Liên hệ hỗ trợ" prefix={<CustomIcon icon="zi-call" className="text-blue-500" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
+        <List.Item onClick={onContactClick} title="Liên hệ hỗ trợ" prefix={<CustomIcon icon="zi-call" className="text-blue-500" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
         <List.Item onClick={() => navigate('/terms')} title="Điều khoản sử dụng" prefix={<CustomIcon icon="zi-note" className="text-gray-800" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
         <List.Item title="Đăng xuất" prefix={<CustomIcon icon="zi-leave" className="text-red-500" />} onClick={onLogout} className="text-red-500 font-medium" />
       </List>
@@ -98,39 +98,78 @@ const SettingsPage: FC = () => {
   const [showMyVouchersModal, setShowMyVouchersModal] = useState(false);
   const [myVouchersList, setMyVouchersList] = useState<any[]>([]);
   const [loadingVouchers, setLoadingVouchers] = useState(false);
+  const [showVoucherHistoryModal, setShowVoucherHistoryModal] = useState(false);
+  const [voucherHistoryList, setVoucherHistoryList] = useState<any[]>([]);
 
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const [activeOrderCount, setActiveOrderCount] = useState(0);
   const [voucherPrograms, setVoucherPrograms] = useState<any[]>([]);
+  const [expandedCampaignId, setExpandedCampaignId] = useState<string | null>(null);
+  const [allServices, setAllServices] = useState<any[]>([]);
 
   useEffect(() => {
     window.scrollTo(0, 0);
 
     const fetchVoucher = async () => {
       try {
-        const configSnap = await getDoc(doc(db, "system_config", "admin_settings"));
-        if (configSnap.exists()) {
-          const data = configSnap.data();
+        const snap = await getDocs(collection(db, "voucher_campaigns"));
+        const campaigns: any[] = [];
+        const now = new Date().getTime();
+
+        snap.forEach(doc => {
+          const data = doc.data();
           let isActive = false;
-          if (data.isVoucherOpen) {
+          if (data.isOpen) {
             isActive = true;
-          } else if (data.voucherStartTime && data.voucherEndTime) {
-            const now = new Date().getTime();
-            const start = new Date(data.voucherStartTime).getTime();
-            const end = new Date(data.voucherEndTime).getTime();
+          } else if (data.startTime && data.endTime) {
+            const start = new Date(data.startTime).getTime();
+            const end = new Date(data.endTime).getTime();
             if (now >= start && now <= end) {
               isActive = true;
             }
           }
-          if (isActive && data.voucherTitle) {
-            setVoucherPrograms([data]);
+          
+          if (isActive) {
+            campaigns.push({
+              ...data,
+              id: doc.id,
+              voucherTitle: data.title || "Khuyến mãi Đổi điểm",
+              applicableProducts: data.applicableProducts || []
+            });
           }
-        }
+        });
+        
+        setVoucherPrograms(campaigns);
       } catch (err) {
-        console.error("Lỗi lấy cấu hình Voucher:", err);
+        console.error("Lỗi lấy danh sách Voucher:", err);
       }
     };
+    
+    const fetchServices = async () => {
+      try {
+        const [servSnap, shopSnap] = await Promise.all([
+          getDocs(collection(db, "services")),
+          getDocs(collection(db, "shops"))
+        ]);
+        const shopsList = shopSnap.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+        const s = servSnap.docs.map(doc => {
+          const data = doc.data();
+          const shopPhone = data.providerId || data.ownerPhone || data.shopId;
+          const matchingShop = shopsList.find(sh => sh.phone === shopPhone || sh.id === shopPhone);
+          return { 
+            id: doc.id, 
+            ...data, 
+            shopName: matchingShop?.name || data.shopName || "Khác"
+          };
+        });
+        setAllServices(s);
+      } catch (e) {
+        console.error("Lỗi lấy danh sách dịch vụ:", e);
+      }
+    };
+
     fetchVoucher();
+    fetchServices();
   }, []);
 
   const fetchEligiblePoints = async (userId: string) => {
@@ -179,11 +218,40 @@ const SettingsPage: FC = () => {
       const snap = await getDocs(q);
       const list: any[] = [];
       snap.forEach(doc => {
-        list.push({ id: doc.id, ...doc.data() });
+        const data = doc.data();
+        if (!data.isUsed) {
+          list.push({ id: doc.id, ...data });
+        }
       });
       setMyVouchersList(list);
     } catch (error) {
       console.error("Lỗi lấy danh sách Voucher:", error);
+    } finally {
+      setLoadingVouchers(false);
+    }
+  };
+
+  const handleOpenVoucherHistory = async () => {
+    if (!userData || (!userData.id && !userData.phone)) return;
+    const userId = userData.id || userData.phone;
+    setShowVoucherHistoryModal(true);
+    setLoadingVouchers(true);
+    try {
+      const q = query(
+        collection(db, `users/${userId}/my_vouchers`),
+        orderBy("createdAt", "desc")
+      );
+      const snap = await getDocs(q);
+      const list: any[] = [];
+      snap.forEach(doc => {
+        const data = doc.data();
+        if (data.isUsed) {
+          list.push({ id: doc.id, ...data });
+        }
+      });
+      setVoucherHistoryList(list);
+    } catch (error) {
+      console.error("Lỗi lấy lịch sử voucher:", error);
     } finally {
       setLoadingVouchers(false);
     }
@@ -267,6 +335,7 @@ const SettingsPage: FC = () => {
 
   // My Orders states & functions
   const [showMyOrdersModal, setShowMyOrdersModal] = useState(false);
+  const [showContactModal, setShowContactModal] = useState(false);
   const [showOrderDetailModal, setShowOrderDetailModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [myOrders, setMyOrders] = useState<any[]>([]);
@@ -634,33 +703,46 @@ const SettingsPage: FC = () => {
             // 5. Tự động tính toán lại tổng điểm ví thực tế từ danh sách giao dịch để đồng bộ
             const qAllTx = query(collection(db, "point_transactions"), where("userId", "==", userId));
             const allTxSnap = await getDocs(qAllTx);
-            let calculatedTotal = 0;
+            let rankPointsTotal = 0;
+            let spendingPointsTotal = 0;
             allTxSnap.docs.forEach(doc => {
               const tx = doc.data();
+              if (tx.walletType === "interaction") return; // Ignore interaction wallet
+              
               if (tx.type === "plus") {
-                calculatedTotal += Number(tx.amount || 0);
+                rankPointsTotal += Number(tx.amount || 0);
+                spendingPointsTotal += Number(tx.amount || 0);
               } else if (tx.type === "minus") {
-                calculatedTotal -= Number(tx.amount || 0);
+                if (tx.walletType === "promo") {
+                  spendingPointsTotal -= Number(tx.amount || 0);
+                } else {
+                  rankPointsTotal -= Number(tx.amount || 0);
+                  spendingPointsTotal -= Number(tx.amount || 0);
+                }
               }
             });
             
-            if (calculatedTotal < 0) calculatedTotal = 0;
+            if (rankPointsTotal < 0) rankPointsTotal = 0;
+            if (spendingPointsTotal < 0) spendingPointsTotal = 0;
             
-            const currentPointsInDb = Number(currentData?.rankPoints || 0);
-            if (dbUpdated || calculatedTotal !== currentPointsInDb) {
+            const currentRankPointsInDb = Number(currentData?.rankPoints || 0);
+            const currentSpendingPointsInDb = Number(currentData?.spendingPoints || 0);
+            if (dbUpdated || rankPointsTotal !== currentRankPointsInDb || spendingPointsTotal !== currentSpendingPointsInDb) {
               const collectionName = userRole === "provider" ? "shops" : "users";
               const userRef = doc(db, collectionName, userId);
               await updateDoc(userRef, {
-                spendingPoints: calculatedTotal,
-                rankPoints: calculatedTotal
+                spendingPoints: spendingPointsTotal,
+                rankPoints: rankPointsTotal
               });
               
-              setPoints(calculatedTotal);
+              setPoints(rankPointsTotal);
               setUserData((prev: any) => prev ? {
                 ...prev,
-                spendingPoints: calculatedTotal,
-                rankPoints: calculatedTotal
+                spendingPoints: spendingPointsTotal,
+                rankPoints: rankPointsTotal
               } : null);
+            } else {
+              setPoints(rankPointsTotal);
             }
           } catch (err) {
             console.error("Lỗi đồng bộ điểm thưởng:", err);
@@ -1081,7 +1163,7 @@ const SettingsPage: FC = () => {
           <Text bold size="large" className="text-gray-800">Lễ hội Đổi điểm</Text>
           <Box flex alignItems="center" className="space-x-2">
             <button 
-              onClick={() => setShowWalletHistoryModal(true)}
+              onClick={handleOpenVoucherHistory}
               className="text-[#14502e] text-[11px] font-bold px-2.5 py-1.5 bg-green-50 rounded-lg border border-green-200"
             >
               Lịch sử giao dịch
@@ -1101,54 +1183,131 @@ const SettingsPage: FC = () => {
               ? "Toàn bộ dịch vụ trên hệ thống"
               : "Một số dịch vụ nhất định (Xem chi tiết)";
 
-            return (
-              <Box key={idx} className="flex flex-col mb-6 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
-                {vp.voucherTitle && <Text bold size="normal" className="text-gray-800 mb-2">{vp.voucherTitle}</Text>}
-                <Box className="bg-[#fff7f0] border border-orange-100 p-3 rounded-xl mb-4 shadow-sm">
-                  <Text size="xSmall" className="text-[#a06a55] font-bold mb-1 uppercase tracking-wider">Phạm vi áp dụng:</Text>
-                  <Box flex alignItems="center">
-                    <Icon icon="zi-check-circle-solid" className="text-gray-800 mr-1.5" size={16} />
-                    <Text size="small" bold className="text-gray-800">{applicableText}</Text>
-                  </Box>
-                </Box>
+            const isExpanded = expandedCampaignId === (vp.id || idx.toString());
 
-                <Box className="flex flex-col space-y-3">
-                  {[
-                    { value: 10000, promoCost: 20, interactionCost: 200, min: '100k' },
-                    { value: 30000, promoCost: 60, interactionCost: 600, min: '300k' },
-                    { value: 50000, promoCost: 100, interactionCost: 1000, min: '500k' },
-                    { value: 100000, promoCost: 200, interactionCost: 2000, min: '1000k' },
-                  ].map((tier, tIdx) => (
-                    <Box key={tIdx} className="bg-gray-50 border border-gray-100 p-3 rounded-xl flex justify-between items-center">
-                      <Box flex className="items-start flex-1">
-                        <Box className="w-8 h-8 bg-blue-100 rounded-full mr-3 shrink-0 flex items-center justify-center">
-                          <Icon icon="zi-star-solid" size={16} className="text-blue-500" />
-                        </Box>
-                        <Box>
-                          <Text bold size="normal" className="text-gray-800 mb-0.5">Giảm {(tier.value/1000)}k</Text>
-                          <Text size="xxxxSmall" className="text-gray-500 mb-1">Đơn tối thiểu {tier.min} - HSD: 30 ngày</Text>
-                          <Box flex className="space-x-2 mt-1">
-                            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">{tier.promoCost} Ưu Đãi</span>
-                            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">{tier.interactionCost} Tương Tác</span>
-                          </Box>
-                        </Box>
-                      </Box>
-                      <button 
-                        className="bg-[#8b1a1a] text-white font-bold text-xs px-3.5 py-2.5 rounded-xl active:opacity-80 shrink-0 self-center shadow-sm"
-                        onClick={() => {
-                          setRedeemConfirm({
-                            value: tier.value,
-                            promoCost: tier.promoCost,
-                            interactionCost: tier.interactionCost,
-                            applicableProducts: vp.applicableProducts || []
-                          });
-                        }}
-                      >
-                        Đổi ngay
-                      </button>
-                    </Box>
-                  ))}
+            return (
+              <Box key={idx} className="flex flex-col mb-4 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                <Box 
+                  className="p-4 flex justify-between items-center cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                  onClick={() => setExpandedCampaignId(isExpanded ? null : (vp.id || idx.toString()))}
+                >
+                  <Text bold size="normal" className="text-gray-800 flex-1 pr-2">{vp.voucherTitle || "Khuyến mãi Đổi điểm"}</Text>
+                  <Icon icon={isExpanded ? "zi-chevron-up" : "zi-chevron-down"} className="text-gray-500" />
                 </Box>
+                
+                {isExpanded && (
+                  <Box className="p-4 pt-1 border-t border-gray-100 animate-fade-in">
+                    <Box className="bg-[#fff7f0] border border-orange-100 p-3 rounded-xl mb-4 shadow-sm mt-2">
+                      <Text size="xSmall" className="text-[#a06a55] font-bold mb-2 uppercase tracking-wider">Phạm vi áp dụng:</Text>
+                      {(!vp.applicableProducts || vp.applicableProducts.length === 0) ? (
+                        <Box flex alignItems="center">
+                          <Icon icon="zi-check-circle-solid" className="text-gray-800 mr-1.5" size={16} />
+                          <Text size="small" bold className="text-gray-800">Toàn bộ dịch vụ trên hệ thống</Text>
+                        </Box>
+                      ) : (
+                        <Box className="flex flex-col">
+                          {(() => {
+                            const grouped: Record<string, any[]> = {};
+                            let hasDeleted = false;
+                            
+                            vp.applicableProducts.forEach((productId: string) => {
+                              const svc = allServices.find(s => s.id === productId);
+                              if (svc) {
+                                const shop = svc.shopName || "Khác";
+                                if (!grouped[shop]) grouped[shop] = [];
+                                grouped[shop].push(svc);
+                              } else {
+                                hasDeleted = true;
+                              }
+                            });
+                            
+                            const result = Object.entries(grouped).map(([shopName, services]) => (
+                              <Box key={shopName} className="mb-3 last:mb-0">
+                                <Box 
+                                  flex 
+                                  alignItems="center" 
+                                  className="mb-1.5 bg-orange-50 border border-orange-100 py-1 px-2 rounded-lg w-max max-w-full shadow-sm cursor-pointer hover:bg-orange-100 active:opacity-75 transition-colors"
+                                  onClick={() => {
+                                    const shopPhone = services[0].providerId || services[0].ownerPhone || services[0].shopId;
+                                    if (shopPhone) {
+                                      setTimeout(() => navigate("/shop-details/" + shopPhone), 200);
+                                    }
+                                  }}
+                                >
+                                  <CustomIcon icon="zi-store" size={14} className="text-orange-600 mr-1.5 shrink-0" />
+                                  <Text size="small" bold className="text-orange-800 line-clamp-1 underline">{shopName}</Text>
+                                </Box>
+                                <Box className="pl-1 space-y-1.5 mt-2">
+                                  {services.map(svc => (
+                                    <Box 
+                                      key={svc.id} 
+                                      flex 
+                                      alignItems="flex-start"
+                                      className="cursor-pointer active:opacity-75 hover:bg-gray-100/50 p-1 -ml-1 rounded transition-colors group"
+                                      onClick={() => {
+                                        setTimeout(() => navigate("/detail/" + svc.id), 200);
+                                      }}
+                                    >
+                                      <Icon icon="zi-check" className="text-green-600 mr-1.5 mt-0.5 shrink-0" size={14} />
+                                      <Text size="small" className="text-gray-700 break-words group-hover:text-[#14502e] group-hover:underline transition-colors">{svc.title}</Text>
+                                    </Box>
+                                  ))}
+                                </Box>
+                              </Box>
+                            ));
+
+                            if (hasDeleted) {
+                              result.push(
+                                <Text key="deleted" size="xSmall" className="text-gray-400 italic mt-2">
+                                  * Một số dịch vụ không còn khả dụng
+                                </Text>
+                              );
+                            }
+                            return result;
+                          })()}
+                        </Box>
+                      )}
+                    </Box>
+
+                    <Box className="flex flex-col space-y-3">
+                      {[
+                        { value: 10000, promoCost: 20, interactionCost: 200, min: '100k' },
+                        { value: 30000, promoCost: 60, interactionCost: 600, min: '300k' },
+                        { value: 50000, promoCost: 100, interactionCost: 1000, min: '500k' },
+                        { value: 100000, promoCost: 200, interactionCost: 2000, min: '1000k' },
+                      ].map((tier, tIdx) => (
+                        <Box key={tIdx} className="bg-gray-50 border border-gray-100 p-3 rounded-xl flex justify-between items-center">
+                          <Box flex className="items-start flex-1">
+                            <Box className="w-8 h-8 bg-blue-100 rounded-full mr-3 shrink-0 flex items-center justify-center">
+                              <Icon icon="zi-star-solid" size={16} className="text-blue-500" />
+                            </Box>
+                            <Box>
+                              <Text bold size="normal" className="text-gray-800 mb-0.5">Giảm {(tier.value/1000)}k</Text>
+                              <Text size="xxxxSmall" className="text-gray-500 mb-1">Đơn tối thiểu {tier.min} - HSD: 30 ngày</Text>
+                              <Box flex className="space-x-2 mt-1">
+                                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">{tier.promoCost} Ưu Đãi</span>
+                                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">{tier.interactionCost} Tương Tác</span>
+                              </Box>
+                            </Box>
+                          </Box>
+                          <button 
+                            className="bg-[#8b1a1a] text-white font-bold text-xs px-3.5 py-2.5 rounded-xl active:opacity-80 shrink-0 self-center shadow-sm"
+                            onClick={() => {
+                              setRedeemConfirm({
+                                value: tier.value,
+                                promoCost: tier.promoCost,
+                                interactionCost: tier.interactionCost,
+                                applicableProducts: vp.applicableProducts || []
+                              });
+                            }}
+                          >
+                            Đổi ngay
+                          </button>
+                        </Box>
+                      ))}
+                    </Box>
+                  </Box>
+                )}
               </Box>
             )
           })
@@ -1166,7 +1325,40 @@ const SettingsPage: FC = () => {
         onSupportClick={() => setShowSupportModal(true)}
         onMyOrdersClick={handleOpenMyOrders}
       />
-      <UserUtilities onLogout={handleLogout} />
+      <UserUtilities onLogout={handleLogout} onContactClick={() => setShowContactModal(true)} />
+
+      {/* Modal Liên hệ hỗ trợ */}
+      <Modal
+        visible={showContactModal}
+        title="Liên hệ CSKH"
+        onClose={() => setShowContactModal(false)}
+      >
+        <Box className="flex flex-col items-center mt-2 px-2 pb-4">
+          <Box className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4">
+            <CustomIcon icon="zi-chat" className="text-blue-500" size={32} />
+          </Box>
+          <Text className="text-center text-gray-700 leading-relaxed mb-6">
+            Đội ngũ Chăm sóc khách hàng của chúng tôi luôn sẵn sàng hỗ trợ bạn giải đáp mọi thắc mắc từ 8:00 đến 22:00 hàng ngày.
+            <br/><br/>
+            Email: <span className="font-semibold text-blue-600">campusgreenbiz@gmail.com</span>
+          </Text>
+          <Box 
+            className="w-full bg-[#8b1919] text-white py-3 rounded-xl flex items-center justify-center font-bold cursor-pointer shadow-md"
+            onClick={() => {
+              openChat({
+                type: 'oa',
+                id: '1234567890', // Default Zalo OA ID placeholder
+                message: 'Xin chào, tôi cần hỗ trợ.'
+              }).catch(err => {
+                console.error(err);
+                window.location.href = "mailto:campusgreenbiz@gmail.com";
+              });
+            }}
+          >
+            Chat với Zalo OA
+          </Box>
+        </Box>
+      </Modal>
 
       {/* Modal Chia sẻ ứng dụng */}
       <Modal
@@ -1414,8 +1606,9 @@ const SettingsPage: FC = () => {
         visible={showMyVouchersModal}
         title="Ví Voucher của tôi"
         onClose={() => setShowMyVouchersModal(false)}
+        modalClassName="order-management-modal"
       >
-        <Box className="bg-gray-50 flex flex-col flex-1 hide-scroll p-4" style={{ maxHeight: '65vh', overflowY: 'auto' }}>
+        <Box className="bg-gray-50 flex flex-col flex-1 hide-scroll p-4 overflow-y-auto">
           {loadingVouchers ? (
             <Box className="flex justify-center items-center py-10">
               <Spinner />
@@ -1425,27 +1618,115 @@ const SettingsPage: FC = () => {
               const displayDate = item.createdAt 
                 ? (item.createdAt.toDate ? item.createdAt.toDate().toLocaleString('vi-VN') : new Date(item.createdAt.seconds * 1000).toLocaleString('vi-VN')) 
                 : 'N/A';
+              let expirationDateStr = 'N/A';
+              if (item.createdAt) {
+                const dateObj = item.createdAt.toDate ? item.createdAt.toDate() : new Date(item.createdAt.seconds * 1000);
+                const expDate = new Date(dateObj.getTime() + 30 * 24 * 60 * 60 * 1000);
+                expirationDateStr = expDate.toLocaleDateString('vi-VN');
+              }
               
               return (
                 <Box 
                   key={idx} 
-                  className={`mb-4 border flex flex-col justify-between p-4 rounded-xl shadow-sm ${item.isUsed ? 'bg-gray-100 border-gray-200 opacity-60' : 'bg-white border-orange-100'}`}
+                  className={`mb-4 border flex flex-col justify-between p-4 rounded-xl shadow-sm relative overflow-hidden ${item.isUsed ? 'bg-gray-100 border-gray-200 opacity-60' : 'bg-gradient-to-br from-[#fff7f0] to-white border-orange-200 shadow-md'}`}
                 >
-                  <Box className="flex-1 flex justify-between items-start mb-2">
+                  {/* Decorative circles for ticket effect */}
+                  {!item.isUsed && (
+                    <>
+                      <div className="absolute -left-3 top-1/2 w-6 h-6 bg-gray-50 rounded-full transform -translate-y-1/2 border-r border-orange-200 shadow-inner"></div>
+                      <div className="absolute -right-3 top-1/2 w-6 h-6 bg-gray-50 rounded-full transform -translate-y-1/2 border-l border-orange-200 shadow-inner"></div>
+                    </>
+                  )}
+                  <Box className="flex-1 flex justify-between items-start mb-2 relative z-10">
                     <Box>
-                      <Text bold size="normal" className={`mb-1 ${item.isUsed ? 'text-gray-500' : 'text-gray-800'}`}>
+                      <Text bold size="normal" className={`mb-1 ${item.isUsed ? 'text-gray-500' : 'text-orange-700'}`}>
                         {item.title}
                       </Text>
                       <Text size="xSmall" className="text-gray-500">Mã: <span className="font-bold text-gray-700">{item.code}</span></Text>
                     </Box>
                     <Box className="ml-3 flex-shrink-0">
-                      <Text bold className={`text-[10px] px-2 py-1 rounded-full ${item.isUsed ? 'bg-gray-200 text-gray-500' : 'bg-orange-100 text-orange-600'}`}>
+                      <Text bold className={`text-[10px] px-2 py-1 rounded-full ${item.isUsed ? 'bg-gray-200 text-gray-500' : 'bg-orange-100 text-orange-600 shadow-sm'}`}>
                         {item.isUsed ? 'Đã sử dụng' : 'Khả dụng'}
                       </Text>
                     </Box>
                   </Box>
-                  <Box className="border-t border-dashed border-gray-200 pt-2 mt-1">
+                  <Box className="border-t border-dashed border-orange-200/60 pt-2 mt-2 flex flex-col space-y-1 relative z-10">
                     <Text size="xxxxSmall" className="text-gray-400">Ngày đổi: {displayDate}</Text>
+                    <Text size="xSmall" bold className="text-red-500">Sử dụng trước ngày {expirationDateStr}</Text>
+                  </Box>
+                  <Box className="border-t border-dashed border-orange-200/60 pt-3 mt-3 relative z-10">
+                    <Box flex alignItems="center" className="mb-2">
+                      <Icon icon="zi-info-circle" size={14} className="text-gray-500 mr-1.5 shrink-0" />
+                      <Text size="xSmall" bold className="text-gray-700">Điều kiện: <span className="text-orange-700">Đơn tối thiểu {(item.minOrderValue || ((item.value || item.amount || 0) * 10)).toLocaleString('vi-VN')}đ</span></Text>
+                    </Box>
+                    <Text size="xSmall" bold className="text-gray-700 mb-2 mt-1">Phạm vi áp dụng:</Text>
+                    {(!item.applicableProducts || item.applicableProducts.length === 0) ? (
+                      <Text size="small" bold className="text-gray-800">Toàn bộ dịch vụ trên hệ thống</Text>
+                    ) : (
+                      <Box className="flex flex-col">
+                        {(() => {
+                          const grouped: Record<string, any[]> = {};
+                          let hasDeleted = false;
+                          
+                          item.applicableProducts.forEach((productId: string) => {
+                            const svc = allServices.find(s => s.id === productId);
+                            if (svc) {
+                              const shop = svc.shopName || "Khác";
+                              if (!grouped[shop]) grouped[shop] = [];
+                              grouped[shop].push(svc);
+                            } else {
+                              hasDeleted = true;
+                            }
+                          });
+                          
+                          const result = Object.entries(grouped).map(([shopName, services]) => (
+                            <Box key={shopName} className="mb-3 last:mb-0">
+                              <Box 
+                                flex 
+                                alignItems="center" 
+                                className="mb-1.5 bg-orange-50 border border-orange-100 py-1 px-2 rounded-lg w-max max-w-full shadow-sm cursor-pointer hover:bg-orange-100 active:opacity-75 transition-colors"
+                                onClick={() => {
+                                  const shopPhone = services[0].providerId || services[0].ownerPhone || services[0].shopId;
+                                  if (shopPhone) {
+                                    setShowMyVouchersModal(false);
+                                    setTimeout(() => navigate("/shop-details/" + shopPhone), 200);
+                                  }
+                                }}
+                              >
+                                <CustomIcon icon="zi-store" size={14} className="text-orange-600 mr-1.5 shrink-0" />
+                                <Text size="small" bold className="text-orange-800 line-clamp-1 underline">{shopName}</Text>
+                              </Box>
+                              <Box className="pl-1 space-y-1.5 mt-2">
+                                {services.map(svc => (
+                                  <Box 
+                                    key={svc.id} 
+                                    flex 
+                                    alignItems="flex-start"
+                                    className="cursor-pointer active:opacity-75 hover:bg-gray-100/50 p-1 -ml-1 rounded transition-colors group"
+                                    onClick={() => {
+                                      setShowMyVouchersModal(false);
+                                      setTimeout(() => navigate("/detail/" + svc.id), 200);
+                                    }}
+                                  >
+                                    <Icon icon="zi-check" className="text-green-600 mr-1.5 mt-0.5 shrink-0" size={14} />
+                                    <Text size="small" className="text-gray-700 break-words group-hover:text-[#14502e] group-hover:underline transition-colors">{svc.title}</Text>
+                                  </Box>
+                                ))}
+                              </Box>
+                            </Box>
+                          ));
+
+                          if (hasDeleted) {
+                            result.push(
+                              <Text key="deleted" size="xSmall" className="text-gray-400 italic mt-2">
+                                * Một số dịch vụ không còn khả dụng
+                              </Text>
+                            );
+                          }
+                          return result;
+                        })()}
+                      </Box>
+                    )}
                   </Box>
                 </Box>
               );
@@ -1465,14 +1746,83 @@ const SettingsPage: FC = () => {
         </Box>
       </Modal>
 
+      {/* Modal Lịch sử giao dịch voucher */}
+      <Modal
+        visible={showVoucherHistoryModal}
+        title="Lịch sử giao dịch voucher"
+        onClose={() => setShowVoucherHistoryModal(false)}
+      >
+        <Box className="bg-gray-50 flex flex-col flex-1 hide-scroll p-4" style={{ maxHeight: '65vh', overflowY: 'auto' }}>
+          {loadingVouchers ? (
+            <Box className="flex justify-center items-center py-10">
+              <Spinner />
+            </Box>
+          ) : voucherHistoryList.length > 0 ? (
+            voucherHistoryList.map((item, idx) => {
+              const displayDate = item.usedAt 
+                ? (item.usedAt.toDate ? item.usedAt.toDate().toLocaleString('vi-VN') : new Date(item.usedAt.seconds * 1000).toLocaleString('vi-VN')) 
+                : (item.createdAt ? (item.createdAt.toDate ? item.createdAt.toDate().toLocaleString('vi-VN') : new Date(item.createdAt.seconds * 1000).toLocaleString('vi-VN')) : 'N/A');
+              
+              return (
+                <Box 
+                  key={idx} 
+                  className="mb-4 border flex flex-col justify-between p-4 rounded-xl shadow-sm bg-gray-100 border-gray-200"
+                >
+                  <Box className="flex-1 flex justify-between items-start mb-2">
+                    <Box>
+                      <Text bold size="normal" className="mb-1 text-gray-800">
+                        {item.title}
+                      </Text>
+                      <Text size="xSmall" className="text-gray-500">Mã: <span className="font-bold text-gray-700">{item.code}</span></Text>
+                      {item.orderCode && <Text size="xSmall" className="text-gray-500 mt-1">Sử dụng cho đơn: <span className="font-bold text-[#14502e]">{item.orderCode}</span></Text>}
+                    </Box>
+                    <Box className="ml-3 flex-shrink-0">
+                      <Text bold className="text-[10px] px-2 py-1 rounded-full bg-gray-200 text-gray-500">
+                        Đã sử dụng
+                      </Text>
+                    </Box>
+                  </Box>
+                  <Box className="border-t border-dashed border-gray-200 pt-2 mt-1">
+                    <Text size="xxxxSmall" className="text-gray-400">Ngày sử dụng: {displayDate}</Text>
+                  </Box>
+                </Box>
+              );
+            })
+          ) : (
+            <Text size="small" className="text-center text-gray-400 py-10">Không có dữ liệu giao dịch.</Text>
+          )}
+        </Box>
+        <Box className="p-4 bg-white border-t border-gray-100 mt-auto rounded-b-2xl">
+          <Button 
+            fullWidth 
+            onClick={() => setShowVoucherHistoryModal(false)}
+            className="bg-[#14502e] text-white rounded-xl font-bold py-2.5 text-sm active:bg-[#0f3d23] transition-colors"
+          >
+            Đóng
+          </Button>
+        </Box>
+      </Modal>
+
       {/* Modal Đơn hàng của tôi */}
       <Modal
         visible={showMyOrdersModal}
-        title="Đơn hàng của tôi"
         onClose={() => setShowMyOrdersModal(false)}
         modalClassName="order-management-modal"
       >
-        <Box className="bg-gray-50 flex flex-col flex-1 hide-scroll p-4 space-y-3" style={{ maxHeight: '65vh', overflowY: 'auto' }}>
+        {/* Custom Header */}
+        <Box className="bg-white flex items-center px-4 pt-6 pb-4 border-b border-gray-100">
+          <button 
+            onClick={() => setShowMyOrdersModal(false)}
+            className="text-gray-700 focus:outline-none p-1 -ml-1 active:scale-95 transition-transform"
+          >
+            <CustomIcon icon="zi-chevron-left" size={28} />
+          </button>
+          <Text size="xLarge" bold className="text-gray-900 flex-1 text-center pr-8">
+            Đơn hàng của tôi
+          </Text>
+        </Box>
+        
+        <Box className="bg-gray-50 flex flex-col flex-1 hide-scroll p-4 space-y-3" style={{ overflowY: 'auto' }}>
           {/* Tab Selection */}
           <Box flex className="border-b border-gray-150 mb-4 bg-gray-50 p-1.5 rounded-xl">
             <button 
@@ -1491,7 +1841,7 @@ const SettingsPage: FC = () => {
               onClick={() => setOrdersTab('history')}
               className={`flex-1 py-2 text-center text-xs font-semibold rounded-lg transition-all cursor-pointer ${ordersTab === 'history' ? 'bg-[#14502e] text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
             >
-              Lịch sử
+              Lịch sử ({myOrders.filter(o => ['completed', 'success', 'cancelled'].includes(o.status)).filter(o => isWithin15Days(o.createdAt)).length})
             </button>
           </Box>
 
@@ -1842,6 +2192,9 @@ const SettingsPage: FC = () => {
           const statusUI = getStatusDisplay(selectedOrder.status);
           const orderCode = selectedOrder.orderCode || selectedOrder.id.slice(0, 8).toUpperCase();
           const totalAmount = selectedOrder.totalAmount || selectedOrder.totalPrice || selectedOrder.total || 0;
+          const originalPrice = selectedOrder.originalPrice || totalAmount;
+          const discountAmount = selectedOrder.discountAmount || 0;
+          const finalPrice = selectedOrder.totalPrice || totalAmount;
           const dateObj = selectedOrder.createdAt?.toDate ? selectedOrder.createdAt.toDate() : 
                          (selectedOrder.createdAt?.seconds ? new Date(selectedOrder.createdAt.seconds * 1000) : new Date(selectedOrder.createdAt));
           
@@ -1967,15 +2320,15 @@ const SettingsPage: FC = () => {
                 </Box>
                 <Box flex justifyContent="space-between">
                   <Text size="xSmall" className="text-gray-500">Tổng giá trị sản phẩm:</Text>
-                  <Text size="xSmall" bold className="text-gray-800">{totalAmount.toLocaleString('vi-VN')}đ</Text>
+                  <Text size="xSmall" bold className="text-gray-800">{originalPrice.toLocaleString('vi-VN')}đ</Text>
                 </Box>
                 <Box flex justifyContent="space-between">
-                  <Text size="xSmall" className="text-gray-500">Khuyến mãi / Giảm giá:</Text>
-                  <Text size="xSmall" bold className="text-gray-800">0đ</Text>
+                  <Text size="xSmall" className="text-gray-500">Voucher:</Text>
+                  <Text size="xSmall" bold className="text-gray-800">-{discountAmount.toLocaleString('vi-VN')}đ</Text>
                 </Box>
                 <Box flex justifyContent="space-between" className="border-t border-dashed border-gray-100 pt-2 mt-2">
                   <Text size="small" bold className="text-gray-800">Thực tế thanh toán:</Text>
-                  <Text size="small" bold className="text-red-500">{totalAmount.toLocaleString('vi-VN')}đ</Text>
+                  <Text size="small" bold className="text-red-500">{finalPrice.toLocaleString('vi-VN')}đ</Text>
                 </Box>
               </Box>
             </Box>
