@@ -298,8 +298,8 @@ const handleRemoveVideo = () => {
       const wasAlreadyVip = editingPost?.isVip === true;
 
       // Phí: 10 điểm nếu đăng VIP và trước đó chưa phải VIP.
-      // Phí: 1 điểm nếu đăng mới và không phải VIP.
-      const vipCost = (isVip && !wasAlreadyVip) ? 10 : (!id ? 1 : 0);
+      // Đăng bài bình thường không mất phí VIP.
+      const vipCost = (isVip && !wasAlreadyVip) ? 10 : 0;
 
       if (vipCost > 0 && currentVipPoints < vipCost) {
         openSnackbar({ 

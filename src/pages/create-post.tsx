@@ -7,6 +7,7 @@ import { auth, db, storage } from "../firebase";
 import { collection, addDoc, serverTimestamp, query, where, getDocs, getDoc, doc, updateDoc, increment } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { onAuthStateChanged, User } from "firebase/auth";
+import { AuthOverlay } from "./auth";
 
 const CreatePostPage: FC = () => {
   const navigate = useNavigate();

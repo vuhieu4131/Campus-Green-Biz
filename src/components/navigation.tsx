@@ -48,50 +48,44 @@ export const Navigation: FC = () => {
         if (finalPhone.startsWith("+84")) {
           finalPhone = "0" + finalPhone.substring(3);
         }
-
-        const q1 = query(
-          collection(db, "notifications"),
-          where("userId", "==", user.uid),
-          where("isRead", "==", false)
-        );
-        const q2 = query(
-          collection(db, "notifications"),
-          where("userId", "==", finalPhone),
-          where("isRead", "==", false)
-        );
-
-        unsub1 = onSnapshot(q1, (snap1) => {
-          const count1 = snap1.docs.length;
-          
-          unsub2 = onSnapshot(q2, (snap2) => {
-            const count2 = snap2.docs.length;
-            
-            // Merge & count unique notifications by ID
-            const uniqueIds = new Set();
-            snap1.docs.forEach(doc => uniqueIds.add(doc.id));
-            snap2.docs.forEach(doc => uniqueIds.add(doc.id));
-            
-            setUnreadCount(uniqueIds.size);
+        const localPhone = localStorage.getItem("user_phone") || finalPhone;
+        
+        if (localPhone) {
+          const q = query(
+            collection(db, "notifications"),
+            where("userId", "==", localPhone),
+            where("isRead", "==", false)
+          );
+          unsub1 = onSnapshot(q, (snap) => {
+            setUnreadCount(snap.docs.length);
           });
-        });
 
-        // Chat unread tracking
-        const q3 = query(
-          collection(db, "chats"),
-          where("participants", "array-contains", user.uid)
-        );
+          const chatQuery = query(
+            collection(db, "chats"),
+            where("participants", "array-contains", user.uid)
+          );
+          unsub2 = onSnapshot(chatQuery, (snap) => {
+            let count = 0;
+            snap.forEach(docSnap => {
+              const data = docSnap.data();
+              if (data.unreadCount && data.unreadCount[user.uid]) {
+                count += data.unreadCount[user.uid];
+              }
+            });
+            setUnreadChatCount(count);
+          });
+        }
 
-        unsub3 = onSnapshot(q3, (snap3) => {
-          let count = 0;
-          snap3.docs.forEach(doc => {
-            const data = doc.data();
-            if (data.unreadCount && data.unreadCount[user.uid]) {
-              count += data.unreadCount[user.uid];
+        unsub3 = onSnapshot(collection(db, "notifications"), (snap) => {
+          let globalUnread = 0;
+          snap.forEach(docSnap => {
+            const data = docSnap.data();
+            if (data.isGlobal && !data.readBy?.includes(user.uid)) {
+              globalUnread++;
             }
           });
-          setUnreadChatCount(count);
+          setUnreadCount(prev => prev + globalUnread);
         });
-
       } else {
         setUnreadCount(0);
         setUnreadChatCount(0);
@@ -106,15 +100,11 @@ export const Navigation: FC = () => {
     };
   }, []);
 
-  const tabs: Record<string, MenuItem> = useMemo(() => ({
+  const tabs = useMemo<Record<string, MenuItem>>(() => ({
     "/": {
       label: "Trang chủ",
-      icon: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>,
-      activeIcon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-          <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z" />
-        </svg>
-      ),
+      icon: <Icon icon="zi-home" />,
+      activeIcon: <Icon icon="zi-home" className="text-[#14502e]" />,
     },
     "/store": {
       label: "Cửa hàng",
@@ -182,7 +172,7 @@ export const Navigation: FC = () => {
         </svg>
       ),
     },
-  }), [unreadCount]);
+  }), [unreadCount, unreadChatCount]);
 
   const noBottomNav = useMemo(() => {
     if (location.pathname.startsWith("/detail") || location.pathname.startsWith("/chat-detail")) {

@@ -263,9 +263,10 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
 
   return (
     <Box className="fixed inset-0 bg-white z-50 flex flex-col w-full h-full">
-      <Box className="flex justify-end p-4">
-        <div onClick={onClose} className="cursor-pointer p-2 bg-gray-100 rounded-full">
-          <CustomIcon icon="zi-close" className="text-gray-600 text-2xl" />
+      <Box className="flex items-center p-4 pb-0" style={{ paddingTop: 'calc(var(--zaui-safe-area-inset-top, 40px) + 8px)' }}>
+        <div onClick={onClose} className="cursor-pointer flex items-center space-x-1 p-1.5 pr-3 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors active:scale-95">
+          <Icon icon="zi-arrow-left" className="text-gray-600 text-2xl" />
+          <Text className="text-gray-700 font-medium text-sm">Quay lại</Text>
         </div>
       </Box>
 

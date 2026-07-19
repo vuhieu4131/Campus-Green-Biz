@@ -333,10 +333,19 @@ const ProductDetailPage: FC = () => {
           </Text.Title>
 
           {product.shopName && (
-            <Box flex alignItems="center" className="text-gray-500 text-xs mt-2">
+            <Box 
+              flex alignItems="center" 
+              className="text-gray-500 text-xs mt-2 cursor-pointer active:opacity-70"
+              onClick={() => {
+                const shopId = product.ownerPhone || product.providerId;
+                if (shopId) {
+                  navigate(`/shop-details/${shopId}`);
+                }
+              }}
+            >
               <CustomIcon icon="zi-store" size={14} className="mr-1 text-gray-400" />
               <span>Cung cấp bởi: </span>
-              <span className="font-semibold text-gray-800 ml-1">{product.shopName}</span>
+              <span className="font-bold text-[#14502e] ml-1">{product.shopName}</span>
             </Box>
           )}
         </Box>

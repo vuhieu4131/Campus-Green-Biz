@@ -1,5 +1,5 @@
 import CustomIcon from '../components/custom-icon';
-import React, { FC, useState, useEffect } from "react";
+import React, { FC, useState, useEffect, useRef } from "react";
 import { useSetRecoilState, useRecoilValue, useRecoilValueLoadable } from 'recoil';
 import { cartState, userState, totalQuantityState } from 'state';
 import { Page, Box, Text, Avatar, Icon, Input, useNavigate, Sheet, Button, useSnackbar } from "zmp-ui";
@@ -103,15 +103,15 @@ const StoreWelcome: FC = () => {
       className="bg-[#14502e] rounded-b-[30px] pb-10 px-4 relative shadow-md"
       style={{ paddingTop: 'calc(var(--zaui-safe-area-inset-top, 40px) + 12px)' }}
     >
-      <Box className="flex justify-between items-center">
+      <Box className="flex justify-between items-end">
         {/* TRÁI: Avatar, Lời chào & Điểm ưu đãi */}
         <Box 
           className="flex items-center space-x-2.5 cursor-pointer flex-1"
           onClick={() => navigate('/profile')}
         >
           <Avatar src={avatar} size={44} className="border border-white/50 shadow-sm" />
-          <Box>
-            <Box className="flex items-center space-x-1.5 mb-0.5">
+          <Box className="flex flex-col justify-end h-full">
+            <Box className="flex items-center space-x-1.5 mb-1">
               <Text className="text-white/80 text-xs">{greeting}</Text>
               <Text className="text-white font-bold text-sm truncate max-w-[120px]">{name}</Text>
             </Box>
@@ -136,7 +136,7 @@ const StoreWelcome: FC = () => {
         </Box>
 
         {/* PHẢI: Nút Tìm Kiếm & Nút Giỏ Hàng */}
-        <Box className="flex items-center space-x-3 text-white" style={{ paddingRight: '80px' }}>
+        <Box className="flex items-center space-x-3 text-white mb-0.5 pr-2">
           {/* Nút Tìm Kiếm */}
           <Box 
             className="w-9 h-9 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/25 cursor-pointer relative shadow-sm hover:bg-white/30 transition-colors"
@@ -250,9 +250,27 @@ const StoreBanner: FC = () => {
   );
 };
 
-const StoreCategories: FC = () => {
+interface StoreCategoriesProps {
+  selectedCategory: string | null;
+  onSelectCategory: (categoryName: string | null) => void;
+}
+
+const StoreCategories: FC<StoreCategoriesProps> = ({ selectedCategory, onSelectCategory }) => {
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const scrollRef = useRef<any>(null);
+
+  const scrollLeft = () => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollBy({ left: -150, behavior: 'smooth' });
+    }
+  };
+
+  const scrollRight = () => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollBy({ left: 150, behavior: 'smooth' });
+    }
+  };
 
   useEffect(() => {
     const q = query(collection(db, "categories"), orderBy("createdAt", "asc"));
@@ -277,7 +295,20 @@ const StoreCategories: FC = () => {
   ];
 
   return (
-    <Box className="px-4 mt-6 flex space-x-4 overflow-x-auto custom-scrollbar pb-3">
+    <Box className="relative mt-6 group">
+      {/* Nút cuộn trái */}
+      <Box 
+        className="absolute left-0 top-1/2 -translate-y-[60%] z-10 w-7 h-7 flex items-center justify-center bg-white shadow-md rounded-r-full cursor-pointer active:bg-gray-100 opacity-90"
+        onClick={scrollLeft}
+      >
+        <CustomIcon icon="zi-chevron-left" className="text-[#14502e] text-base" />
+      </Box>
+
+      {/* Danh sách danh mục */}
+      <Box 
+        ref={scrollRef}
+        className="px-4 flex space-x-4 overflow-x-auto custom-scrollbar pb-3 pr-12"
+      >
       <style>{`
         .custom-scrollbar::-webkit-scrollbar {
           height: 4px;
@@ -294,14 +325,31 @@ const StoreCategories: FC = () => {
           background: #1e7041;
         }
       `}</style>
-      {displayCategories.map((cat, idx) => (
-        <Box key={cat.id || idx} className="flex flex-col items-center flex-shrink-0 w-[72px]">
-          <Box className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-md mb-2 text-[#14502e] active:scale-95 transition-transform cursor-pointer">
-            <CustomIcon icon={cat.icon || "zi-store"} className="text-2xl" />
+      {displayCategories.map((cat, idx) => {
+        const catName = cat.name || cat.label;
+        const isSelected = selectedCategory === catName;
+        return (
+          <Box 
+            key={cat.id || idx} 
+            className={`flex flex-col items-center flex-shrink-0 w-[72px] cursor-pointer ${isSelected ? 'opacity-100' : 'opacity-80'}`}
+            onClick={() => onSelectCategory(isSelected ? null : catName)}
+          >
+            <Box className={`w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-md mb-2 active:scale-95 transition-all ${isSelected ? 'border-2 border-[#14502e] text-[#14502e]' : 'text-[#14502e]'}`}>
+              <CustomIcon icon={cat.icon || "zi-store"} className="text-2xl" />
+            </Box>
+            <Text size="xxSmall" className={`text-center leading-tight w-full break-words whitespace-normal line-clamp-2 ${isSelected ? 'font-bold text-[#14502e]' : 'font-semibold text-gray-800'}`}>{catName}</Text>
           </Box>
-          <Text size="xxSmall" className="font-semibold text-gray-800 text-center leading-tight w-full break-words whitespace-normal line-clamp-2">{cat.name || cat.label}</Text>
-        </Box>
-      ))}
+        );
+      })}
+      </Box>
+
+      {/* Nút cuộn phải */}
+      <Box 
+        className="absolute right-0 top-1/2 -translate-y-[60%] z-10 w-7 h-7 flex items-center justify-center bg-white shadow-md rounded-l-full cursor-pointer active:bg-gray-100 opacity-90"
+        onClick={scrollRight}
+      >
+        <CustomIcon icon="zi-chevron-right" className="text-[#14502e] text-base" />
+      </Box>
     </Box>
   );
 };
@@ -408,15 +456,16 @@ const ProductsForYou: FC<{ products: any[]; onProductClick: (product: any) => vo
 };
 
 const ConsumerStorePage: FC = () => {
+  const [dbServices, setDbServices] = useState<any[]>([]);
+  const [loadingServices, setLoadingServices] = useState(true);
+  const [showPrice, setShowPrice] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  
   const [sheetVisible, setSheetVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [quantity, setQuantity] = useState(1);
   const { openSnackbar } = useSnackbar();
   const navigate = useNavigate();
-
-  const [dbServices, setDbServices] = useState<any[]>([]);
-  const [loadingServices, setLoadingServices] = useState(true);
-  const [showPrice, setShowPrice] = useState(true);
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -497,22 +546,56 @@ const ConsumerStorePage: FC = () => {
     });
   };
 
-  const vipServices = dbServices.filter(item => item.isVip === true);
-  const normalServices = dbServices.filter(item => item.isVip !== true);
+  const filteredServices = selectedCategory 
+    ? dbServices.filter(item => item.category === selectedCategory || item.productCategory === selectedCategory)
+    : dbServices;
 
-  const hotList = vipServices.length > 0 ? vipServices : dbServices.slice(0, Math.ceil(dbServices.length / 2) || 1);
-  const forYouList = normalServices.length > 0 ? normalServices : dbServices.slice(Math.ceil(dbServices.length / 2));
+  const vipServices = filteredServices.filter(item => item.isVip === true);
+  const normalServices = filteredServices.filter(item => item.isVip !== true);
+
+  const hotList = vipServices.length > 0 ? vipServices : filteredServices.slice(0, Math.ceil(filteredServices.length / 2) || 1);
+  const forYouList = normalServices.length > 0 ? normalServices : filteredServices.slice(Math.ceil(filteredServices.length / 2));
   
-  const finalHotList = hotList.length > 0 ? hotList : mockProducts;
-  const finalForYouList = forYouList.length > 0 ? forYouList : mockProducts;
+  // Nếu đã lọc theo danh mục thì không dùng mockProducts nếu trống để tránh gây nhầm lẫn
+  const finalHotList = selectedCategory ? hotList : (hotList.length > 0 ? hotList : mockProducts);
+  const finalForYouList = selectedCategory ? forYouList : (forYouList.length > 0 ? forYouList : mockProducts);
 
   return (
     <Page className="bg-[#f0fdf4] overflow-y-auto pb-20">
       <StoreWelcome />
       <StoreBanner />
-      <StoreCategories />
-      <HotProducts products={finalHotList} onProductClick={handleProductClick} showPrice={showPrice} />
-      <ProductsForYou products={finalForYouList} onProductClick={handleProductClick} showPrice={showPrice} />
+      <StoreCategories selectedCategory={selectedCategory} onSelectCategory={setSelectedCategory} />
+      
+      {selectedCategory ? (
+        <Box className="px-4 mt-6 mb-6">
+          <Text.Title className="font-bold text-base text-[#14502e] mb-4">Danh mục: {selectedCategory}</Text.Title>
+          {filteredServices.length > 0 ? (
+            <Box className="grid grid-cols-2 gap-4">
+              {filteredServices.map((p) => (
+                <Box key={p.id} className="flex flex-col bg-white rounded-2xl p-3 shadow-md active:scale-95 transition-transform cursor-pointer" onClick={() => handleProductClick(p)}>
+                  <Box 
+                    className="w-full aspect-[4/3] rounded-xl bg-cover bg-center mb-2"
+                    style={{ backgroundImage: `url('${p.image || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png"}')` }}
+                  />
+                  <Text className="font-semibold text-gray-800 text-sm line-clamp-2 min-h-[40px] leading-tight mb-1">{p.name || p.title}</Text>
+                  {showPrice ? (
+                    <Text className="font-bold text-[#14502e] text-sm">{(p.price || 0).toLocaleString('vi-VN')}đ</Text>
+                  ) : (
+                    <Text className="text-blue-500 italic text-xs font-medium leading-normal block">Liên hệ báo giá</Text>
+                  )}
+                </Box>
+              ))}
+            </Box>
+          ) : (
+            <Text className="text-center text-gray-500 italic mt-8">Chưa có sản phẩm nào thuộc danh mục này.</Text>
+          )}
+        </Box>
+      ) : (
+        <>
+          <HotProducts products={finalHotList} onProductClick={handleProductClick} showPrice={showPrice} />
+          <ProductsForYou products={finalForYouList} onProductClick={handleProductClick} showPrice={showPrice} />
+        </>
+      )}
 
       <Sheet
         visible={sheetVisible}

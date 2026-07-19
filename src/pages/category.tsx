@@ -20,7 +20,7 @@ const CategoryPicker: FC = () => {
       {categories.map((category) => (
         <Tabs.Tab key={category.id} label={category.name}>
           <Suspense>
-            <CategoryProducts categoryId={category.id} />
+            <CategoryProducts categoryName={category.name} />
           </Suspense>
         </Tabs.Tab>
       ))}
@@ -28,9 +28,9 @@ const CategoryPicker: FC = () => {
   );
 };
 
-const CategoryProducts: FC<{ categoryId: string }> = ({ categoryId }) => {
+const CategoryProducts: FC<{ categoryName: string }> = ({ categoryName }) => {
   const productsByCategory = useRecoilValue(
-    productsByCategoryState(categoryId),
+    productsByCategoryState(categoryName),
   );
 
   if (productsByCategory.length === 0) {

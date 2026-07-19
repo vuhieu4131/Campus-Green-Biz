@@ -11,7 +11,7 @@ import { calcFinalPrice } from "utils/product";
 import { wait } from "utils/async";
 import categories from "../mock/categories.json";
 import { db } from "./firebase";
-import { collection, getDocs, query } from "firebase/firestore";
+import { collection, getDocs, query, orderBy } from "firebase/firestore";
 
 export const userState = selector({
   key: "user",
@@ -23,7 +23,20 @@ export const userState = selector({
 
 export const categoriesState = selector<Category[]>({
   key: "categories",
-  get: () => categories,
+  get: async () => {
+    try {
+      const q = query(collection(db, "categories"), orderBy("createdAt", "asc"));
+      const snap = await getDocs(q);
+      return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category));
+    } catch (e) {
+      console.error("Lỗi tải danh mục từ DB:", e);
+      // Fallback
+      return [
+        { id: "1", name: "Công nghệ", icon: "zi-memory" },
+        { id: "2", name: "Thời trang", icon: "zi-star" }
+      ] as Category[];
+    }
+  },
 });
 
 export const productsState = selector<Product[]>({
@@ -70,11 +83,11 @@ export const selectedCategoryIdState = atom({
 export const productsByCategoryState = selectorFamily<Product[], string>({
   key: "productsByCategory",
   get:
-    (categoryId) =>
+    (categoryName) =>
     ({ get }) => {
       const allProducts = get(productsState);
-      return allProducts.filter((product) =>
-        product.categoryId.includes(categoryId)
+      return allProducts.filter((product: any) =>
+        product.category === categoryName || product.productCategory === categoryName
       );
     },
 });

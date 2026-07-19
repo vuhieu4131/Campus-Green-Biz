@@ -38,6 +38,7 @@ export interface Product {
   id: any;
   name: string;
   image: string;
+  images?: string[];
   price: number;
   categoryId: string[];
   description?: string;

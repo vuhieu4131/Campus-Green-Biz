@@ -59,6 +59,7 @@ const MENU_ITEMS = [
 ];
 
 export const AdminView: FC<AdminProps> = ({ userData, onLogout }) => {
+  const navigate = useNavigate();
   const [selectedFeature, setSelectedFeature] = useState<string | null>(null);
   const [dataList, setDataList] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -102,6 +103,25 @@ export const AdminView: FC<AdminProps> = ({ userData, onLogout }) => {
   // 👉 BƯỚC 1: BỔ SUNG STATE CHO TÌM KIẾM VÀ LỌC THÀNH VIÊN/SHOP
   const [searchQuery, setSearchQuery] = useState("");
   const [sortFilter, setSortFilter] = useState("all");
+
+  // 👉 Lấy thêm thông tin người giới thiệu từ bảng users nếu đang xem Cửa hàng (vì các shop cũ có thể không lưu referrer)
+  useEffect(() => {
+      const fetchReferrerForShop = async () => {
+          if (detailUser && selectedFeature === 'providers' && !detailUser.referrer && !detailUser.referralCode) {
+              try {
+                  const userDoc = await getDoc(doc(db, "users", detailUser.id));
+                  if (userDoc.exists()) {
+                      const uData = userDoc.data();
+                      if (uData.referrer || uData.referrerName || uData.referralCode) {
+                          setDetailUser((prev: any) => ({...prev, referrer: uData.referrer || uData.referralCode, referrerName: uData.referrerName}));
+                      }
+                  }
+              } catch (e) { console.error("Lỗi lấy thông tin referrer:", e); }
+          }
+      };
+      fetchReferrerForShop();
+  }, [detailUser?.id, selectedFeature]);
+
   // 👉 BƯỚC 1: STATE CHO TÍNH NĂNG GỬI THÔNG BÁO RIÊNG
   const [showNotifyModal, setShowNotifyModal] = useState(false);
   const [notifyTitle, setNotifyTitle] = useState("");
@@ -114,7 +134,7 @@ export const AdminView: FC<AdminProps> = ({ userData, onLogout }) => {
   const [postTab, setPostTab] = useState("pending");
   const [feedbackTab, setFeedbackTab] = useState("new");
   const [bannerTab, setBannerTab] = useState("home");
-  const [postsSubTab, setPostsSubTab] = useState("category"); // 'category' hoặc 'approve'
+  const [postsSubTab, setPostsSubTab] = useState("approve"); // 'category' hoặc 'approve'
   const [categoriesList, setCategoriesList] = useState<any[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -216,6 +236,7 @@ export const AdminView: FC<AdminProps> = ({ userData, onLogout }) => {
   const [rewardPointRate, setRewardPointRate] = useState("10");
   const [savingSettings, setSavingSettings] = useState(false);
   const [showPrice, setShowPrice] = useState(false);
+  const [showPosts, setShowPosts] = useState(true); // Mặc định bật bài viết
   // 👉 BƯỚC 2: State cho Chiến dịch Voucher
   const [voucherConfig, setVoucherConfig] = useState<{
     title: string; startTime: string; endTime: string; isOpen: boolean; applicableProducts: string[];
@@ -246,6 +267,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                 if (data.rewardPointRate !== undefined) setRewardPointRate(data.rewardPointRate.toString());
                 // 👉 BỔ SUNG: Kéo cấu hình Voucher về máy (ĐÃ FIX LỖI)
                 if (data.showPrice !== undefined) setShowPrice(data.showPrice);
+                if (data.showPosts !== undefined) setShowPosts(data.showPosts);
               setVoucherConfig({
                 title: data.voucherTitle || "",
                 startTime: data.voucherStartTime || "",
@@ -320,7 +342,8 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
         await setDoc(doc(db, "system_config", "admin_settings"), {
             platformFeeRate: Number(platformFeeRate),
             rewardPointRate: Number(rewardPointRate), // 👉 ĐÃ THÊM: Lưu tỷ lệ điểm lên Firebase
-            showPrice: showPrice
+            showPrice: showPrice,
+            showPosts: showPosts
         }, { merge: true }); // Dùng merge để không làm mất password admin
           openSnackbar({ text: "Lưu cài đặt thành công!", type: "success" });
       } catch (error) { openSnackbar({ text: "Lỗi lưu cài đặt", type: "error" }); }
@@ -1321,16 +1344,16 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
               {/* Tab phân tách giữa Danh mục và Duyệt */}
               <Box flex className="mb-4 border-b border-gray-200">
                 <Box 
-                  className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${postsSubTab === "category" ? "border-green-600 text-green-600 font-bold" : "border-transparent text-gray-500"}`} 
-                  onClick={() => setPostsSubTab("category")}
-                >
-                  Danh mục
-                </Box>
-                <Box 
                   className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${postsSubTab === "approve" ? "border-green-600 text-green-600 font-bold" : "border-transparent text-gray-500"}`} 
                   onClick={() => setPostsSubTab("approve")}
                 >
                   Duyệt ({poPending.length + poApproved.length})
+                </Box>
+                <Box 
+                  className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${postsSubTab === "category" ? "border-green-600 text-green-600 font-bold" : "border-transparent text-gray-500"}`} 
+                  onClick={() => setPostsSubTab("category")}
+                >
+                  Danh mục
                 </Box>
               </Box>
 
@@ -2280,6 +2303,20 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                   />
               </Box>
               {/* 👆 KẾT THÚC: CÔNG TẮC KIỂM DUYỆT ZALO 👆 */}
+              {/* 👇 BẮT ĐẦU: CÔNG TẮC KIỂM DUYỆT BÀI VIẾT 👇 */}
+              <Box className="bg-blue-50 p-4 rounded-xl border border-blue-200 shadow-md mb-4 flex items-center justify-between">
+                  <Box className="flex-1 pr-4">
+                      <Text size="small" bold className="mb-1 text-blue-800">Hiển thị Bài viết (Mạng xã hội)</Text>
+                      <Text size="xxxxSmall" className="text-blue-700 italic leading-relaxed">
+                          ⚠️ <b>LƯU Ý QUAN TRỌNG:</b> Tắt để ẩn toàn bộ bài viết trên Trang chủ (phục vụ việc duyệt Zalo tránh cần Giấy phép MXH). Khi tắt, Trang chủ sẽ hiển thị danh sách Gian hàng.
+                      </Text>
+                  </Box>
+                  <Switch 
+                      checked={showPosts} 
+                      onChange={(e: any) => setShowPosts(e.target.checked)}
+                  />
+              </Box>
+              {/* 👆 KẾT THÚC: CÔNG TẮC KIỂM DUYỆT BÀI VIẾT 👆 */}
               <Box className="bg-white p-4 rounded-xl border border-gray-200 shadow-md mb-4">
                   <Text size="small" className="mb-2 text-gray-600">Tỷ lệ trích trả Chi phí nền tảng (%)</Text>
                   <Input 
@@ -2471,7 +2508,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
 <Text size="small" className="text-gray mb-2">{detailUser.phone}</Text>
 {/* 👉 Khối hiển thị Địa chỉ */}
 {detailUser.address && (
-    <Box className="w-full bg-gray-50 p-3 rounded-lg border border-gray-100 mb-3 flex flex-col">
+    <Box className="w-full bg-gray-50 p-3 rounded-lg border border-gray-100 mb-3 flex flex-col relative">
         <Box flex alignItems="center" mb={1}>
             <CustomIcon icon="zi-location" size={16} className="text-red-500 mr-1" />
             <Text size="xSmall" className="text-gray-500">Địa chỉ liên hệ</Text>
@@ -2484,13 +2521,33 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
 
 <Box className="w-full bg-blue-50 p-3 rounded-lg border border-blue-100 mb-2 flex justify-between">
   <Text size="small">Vai trò</Text>
-  <Text size="small" bold className="uppercase text-blue-700">{detailUser.role==='provider'?'Nhà cung cấp':'Thành viên'}</Text>
+  <Text size="small" bold className="uppercase text-blue-700">{(detailUser.role==='provider' || detailUser.shopName || selectedFeature === 'providers') ? 'Nhà cung cấp' : 'Thành viên'}</Text>
   </Box>
-                {detailUser.role==='provider' && (<Box className="w-full bg-orange-50 p-3 rounded-lg border border-orange-100 mb-2 flex justify-between items-center"><Text size="small">Người giới thiệu</Text><Text size="small" bold className="text-orange-700">{detailUser.presenterName||detailUser.presenter||"Vãng lai"}</Text></Box>)}
+
+{/* 👉 Khối Nút Xem gian hàng */}
+{(detailUser.role === 'provider' || detailUser.shopName || selectedFeature === 'providers') && (
+    <Box 
+        className="w-full bg-green-50 p-3 rounded-lg border border-green-100 mb-2 flex justify-between items-center active:opacity-50 cursor-pointer"
+        onClick={() => navigate(`/shop-details/${detailUser.id}`)}
+    >
+        <Text size="small">Gian hàng của shop</Text>
+        <Text size="small" bold className="uppercase text-green-700 flex items-center">
+            Truy cập
+            <CustomIcon icon="zi-chevron-right" size={16} className="ml-1" />
+        </Text>
+    </Box>
+)}
+                {(detailUser.role==='provider' || detailUser.shopName || selectedFeature === 'providers') && (<Box className="w-full bg-orange-50 p-3 rounded-lg border border-orange-100 mb-2 flex justify-between items-center"><Text size="small">Người giới thiệu</Text><Text size="small" bold className="text-orange-700">{detailUser.referrerName && (detailUser.referrer || detailUser.referralCode) ? `${detailUser.referrerName} - ${detailUser.referrer || detailUser.referralCode}` : (detailUser.referrerName || detailUser.referrer || detailUser.referralCode || "Vãng lai")}</Text></Box>)}
                 <Box className="w-full bg-yellow-50 p-3 rounded-lg border border-yellow-100 mb-2 flex justify-between"><Text size="small">Hạng thành viên</Text><Text size="small" bold className="text-yellow-700">{detailUser.rank||"Mới"}</Text></Box>
                 <Box className="w-full grid grid-cols-2 gap-2 mt-2">
                     <Box className="bg-gray-50 p-3 rounded-lg text-center border border-gray-100"><CustomIcon icon="zi-star-solid" className="text-yellow-500 mb-1" /><Text size="xxSmall" className="text-gray">Điểm tiêu dùng</Text><Text size="large" bold>{detailUser.spendingPoints?.toLocaleString()||0}</Text></Box>
                     <Box className="bg-gray-50 p-3 rounded-lg text-center border border-gray-100"><CustomIcon icon="zi-poll-solid" className="text-green-500 mb-1" /><Text size="xxSmall" className="text-gray">Tổng tích lũy</Text><Text size="large" bold>{detailUser.rankPoints?.toLocaleString()||0}</Text></Box>
+                    {(detailUser.role === 'provider' || detailUser.shopName || selectedFeature === 'providers') && (
+                        <>
+                            <Box className="bg-gray-50 p-3 rounded-lg text-center border border-gray-100"><CustomIcon icon="zi-chat-solid" className="text-[#288F4E] mb-1" /><Text size="xxSmall" className="text-gray">Ví tương tác</Text><Text size="large" bold className="text-green-700">{(detailUser.interactionPoints || 0).toLocaleString()}</Text></Box>
+                            <Box className="bg-gray-50 p-3 rounded-lg text-center border border-gray-100"><CustomIcon icon="zi-star-solid" className="text-purple-600 mb-1" /><Text size="xxSmall" className="text-gray">Ví đẩy hàng VIP</Text><Text size="large" bold className="text-purple-700">{(detailUser.vipPushPoints || 0).toLocaleString()}</Text></Box>
+                        </>
+                    )}
                 </Box>
                 
                 {/* 👉 BƯỚC 3: NÚT GỬI THÔNG BÁO CHO NGƯỜI NÀY */}
