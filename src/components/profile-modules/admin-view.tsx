@@ -16,7 +16,7 @@ const formatDate = (timestamp) => {
 
 const handleShareOrder = async (order) => {
   try {
-    const orderCode = order.orderCode || order.id.slice(0, 8).toUpperCase();
+    const orderCode = order.orderCode || order.id?.slice(0, 8).toUpperCase() || "UNKNOWN";
     const orderTitle = order.productName || "Đơn hàng Green Biz";
     const orderPrice = Number(order.totalAmount || order.totalPrice || order.total || 0).toLocaleString('vi-VN') + 'đ';
     let statusText = order.status || 'Chờ xác nhận';
@@ -64,6 +64,7 @@ export const AdminView: FC<AdminProps> = ({ userData, onLogout }) => {
   const [dataList, setDataList] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [paidDataList, setPaidDataList] = useState<any[]>([]);
+  const [allOrdersTab, setAllOrdersTab] = useState("pending");
 
   // 👉 BƯỚC 1: Bổ sung biến đếm fee_reconciliation
   const [pendingCounts, setPendingCounts] = useState({
@@ -251,6 +252,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
   const [voucherTab, setVoucherTab] = useState("current");
   const [isEditingVoucher, setIsEditingVoucher] = useState(false);
   const [completedOrders, setCompletedOrders] = useState<any[]>([]);
+  const [shopNamesMap, setShopNamesMap] = useState<Record<string, string>>({});
   const [statsShopFilter, setStatsShopFilter] = useState("all");
   const [showStatsDetail, setShowStatsDetail] = useState(false);
   const [statsTab, setStatsTab] = useState("all"); // 'all', 'collected', 'unpaid'
@@ -305,6 +307,26 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
             
             cOrders.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
             setCompletedOrders(cOrders);
+
+            const uniqueShopIds = Array.from(new Set(cOrders.map((o: any) => o.shopId).filter(Boolean))) as string[];
+            const namesMap: Record<string, string> = {};
+            await Promise.all(uniqueShopIds.map(async (shopId: string) => {
+              let name = "";
+              const sSnap = await getDocs(query(collection(db, "shops"), where("phone", "==", shopId)));
+              if (!sSnap.empty) {
+                const d = sSnap.docs[0].data();
+                name = d.name || d.shopName || d.fullName;
+              } else {
+                const uSnap = await getDocs(query(collection(db, "users"), where("phone", "==", shopId)));
+                if (!uSnap.empty) {
+                  const d = uSnap.docs[0].data();
+                  name = d.name || d.shopName || d.fullName;
+                }
+              }
+              if (name) namesMap[shopId] = name;
+            }));
+            setShopNamesMap(namesMap);
+
             // 👉 Đã cập nhật đúng cấu trúc State mới
             setAdminStats({ totalRevenue: tRev, totalOrders: tCount, totalCollectedFee: tCollected, totalUnpaidFee: tUnpaid });
         } catch (error) { console.error("Lỗi tải Dashboard Admin:", error); }
@@ -436,6 +458,26 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
   const [adminBankQrLink, setAdminBankQrLink] = useState("");       // Link mã QR
   const [savingBankInfo, setSavingBankInfo] = useState(false);       // Trạng thái đang lưu
 
+  const [isUploadingQr, setIsUploadingQr] = useState(false);
+  const handleUploadQrImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingQr(true);
+    try {
+      const filename = `admin_qr/${Date.now()}_${file.name}`;
+      const storageRef = ref(storage, filename);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      setAdminBankQrLink(url);
+      openSnackbar({ text: "Tải ảnh mã QR thành công!", type: "success" });
+    } catch (error) {
+      console.error("Lỗi tải ảnh QR:", error);
+      openSnackbar({ text: "Lỗi tải ảnh. Vui lòng thử lại.", type: "error" });
+    } finally {
+      setIsUploadingQr(false);
+    }
+  };
+
   // 👉 BƯỚC 3: CẬP NHẬT HÀM TẢI DỮ LIỆU CÓ CHỨC NĂNG GOM NHÓM ĐỐI SOÁT
   const fetchData = async (featureId: string) => {
     if (featureId === "create_admin") return;
@@ -519,25 +561,36 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
             resultList.sort((a: any, b: any) => (b.hasReported ? 1 : 0) - (a.hasReported ? 1 : 0));
             setDataList(resultList);
 
-            // 2. 👉 BƯỚC 2: Gom nhóm đơn ĐÃ THANH TOÁN (Lịch sử)
+            // 2. 👉 BƯỚC 2: Gom nhóm đơn ĐÃ THANH TOÁN (Lịch sử) theo Shop VÀ Ngày thanh toán
             const groupedPaidByShop: Record<string, any> = {};
             paidOrders.forEach(order => {
                 const sId = order.shopId || order.providerId; 
                 if (!sId) return;
                 
-                if (!groupedPaidByShop[sId]) {
-                    groupedPaidByShop[sId] = { shopId: sId, shopName: order.shopName || "Shop chưa rõ tên", totalPaidFee: 0, orders: [] };
+                const dateStr = order.feePaidAt?.toDate ? order.feePaidAt.toDate().toLocaleDateString('vi-VN') : "Không rõ ngày";
+                const key = `${sId}_${dateStr}`;
+                
+                if (!groupedPaidByShop[key]) {
+                    groupedPaidByShop[key] = { shopId: sId, shopName: order.shopName || "Shop chưa rõ tên", date: dateStr, totalPaidFee: 0, orders: [] };
                 }
                 
                 const total = Number(order.totalAmount || order.totalPrice || order.total || 0);
                 const fee = order.platformFee !== undefined ? Number(order.platformFee) : Math.floor(total * 10 / 100);
                 
-                groupedPaidByShop[sId].totalPaidFee += fee;
-                groupedPaidByShop[sId].orders.push(order);
+                groupedPaidByShop[key].totalPaidFee += fee;
+                groupedPaidByShop[key].orders.push(order);
             });
             
             // Cập nhật vào state riêng
-            setPaidDataList(Object.values(groupedPaidByShop));
+            const paidList = Object.values(groupedPaidByShop);
+            paidList.sort((a: any, b: any) => {
+                // Sắp xếp lịch sử mới nhất lên đầu
+                if (a.date === "Không rõ ngày") return 1;
+                if (b.date === "Không rõ ngày") return -1;
+                const parseDate = (d: string) => { const parts = d.split('/'); return new Date(Number(parts[2]), Number(parts[1])-1, Number(parts[0])).getTime(); };
+                return parseDate(b.date) - parseDate(a.date);
+            });
+            setPaidDataList(paidList);
         } else if (featureId === "members") {
             const membersList = rawData.filter(u => u.role !== "admin" && u.role !== "provider" && u.role !== "distributor");
             membersList.sort((a: any, b: any) => {
@@ -899,6 +952,30 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
           );
           await Promise.all(updatePromises); // Chạy cập nhật song song
           
+          // Cập nhật lại completedOrders và adminStats ngay lập tức (Local Update)
+          setCompletedOrders(prev => {
+              const newOrders = [...prev];
+              let totalFeeApproved = 0;
+              shopOrders.forEach(approvedOrder => {
+                  const idx = newOrders.findIndex(o => o.id === approvedOrder.id);
+                  if (idx !== -1) {
+                      // Tạo object Timestamp mô phỏng để format ngày tháng không bị lỗi
+                      const mockTimestamp = { toDate: () => new Date() };
+                      newOrders[idx] = { ...newOrders[idx], isFeePaid: true, feePaidAt: mockTimestamp };
+                      totalFeeApproved += (newOrders[idx].calculatedFee || 0);
+                  }
+              });
+              
+              // Cập nhật thống kê tổng quan
+              setAdminStats(prevStats => ({
+                  ...prevStats,
+                  totalCollectedFee: (prevStats.totalCollectedFee || 0) + totalFeeApproved,
+                  totalUnpaidFee: Math.max(0, (prevStats.totalUnpaidFee || 0) - totalFeeApproved)
+              }));
+              
+              return newOrders;
+          });
+
           openSnackbar({ text: `Gạch nợ thành công cho Shop!`, type: "success" });
           fetchData("fee_reconciliation"); // Tải lại danh sách để ẩn Shop này đi
       } catch (error) {
@@ -2160,7 +2237,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                       <Box flex justifyContent="space-between" alignItems="flex-start" mb={2}>
                                             <Box>
                                                 <Box flex alignItems="center" mb={0.5}>
-                                                    <Text size="small" bold className="text-gray-800">{shopGroup.shopName}</Text>
+                                                    <Text size="small" bold className="text-gray-800">{shopNamesMap[shopGroup.shopId] || shopGroup.shopName}</Text>
                                                     
                                                     {/* 👉 GẮN HUY HIỆU NẾU SHOP ĐÃ BÁO CÁO */}
                                                     {shopGroup.hasReported && (
@@ -2214,13 +2291,14 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                   <Box key={idx} className="mb-4 p-4 bg-white rounded-xl border border-green-100 shadow-md animate-fade-in-up opacity-90">
                                       <Box flex justifyContent="space-between" alignItems="flex-start" mb={2}>
                                           <Box>
-                                              <Text size="small" bold className="text-gray-800">{shopGroup.shopName}</Text>
+                                              <Text size="small" bold className="text-gray-800">{shopNamesMap[shopGroup.shopId] || shopGroup.shopName}</Text>
                                               <Text size="xSmall" className="text-gray-500">SĐT: {shopGroup.shopId}</Text>
-                                              <Text size="xSmall" className="text-gray-500 mt-0.5">Tổng số đơn đã đối soát: <span className="font-bold text-green-600">{shopGroup.orders.length}</span></Text>
+                                              <Text size="xSmall" className="text-gray-500 mt-0.5">Ngày thanh toán: <span className="font-bold text-gray-800">{shopGroup.date}</span></Text>
+                                              <Text size="xSmall" className="text-gray-500 mt-0.5">Số đơn đã đối soát: <span className="font-bold text-green-600">{shopGroup.orders.length}</span></Text>
                                           </Box>
                                           <Box className="text-right">
-                                              <Text size="xSmall" className="text-gray-500 uppercase tracking-wider mb-0.5">Tổng đã thu</Text>
-                                              <Text size="large" bold className="text-green-600 leading-none">{shopGroup.totalPaidFee.toLocaleString()}đ</Text>
+                                              <Text size="xSmall" className="text-gray-500 uppercase tracking-wider mb-0.5">Số tiền</Text>
+                                              <Text size="large" bold className="text-green-600 leading-none">+{shopGroup.totalPaidFee.toLocaleString()}đ</Text>
                                           </Box>
                                       </Box>
                                       <Box mt={2} pt={2} className="border-t border-dashed border-gray-200">
@@ -2255,20 +2333,44 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                               </Box>
                               
                               <Box>
-                                  <Text size="small" bold className="mb-1 text-gray-700">2. Link hình ảnh mã QR Ngân hàng (Nếu có)</Text>
-                                  <Text size="xxxxSmall" className="text-gray-400 mb-2 italic">* Dán link hình ảnh trực tiếp (vd: link từ firebase, drive công khai...)</Text>
-                                  <Input 
-                                      placeholder="VD: https://firebasestorage.googleapis.com/...qr_code.png" 
-                                      value={adminBankQrLink} 
-                                      onChange={(e) => setAdminBankQrLink(e.target.value)} 
-                                      prefix={<CustomIcon icon={"zi-qr-code" as any} className="text-gray-400"/>}
-                                  />
-                                  {/* Hiển thị xem trước mã QR nếu có link */}
-                                  {adminBankQrLink && (
-                                      <Box mt={3} p={2} flex justifyContent="center" className="bg-gray-50 rounded border border-gray-200">
-                                          <img src={adminBankQrLink} alt="QR Code Xem trước" className="w-24 h-24 object-contain" />
+                                  <Text size="small" bold className="mb-1 text-gray-700">2. Hình ảnh mã QR Ngân hàng (Tuỳ chọn)</Text>
+                                  <Text size="xxxxSmall" className="text-gray-400 mb-2 italic">* Tải lên hình ảnh mã QR để hiển thị khi thanh toán</Text>
+                                  
+                                  <Box mb={2} className="relative">
+                                    <input 
+                                      type="file" 
+                                      accept="image/*" 
+                                      id="admin-qr-upload" 
+                                      className="hidden" 
+                                      onChange={handleUploadQrImage} 
+                                    />
+                                    <label htmlFor="admin-qr-upload">
+                                      <Box 
+                                        className={`border-2 border-dashed border-gray-300 rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer hover:border-[#14502e] hover:bg-green-50 transition-colors ${adminBankQrLink ? 'bg-green-50/50' : 'bg-white'}`}
+                                      >
+                                        {isUploadingQr ? (
+                                          <Box className="flex flex-col items-center">
+                                            <Spinner />
+                                            <Text size="xSmall" className="text-gray-500 mt-2">Đang tải ảnh lên...</Text>
+                                          </Box>
+                                        ) : adminBankQrLink ? (
+                                          <Box className="w-full flex flex-col items-center">
+                                            <img src={adminBankQrLink} alt="QR Xem trước" className="w-full h-32 object-contain rounded-lg mb-2 shadow-sm" />
+                                            <Text size="xSmall" className="text-[#14502e] font-semibold flex items-center">
+                                              <CustomIcon icon="zi-check-circle" size={16} className="mr-1 text-green-600" />
+                                              Đã tải ảnh lên. Nhấp để thay đổi
+                                            </Text>
+                                          </Box>
+                                        ) : (
+                                          <Box className="flex flex-col items-center py-2 text-center">
+                                            <CustomIcon icon="zi-plus" className="text-gray-400 text-3xl mb-1" />
+                                            <Text size="small" bold className="text-gray-600">Tải ảnh mã QR lên</Text>
+                                            <Text size="xSmall" className="text-gray-400 mt-1">Định dạng JPG, PNG</Text>
+                                          </Box>
+                                        )}
                                       </Box>
-                                  )}
+                                    </label>
+                                  </Box>
                               </Box>
                           </Box>
                           
@@ -2280,7 +2382,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
               </Box>
               
               {/* NÚT ĐÓNG MODAL */}
-              <Box p={3} className="border-t border-gray-200 bg-white shrink-0">
+              <Box p={3} className="border-t border-gray-200 bg-white shrink-0" style={{ paddingBottom: "calc(var(--zaui-safe-area-inset-bottom, 16px) + 12px)" }}>
                   <Button fullWidth variant="secondary" onClick={() => setSelectedFeature(null)}>Đóng</Button>
               </Box>
           </Box>
@@ -2344,19 +2446,39 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
           </Box>
       );
     // 👉 ĐÃ NÂNG CẤP: Hiển thị danh sách Tất cả đơn hàng
-    case "all_orders": return (
-      <Box>
-          {dataList.length === 0 && <Text size="small" className="text-center text-gray mt-4 overflow-y-auto">Chưa có đơn hàng nào trên hệ thống.</Text>}
-          {dataList.map((order) => {
+    case "all_orders": {
+      const filteredOrders = dataList.filter(order => {
+        if (allOrdersTab === "pending") return order.status !== "completed" && order.status !== "success" && order.status !== "cancelled";
+        if (allOrdersTab === "completed") return order.status === "completed" || order.status === "success";
+        if (allOrdersTab === "cancelled") return order.status === "cancelled";
+        return true;
+      });
+      return (
+      <Box p={0} flex flexDirection="column" className="h-full bg-white">
+          {/* THANH TAB CHUYỂN ĐỔI */}
+          <Box flex className="border-b border-gray-200 px-2 pt-2 bg-white shrink-0">
+              <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${allOrdersTab==="pending"?"border-yellow-600 text-yellow-600 font-bold":"border-transparent text-gray-500"}`} onClick={()=>setAllOrdersTab("pending")}>
+                  Đang chờ
+              </Box>
+              <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${allOrdersTab==="completed"?"border-green-600 text-green-600 font-bold":"border-transparent text-gray-500"}`} onClick={()=>setAllOrdersTab("completed")}>
+                  Hoàn thành
+              </Box>
+              <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${allOrdersTab==="cancelled"?"border-red-600 text-red-600 font-bold":"border-transparent text-gray-500"}`} onClick={()=>setAllOrdersTab("cancelled")}>
+                  Đã hủy
+              </Box>
+          </Box>
+          <Box p={4} className="flex-1 bg-white hide-scroll overflow-y-auto">
+          {filteredOrders.length === 0 && <Text size="small" className="text-center text-gray mt-4">Chưa có đơn hàng nào.</Text>}
+          {filteredOrders.map((order) => {
               const total = Number(order.totalAmount || order.totalPrice || order.total || 0);
               // Tính lại phí hiển thị (nếu đơn cũ chưa lưu phí thì tự tính 10%)
               const fee = order.platformFee !== undefined ? Number(order.platformFee) : Math.floor(total * 10 / 100);
               
               return (
-                  <Box key={order.id} className="mb-3 p-3 bg-white rounded-xl border border-gray-200 shadow-md">
+                  <Box key={order.id} className="mb-3 p-3 bg-white rounded-xl border border-gray-200 shadow-md animate-fade-in-up">
                       {/* Mã đơn & Trạng thái */}
                       <Box flex justifyContent="space-between" className="border-b border-gray-100 pb-2 mb-2">
-                          <Text size="small" bold className="text-blue-600">#{order.orderCode || order.id.slice(0,6).toUpperCase()}</Text>
+                          <Text size="small" bold className="text-blue-600">#{order.orderCode || order.id?.slice(0,6).toUpperCase() || "UNK"}</Text>
                           <Text size="xSmall" bold className={
                               order.status === 'completed' || order.status === 'success' ? "text-green-500" :
                               order.status === 'cancelled' ? "text-red-500" : "text-yellow-500"
@@ -2371,14 +2493,13 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                           <Text size="small" bold className="text-gray-800">{order.productName}</Text>
                           <Box flex alignItems="center" mt={1}>
                               <CustomIcon icon={"zi-store" as any} size={14} className="text-gray-400 mr-1" />
-                              <Text size="xxSmall" className="text-gray-600 line-clamp-1">{order.shopName || order.location?.name || "Chi nhánh"}</Text>
+                              <Text size="xxSmall" className="text-gray-600 line-clamp-1">{shopNamesMap[order.providerId || order.shopId] || order.shopName || order.location?.name || "Chi nhánh"}</Text>
                           </Box>
                           <Box flex alignItems="center" mt={0.5}>
                               <CustomIcon icon="zi-user" size={14} className="text-gray-400 mr-1" />
                               <Text size="xxSmall" className="text-gray-600 line-clamp-1">{order.userName} ({order.userPhone || order.phone})</Text>
                           </Box>
                       </Box>
-
                       {/* Tiền & Phí */}
                       <Box flex justifyContent="space-between" alignItems="center" mt={2} pt={2} className="border-t border-gray-50">
                           <Box flex flexDirection="column">
@@ -2403,8 +2524,10 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                   </Box>
               );
           })}
+          </Box>
       </Box>
-  );
+    );
+    }
       default: return null;
     }
   };
@@ -2494,7 +2617,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
               </Box>
 
               {/* Nội dung tràn viền */}
-              <Box className="flex-1 overflow-y-auto bg-white pb-32 hide-scroll">
+              <Box className={`flex-1 bg-white hide-scroll ${(selectedFeature === 'fee_reconciliation' || selectedFeature === 'all_orders') ? 'flex flex-col overflow-hidden pb-0' : 'overflow-y-auto pb-32'}`}>
                   {renderModalContent()}
               </Box>
           </Box>
@@ -2792,7 +2915,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                             {Array.from(new Set(completedOrders.map(o => o.shopId))).map(shopId => {
                                 if (!shopId) return null;
                                 const sampleOrder = completedOrders.find(o => o.shopId === shopId);
-                                const shopName = sampleOrder?.shopName || "Shop chưa cập nhật tên";
+                                const shopName = shopNamesMap[shopId] || sampleOrder?.shopName || "Shop chưa cập nhật tên";
                                 return <Option key={shopId} value={shopId} title={shopName} />;
                             })}
                         </Select>
@@ -2830,7 +2953,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                 {filteredOrders.map((order, idx) => (
                                     <Box key={order.id} className="mb-3 p-3 bg-white rounded-xl border border-gray-200 shadow-md animate-fade-in-up">
                                         <Box flex justifyContent="space-between" className="border-b border-gray-100 pb-2 mb-2">
-                                            <Text size="small" bold className="text-blue-600">#{order.orderCode || order.id.slice(0,6).toUpperCase()}</Text>
+                                            <Text size="small" bold className="text-blue-600">#{order.orderCode || order.id?.slice(0,6).toUpperCase() || "UNK"}</Text>
                                             <Text size="xSmall" className="text-gray-500">{formatDate(order.createdAt)}</Text>
                                         </Box>
                                         
@@ -2840,7 +2963,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                             <Box flex alignItems="center" mt={1}>
                                                 <CustomIcon icon={"zi-store" as any} size={14} className="text-orange-500 mr-1" />
                                                 <Text size="xxSmall" bold className="text-orange-600 line-clamp-1">
-                                                    Shop: {order.shopName || "Chưa cập nhật"}
+                                                    Shop: {shopNamesMap[order.shopId] || order.shopName || "Chưa cập nhật"}
                                                 </Text>
                                             </Box>
                                             

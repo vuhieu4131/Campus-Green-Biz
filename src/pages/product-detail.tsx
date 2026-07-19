@@ -3,7 +3,7 @@ import React, { FC, useState, useEffect } from "react";
 import { Page, Box, Text, Icon, Button, useSnackbar, Spinner, Modal } from "zmp-ui";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { db } from "../firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { useSetRecoilState } from "recoil";
 import { cartState } from "../state";
 import { Swiper, SwiperSlide } from "swiper/react";
@@ -45,19 +45,55 @@ const ProductDetailPage: FC = () => {
   }, []);
 
   useEffect(() => {
-    if (product) {
+    if (product && !id) {
       setLoading(false);
       return; 
     }
     if (!id) return;
 
     const fetchProduct = async () => {
-      setLoading(true);
+      // Đóng loading false nhanh nếu đã có preload data
+      if (!product) setLoading(true);
+      
       try {
         const docRef = doc(db, "services", id);
         const snap = await getDoc(docRef);
         if (snap.exists()) {
-          setProduct({ id: snap.id, ...snap.data() });
+          const productData = snap.data();
+          let finalShopName = productData.shopName;
+          
+          // Lấy Tên Shop mới nhất từ DB để tránh trường hợp tên bị cũ
+          const shopId = productData.ownerPhone || productData.providerId || productData.shopId;
+          if (shopId) {
+            let shopSnap = await getDoc(doc(db, "shops", shopId));
+            if (!shopSnap.exists()) {
+              shopSnap = await getDoc(doc(db, "users", shopId));
+            }
+
+            let shopData: any = null;
+            if (shopSnap.exists()) {
+              shopData = shopSnap.data();
+            } else {
+              // Fallback query by phone
+              const qShops = query(collection(db, "shops"), where("phone", "==", shopId));
+              const snapShops = await getDocs(qShops);
+              if (!snapShops.empty) {
+                shopData = snapShops.docs[0].data();
+              } else {
+                const qUsers = query(collection(db, "users"), where("phone", "==", shopId));
+                const snapUsers = await getDocs(qUsers);
+                if (!snapUsers.empty) {
+                  shopData = snapUsers.docs[0].data();
+                }
+              }
+            }
+
+            if (shopData) {
+              finalShopName = shopData.name || shopData.shopName || shopData.fullName || finalShopName;
+            }
+          }
+          
+          setProduct({ id: snap.id, ...productData, shopName: finalShopName });
         }
       } catch (error) {
         console.error("Lỗi khi tải thông tin sản phẩm:", error);
@@ -66,7 +102,7 @@ const ProductDetailPage: FC = () => {
       }
     };
     fetchProduct();
-  }, [id, product]);
+  }, [id]);
 
   const handleSelectOption = (attrName: string, value: string) => {
     setSelectedOptions(prev => ({

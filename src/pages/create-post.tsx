@@ -27,7 +27,9 @@ const CreatePostPage: FC = () => {
   const [video, setVideo] = useState<{url: string, file: File} | null>(null);
 
   const avatarUrl = dbUserData?.avatar || dbUserData?.shopAvatar || currentUser?.photoURL || "https://i.pravatar.cc/150?img=11";
-  const displayName = dbUserData?.fullName || dbUserData?.name || dbUserData?.shopName || currentUser?.displayName || currentUser?.email?.split('@')[0] || "Người dùng";
+  const displayName = (userRole === "provider" || dbUserData?.collectionName === "shops" || dbUserData?.role === "provider")
+    ? (dbUserData?.name || dbUserData?.shopName || dbUserData?.fullName || "Shop")
+    : (dbUserData?.fullName || dbUserData?.name || currentUser?.displayName || currentUser?.email?.split('@')[0] || "Người dùng");
 
   const [attachedProduct, setAttachedProduct] = useState<any>(null);
   const [showProductSheet, setShowProductSheet] = useState(false);

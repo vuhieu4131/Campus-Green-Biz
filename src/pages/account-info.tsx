@@ -134,7 +134,9 @@ const AccountInfoPage: FC = () => {
       
       await setDoc(docRef, {
         fullName: name,
-        name: name, // Cập nhật cả name để đảm bảo đồng bộ
+        name: name,
+        shopName: name, // Đồng bộ luôn cho trường hợp là Shop
+        managerName: name, // Đồng bộ luôn cho người quản lý
         phone: phone,
         avatar: avatar
       }, { merge: true });

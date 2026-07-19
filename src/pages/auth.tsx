@@ -291,7 +291,7 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
             className="bg-gray-100 border-none rounded-xl py-3 px-4" />
           
           {formType === "register" && (
-            <Input type="text" placeholder="Họ và tên" value={fullName} onChange={(e) => setFullName(e.target.value)}
+            <Input type="text" placeholder={isShopConfig ? "Họ và tên (Người quản lý)" : "Họ và tên"} value={fullName} onChange={(e) => setFullName(e.target.value)}
               className="bg-gray-100 border-none rounded-xl py-3 px-4" />
           )}
 

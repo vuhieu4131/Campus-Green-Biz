@@ -1022,8 +1022,9 @@ const ProfilePage: FC = () => {
             <NewMemberView
               user={{
                 id: targetUserData.id,
-                username: targetUserData.phone || "user_name",
-                name: targetUserData.fullName || targetUserData.name || targetUserData.shopName || targetUserData.phone || "Thành viên Campus",
+                name: (targetUserData.collectionName === "shops" || targetUserData.role === "provider") 
+                  ? (targetUserData.name || targetUserData.shopName || targetUserData.fullName || targetUserData.phone || "Shop")
+                  : (targetUserData.fullName || targetUserData.name || targetUserData.phone || "Thành viên Campus"),
                 avatar: targetUserData.avatar || targetUserData.shopAvatar || "https://i.pravatar.cc/150?img=11",
                 cover: targetUserData.cover,
                 phone: targetUserData.phone
@@ -1061,10 +1062,9 @@ const ProfilePage: FC = () => {
                   username: currentUser.email
                     ? currentUser.email.split("@")[0]
                     : "user_name",
-                  name:
-                    userData?.fullName ||
-                    currentUser.email?.replace("@campus.com", "") ||
-                    "Thành viên Campus",
+                  name: (userData?.role === "provider" || userData?.collectionName === "shops")
+                    ? (userData?.name || userData?.shopName || userData?.fullName || "Shop")
+                    : (userData?.fullName || currentUser.email?.replace("@campus.com", "") || "Thành viên Campus"),
                   avatar: userData?.avatar || "https://i.pravatar.cc/150?img=11",
                   cover: userData?.cover,
                   phone: userData?.phone

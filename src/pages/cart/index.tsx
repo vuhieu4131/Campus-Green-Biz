@@ -234,6 +234,41 @@ const CartPage: FC = () => {
     fetchVouchers();
   }, []);
 
+  const [productNames, setProductNames] = useState<{[key: string]: string}>({});
+
+  useEffect(() => {
+    const fetchProductNames = async () => {
+      const allIds = new Set<string>();
+      vouchers.forEach(v => {
+        if (v.applicableProducts && Array.isArray(v.applicableProducts)) {
+          v.applicableProducts.forEach((id: string) => allIds.add(id));
+        }
+      });
+      if (allIds.size === 0) return;
+
+      try {
+        const idArray = Array.from(allIds);
+        const nameMap: {[key: string]: string} = {};
+        
+        for (let i = 0; i < idArray.length; i += 10) {
+          const chunk = idArray.slice(i, i + 10);
+          const q = query(collection(db, "products"), where("__name__", "in", chunk));
+          const snap = await getDocs(q);
+          snap.forEach(doc => {
+            const data = doc.data();
+            nameMap[doc.id] = data.title || data.name || doc.id;
+          });
+        }
+        setProductNames(nameMap);
+      } catch (err) {
+        console.error("Lỗi lấy tên sản phẩm:", err);
+      }
+    };
+    if (vouchers.length > 0) {
+      fetchProductNames();
+    }
+  }, [vouchers]);
+
   const applicableVouchers = useMemo(() => {
       return vouchers.filter(v => {
           let applicableTotal = 0;
@@ -769,29 +804,22 @@ const CartPage: FC = () => {
           {applicableVouchers.map((v) => {
             let applicableText = "Toàn bộ dịch vụ";
             if (v.applicableProducts && v.applicableProducts.length > 0) {
-              const matchedNames = activeCartItems
-                .filter(item => v.applicableProducts.includes(item.product.id))
-                .map(item => item.product.title || item.product.name);
-              
-              if (matchedNames.length > 0) {
-                applicableText = `${activeShop} (${matchedNames.join(", ")})`;
-              } else {
-                applicableText = "Một số dịch vụ nhất định";
-              }
+              const names = v.applicableProducts.map((pid: string) => productNames[pid] || "Sản phẩm");
+              applicableText = names.join(", ");
             }
 
             let createdAtStr = "";
             if (v.createdAt) {
-              let d: Date;
+              let d: Date | null = null;
               if (typeof v.createdAt.toDate === "function") {
                   d = v.createdAt.toDate();
               } else if (v.createdAt.seconds) {
                   d = new Date(v.createdAt.seconds * 1000);
-              } else {
+              } else if (typeof v.createdAt === 'string' || typeof v.createdAt === 'number') {
                   d = new Date(v.createdAt);
               }
               
-              if (!isNaN(d.getTime())) {
+              if (d && !isNaN(d.getTime())) {
                   createdAtStr = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}:${d.getSeconds().toString().padStart(2, '0')}, ${d.getDate().toString().padStart(2, '0')}/${(d.getMonth()+1).toString().padStart(2, '0')}/${d.getFullYear()}`;
               }
             }

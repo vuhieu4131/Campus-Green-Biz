@@ -214,15 +214,16 @@ export const ProviderView: FC<ProviderProps> = ({ userData, setUserData, onBackT
   const [orderList, setOrderList] = useState<any[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [selectedOrderDetail, setSelectedOrderDetail] = useState<any>(null);
+  const [buyerNamesMap, setBuyerNamesMap] = useState<Record<string, string>>({});
   const [showOrderAccount, setShowOrderAccount] = useState(false);
   const [showCancelInput, setShowCancelInput] = useState(false);
   const [cancelReasonText, setCancelReasonText] = useState("");
 
   // State Thông tin Shop
   const [showShopInfoModal, setShowShopInfoModal] = useState(false);
-  const [editName, setEditName] = useState(userData.name || "");
+  const [editName, setEditName] = useState(userData.name || userData.shopName || "");
   const [editAddress, setEditAddress] = useState(userData.address || "");
-  const [editManager, setEditManager] = useState(userData.managerName || "");
+  const [editManager, setEditManager] = useState(userData.managerName || userData.fullName || "");
   const [updatingInfo, setUpdatingInfo] = useState(false);
   const [editDescription, setEditDescription] = useState(userData.description || "");
   const [editAvatar, setEditAvatar] = useState(userData.avatar || "");
@@ -356,7 +357,7 @@ export const ProviderView: FC<ProviderProps> = ({ userData, setUserData, onBackT
     if (shopId) {
       navigate(`/shop-details/${shopId}`, {
         state: {
-          preloadName: userData.shopName || userData.name,
+          preloadName: userData.name || userData.shopName,
           preloadAvatar: userData.avatar,
           preloadCover: userData.cover
         }
@@ -1074,6 +1075,21 @@ useEffect(() => {
           setAllLocationsCompletedOrders(allLocOrders); // 👉 Cập nhật state mới
           setPendingCount(pCount);
           setStats({ totalRevenue: tRev, monthlyRevenue: mRev, completedCount: cCount, monthlyFee: mFee, totalFee: tFee });
+
+          // Lấy tên các tài khoản đặt hàng
+          const uniqueUserIds = Array.from(new Set(allDocs.map(doc => {
+              const d = doc.data();
+              return d.userId || d.customerPhone || d.phone;
+          }).filter(Boolean))) as string[];
+          const namesMap: Record<string, string> = {};
+          await Promise.all(uniqueUserIds.map(async (uid: string) => {
+              const uSnap = await getDocs(query(collection(db, "users"), where("phone", "==", uid)));
+              if (!uSnap.empty) {
+                  const d = uSnap.docs[0].data();
+                  namesMap[uid] = d.name || d.fullName || "Khách hàng";
+              }
+          }));
+          setBuyerNamesMap(namesMap);
       } catch (error) { console.error("Lỗi đếm đơn:", error); }
   };
 
@@ -1225,8 +1241,10 @@ useEffect(() => {
           const targetDocId = userData.id || userData.phone;
           await updateDoc(doc(db, "shops", targetDocId), { 
               name: editName, 
+              shopName: editName,
               address: editAddress, 
               managerName: editManager, 
+              fullName: editManager, 
               description: editDescription, 
               avatar: editAvatar, 
               cover: editCover 
@@ -2781,7 +2799,7 @@ useEffect(() => {
                 </Box>
                 {showOrderAccount && (
                   <Box className="space-y-1.5 text-xs text-gray-600">
-                    <p><strong className="text-gray-700">Tên tài khoản:</strong> {selectedOrderDetail.customerName || selectedOrderDetail.userName || selectedOrderDetail.fullName || "Khách hàng"}</p>
+                    <p><strong className="text-gray-700">Tên tài khoản:</strong> {buyerNamesMap[selectedOrderDetail.userId || selectedOrderDetail.customerPhone || selectedOrderDetail.phone] || selectedOrderDetail.customerName || selectedOrderDetail.userName || selectedOrderDetail.fullName || "Khách hàng"}</p>
                     <p><strong className="text-gray-700">Số điện thoại:</strong> {selectedOrderDetail.userId || selectedOrderDetail.customerPhone || selectedOrderDetail.phone || "Không có"}</p>
                     <div 
                       className="text-blue-600 font-medium cursor-pointer inline-flex items-center mt-1 border border-blue-100 bg-blue-50 px-2 py-1 rounded"
@@ -3244,6 +3262,50 @@ useEffect(() => {
                                           {feeTab === "unpaid" ? "Tuyệt vời! Bạn không nợ phí nền tảng nào." : "Chưa có đơn hàng nào được ghi nhận đã thanh toán."}
                                       </Text>
                                   </Box>
+                              ) : feeTab === "paid" ? (
+                                  // 👉 HIỂN THỊ THEO LẦN THANH TOÁN (NHÓM THEO NGÀY)
+                                  (() => {
+                                      const groupedPaidOrders = displayOrders.reduce((acc: any, order: any) => {
+                                          const dateStr = order.feePaidAt?.toDate ? order.feePaidAt.toDate().toLocaleDateString('vi-VN') : "Không rõ ngày";
+                                          if (!acc[dateStr]) acc[dateStr] = [];
+                                          acc[dateStr].push(order);
+                                          return acc;
+                                      }, {});
+
+                                      return Object.keys(groupedPaidOrders).map((date, idx) => {
+                                          const ordersInBatch = groupedPaidOrders[date];
+                                          const batchTotalFee = ordersInBatch.reduce((sum: number, o: any) => {
+                                              const total = Number(o.totalAmount || o.totalPrice || o.total || 0);
+                                              return sum + (o.platformFee !== undefined ? Number(o.platformFee) : Math.floor(total * 10 / 100));
+                                          }, 0);
+
+                                          return (
+                                              <Box key={idx} className="mb-4 p-4 bg-white rounded-xl border border-green-200 shadow-sm">
+                                                  <Box flex justifyContent="space-between" className="border-b border-gray-100 pb-2 mb-2">
+                                                      <Text bold className="text-gray-800">Thanh toán: {date}</Text>
+                                                      <Text bold className="text-green-600">+{batchTotalFee.toLocaleString()}đ</Text>
+                                                  </Box>
+                                                  <Text size="xSmall" className="text-gray-500 mb-3">Đã đối soát {ordersInBatch.length} đơn hàng</Text>
+                                                  
+                                                  <Box className="space-y-2 max-h-40 overflow-y-auto hide-scroll">
+                                                      {ordersInBatch.map((order: any) => {
+                                                          const total = Number(order.totalAmount || order.totalPrice || order.total || 0);
+                                                          const fee = order.platformFee !== undefined ? Number(order.platformFee) : Math.floor(total * 10 / 100);
+                                                          return (
+                                                              <Box key={order.id} flex justifyContent="space-between" className="bg-gray-50 p-2 rounded">
+                                                                  <Box>
+                                                                      <Text size="xxxxSmall" bold className="text-gray-700">#{order.orderCode || order.id?.slice(0,6).toUpperCase() || "UNK"}</Text>
+                                                                      <Text size="xxxxSmall" className="text-gray-500 line-clamp-1">{order.productName}</Text>
+                                                                  </Box>
+                                                                  <Text size="xxxxSmall" className="text-green-600 font-medium">{fee.toLocaleString()}đ</Text>
+                                                              </Box>
+                                                          );
+                                                      })}
+                                                  </Box>
+                                              </Box>
+                                          );
+                                      });
+                                  })()
                               ) : (
                                 displayOrders.map((order, idx) => {
                                   const total = Number(order.totalAmount || order.totalPrice || order.total || 0);
@@ -3260,7 +3322,7 @@ useEffect(() => {
                                       >
                                           <Box flex justifyContent="space-between" alignItems="center" className="border-b border-gray-100 pb-2 mb-2">
                                               <Box flex alignItems="center">
-                                                  <Text size="small" bold className="text-gray-800">#{order.orderCode || order.id.slice(0,6).toUpperCase()}</Text>
+                                                  <Text size="small" bold className="text-gray-800">#{order.orderCode || order.id?.slice(0,6).toUpperCase() || "UNK"}</Text>
                                                   
                                                   {/* 👉 GẮN CỜ "ĐANG CHỜ DUYỆT" */}
                                                   {isReported && (

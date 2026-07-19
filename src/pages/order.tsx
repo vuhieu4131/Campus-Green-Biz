@@ -427,7 +427,7 @@ const handleSelectVoucher = (voucher: any) => {
           <Icon icon={isProductFlow ? "zi-store" : "zi-location" as any} size={14} className="mr-1 text-blue-500 shrink-0"/>
           <Text size="xxSmall" className="flex-1">
               {isProductFlow ? "Cung cấp bởi: " : "Thực hiện tại: "}
-              {selectedLoc?.address || selectedLoc?.specificAddress || "Cơ sở chưa cập nhật"}
+              {isProductFlow ? shopNameToUse : (selectedLoc?.address || selectedLoc?.specificAddress || "Cơ sở chưa cập nhật")}
           </Text>
         </Box>
       </Box>

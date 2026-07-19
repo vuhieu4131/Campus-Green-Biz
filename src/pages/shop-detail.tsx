@@ -85,14 +85,40 @@ const ShopDetailPage: React.FunctionComponent = () => {
       }
 
       // Tải thông tin Shop
-      const shopDoc = await getDoc(doc(db, "users", id as string));
+      let shopDoc = await getDoc(doc(db, "shops", id as string));
+      if (!shopDoc.exists()) {
+          shopDoc = await getDoc(doc(db, "users", id as string));
+      }
+      
+      let shopData: any = null;
+      let shopIdReal = id as string;
+      
       if (shopDoc.exists()) {
-        const data = shopDoc.data();
+        shopData = shopDoc.data();
+      } else {
+        // Fallback: Query by phone or id field
+        const qShops = query(collection(db, "shops"), where("phone", "==", id));
+        const snapShops = await getDocs(qShops);
+        if (!snapShops.empty) {
+          shopData = snapShops.docs[0].data();
+          shopIdReal = snapShops.docs[0].id;
+        } else {
+          const qUsers = query(collection(db, "users"), where("phone", "==", id));
+          const snapUsers = await getDocs(qUsers);
+          if (!snapUsers.empty) {
+            shopData = snapUsers.docs[0].data();
+            shopIdReal = snapUsers.docs[0].id;
+          }
+        }
+      }
+
+      if (shopData) {
         setShop({ 
-          id: shopDoc.id, 
-          ...data,
-          address: data?.address || "Chưa cập nhật địa chỉ",
-          description: data?.description || "Cửa hàng này chưa có lời giới thiệu nào." 
+          id: shopIdReal, 
+          ...shopData,
+          name: shopData?.name || shopData?.shopName || shopData?.fullName || "Chưa có tên",
+          address: shopData?.address || "Chưa cập nhật địa chỉ",
+          description: shopData?.description || "Cửa hàng này chưa có lời giới thiệu nào." 
         });
       }
     } catch (error) {

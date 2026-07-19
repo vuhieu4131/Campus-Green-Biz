@@ -26,6 +26,8 @@ const getNotificationStyle = (type: string) => {
     case "post_banned_notification":
     case "vip_reject_notification":
       return { icon: "zi-close-circle", iconColor: "text-red-600", bgColor: "bg-red-100" };
+    case "fee_reminder":
+      return { icon: "zi-warning-solid", iconColor: "text-white", bgColor: "bg-red-500" };
     case "comment":
       return { icon: "zi-chat", iconColor: "text-blue-600", bgColor: "bg-blue-100" };
     default:

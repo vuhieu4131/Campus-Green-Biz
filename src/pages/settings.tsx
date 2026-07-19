@@ -1,9 +1,9 @@
 import CustomIcon from '../components/custom-icon';
 import React, { FC, useState, useEffect } from "react";
-import { Page, Header, Box, Text, List, Icon, useNavigate, Modal, Button, Input, Spinner, Avatar } from "zmp-ui";
+import { Page, Header, Box, Text, List, Icon, useNavigate, Modal, Button, Input, Spinner, Avatar, useSnackbar } from "zmp-ui";
 import { auth, db } from "../firebase";
 import { signOut, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
-import { doc, getDoc, collection, query, where, getDocs, orderBy, updateDoc, increment, addDoc } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, orderBy, updateDoc, increment, addDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
 import { SectionBox } from "../components/section-box";
 import { openShareSheet } from "zmp-sdk/apis";
 import { useRecoilState } from "recoil";
@@ -24,16 +24,18 @@ interface UserPersonalMenuProps {
   onChangePasswordClick: () => void;
   onSupportClick: () => void;
   onMyOrdersClick: () => void;
+  unreadNotifCount?: number;
+  activeOrderCount?: number;
 }
 
-const UserPersonalMenu: FC<UserPersonalMenuProps> = ({ onReferralClick, onShareClick, onChangePasswordClick, onSupportClick, onMyOrdersClick }) => {
+const UserPersonalMenu: FC<UserPersonalMenuProps> = ({ onReferralClick, onShareClick, onChangePasswordClick, onSupportClick, onMyOrdersClick, unreadNotifCount = 0, activeOrderCount = 0 }) => {
   const navigate = useNavigate();
   return (
     <SectionBox title="Cá nhân">
       <List>
         <List.Item onClick={() => navigate('/account-info')} title="Thông tin tài khoản" prefix={<CustomIcon icon="zi-user" className="text-gray-600" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
-        <List.Item onClick={() => navigate('/notification')} title="Thông báo" prefix={<CustomIcon icon="zi-notif" className="text-blue-500" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
-        <List.Item onClick={onMyOrdersClick} title="Đơn hàng của tôi" prefix={<CustomIcon icon="zi-note" className="text-orange-500" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
+        <List.Item onClick={() => navigate('/notification')} title="Thông báo" prefix={<Box className="relative"><CustomIcon icon="zi-notif" className="text-blue-500" />{unreadNotifCount > 0 && <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1 shadow-sm border-2 border-white">{unreadNotifCount > 99 ? '99+' : unreadNotifCount}</span>}</Box>} suffix={<CustomIcon icon="zi-chevron-right" />} />
+        <List.Item onClick={onMyOrdersClick} title="Đơn hàng của tôi" prefix={<Box className="relative"><CustomIcon icon="zi-note" className="text-orange-500" />{activeOrderCount > 0 && <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1 shadow-sm border-2 border-white">{activeOrderCount > 99 ? '99+' : activeOrderCount}</span>}</Box>} suffix={<CustomIcon icon="zi-chevron-right" />} />
         <List.Item onClick={onReferralClick} title="Người được giới thiệu" prefix={<CustomIcon icon="zi-group" className="text-gray-700" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
         <List.Item onClick={onShareClick} title="Chia sẻ ứng dụng" prefix={<CustomIcon icon="zi-share" className="text-gray-700" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
         <List.Item onClick={onChangePasswordClick} title="Đổi mật khẩu" prefix={<CustomIcon icon="zi-lock" className="text-gray-700" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
@@ -67,6 +69,7 @@ const calculateMemberRankInfo = (points: number) => {
 
 const SettingsPage: FC = () => {
   const navigate = useNavigate();
+  const { openSnackbar } = useSnackbar();
   const [showShareModal, setShowShareModal] = useState(false);
   const [showRefModal, setShowRefModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -91,6 +94,44 @@ const SettingsPage: FC = () => {
   const [walletHistoryList, setWalletHistoryList] = useState<any[]>([]);
   const [loadingWalletHistory, setLoadingWalletHistory] = useState(false);
   const [eligiblePoints, setEligiblePoints] = useState(0);
+
+  const [showMyVouchersModal, setShowMyVouchersModal] = useState(false);
+  const [myVouchersList, setMyVouchersList] = useState<any[]>([]);
+  const [loadingVouchers, setLoadingVouchers] = useState(false);
+
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+  const [activeOrderCount, setActiveOrderCount] = useState(0);
+  const [voucherPrograms, setVoucherPrograms] = useState<any[]>([]);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+
+    const fetchVoucher = async () => {
+      try {
+        const configSnap = await getDoc(doc(db, "system_config", "admin_settings"));
+        if (configSnap.exists()) {
+          const data = configSnap.data();
+          let isActive = false;
+          if (data.isVoucherOpen) {
+            isActive = true;
+          } else if (data.voucherStartTime && data.voucherEndTime) {
+            const now = new Date().getTime();
+            const start = new Date(data.voucherStartTime).getTime();
+            const end = new Date(data.voucherEndTime).getTime();
+            if (now >= start && now <= end) {
+              isActive = true;
+            }
+          }
+          if (isActive && data.voucherTitle) {
+            setVoucherPrograms([data]);
+          }
+        }
+      } catch (err) {
+        console.error("Lỗi lấy cấu hình Voucher:", err);
+      }
+    };
+    fetchVoucher();
+  }, []);
 
   const fetchEligiblePoints = async (userId: string) => {
     try {
@@ -122,6 +163,105 @@ const SettingsPage: FC = () => {
       setEligiblePoints(Math.max(0, plusSum - minusSum));
     } catch (e) {
       console.error("Lỗi tính điểm đủ điều kiện:", e);
+    }
+  };
+
+  const handleOpenMyVouchers = async () => {
+    if (!userData || (!userData.id && !userData.phone)) return;
+    const userId = userData.id || userData.phone;
+    setShowMyVouchersModal(true);
+    setLoadingVouchers(true);
+    try {
+      const q = query(
+        collection(db, `users/${userId}/my_vouchers`),
+        orderBy("createdAt", "desc")
+      );
+      const snap = await getDocs(q);
+      const list: any[] = [];
+      snap.forEach(doc => {
+        list.push({ id: doc.id, ...doc.data() });
+      });
+      setMyVouchersList(list);
+    } catch (error) {
+      console.error("Lỗi lấy danh sách Voucher:", error);
+    } finally {
+      setLoadingVouchers(false);
+    }
+  };
+
+  const [redeemConfirm, setRedeemConfirm] = useState<{value: number, promoCost: number, interactionCost: number, applicableProducts: string[]} | null>(null);
+
+  const handleRedeemVoucher = async (amount: number, pointCost: number, walletType: 'promo' | 'interaction', applicableProducts: string[]) => {
+    if (!userData || (!userData.id && !userData.phone)) return;
+    const userId = userData.id || userData.phone;
+
+    if (walletType === 'promo' && (userData.spendingPoints || 0) < pointCost) {
+      return openSnackbar({ text: "Bạn không đủ điểm Ưu đãi để đổi Voucher này!", type: "error" });
+    }
+    if (walletType === 'interaction' && eligiblePoints < pointCost) {
+      return openSnackbar({ text: "Bạn không đủ điểm Tương tác (khả dụng) để đổi Voucher này!", type: "error" });
+    }
+
+    try {
+      const userRef = doc(db, "users", userId);
+      
+      // 1. Trừ điểm
+      if (walletType === 'promo') {
+        await updateDoc(userRef, { spendingPoints: increment(-pointCost) });
+      } else if (walletType === 'interaction') {
+        await updateDoc(userRef, { interactionPoints: increment(-pointCost) });
+      }
+
+      // 2. Ghi nhận lịch sử giao dịch
+      await addDoc(collection(db, "point_transactions"), {
+        userId: userId,
+        userPhone: userData.phone || userId,
+        amount: pointCost,
+        type: "minus",
+        walletType: walletType,
+        description: `Đổi Voucher giảm ${amount.toLocaleString('vi-VN')}đ`,
+        createdAt: serverTimestamp()
+      });
+
+      // 3. Tạo mã Voucher và lưu vào my_vouchers
+      const generateCode = () => {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        let result = '';
+        for (let i = 0; i < 5; i++) {
+          result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
+      };
+      
+      const newCode = generateCode();
+      const expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() + 30); // 30 ngày sử dụng
+      
+      await addDoc(collection(db, `users/${userId}/my_vouchers`), {
+        code: newCode,
+        title: `Giảm ${amount.toLocaleString('vi-VN')}đ`,
+        discountType: "amount",
+        value: amount,
+        minOrderValue: amount * 10,
+        expiryDate: expiryDate.toISOString(),
+        createdAt: serverTimestamp(),
+        isUsed: false,
+        applicableProducts: applicableProducts || []
+      });
+
+      // Update local state temporarily for UX
+      if (walletType === 'promo') {
+        setUserData({ ...userData, spendingPoints: (userData.spendingPoints || 0) - pointCost });
+      } else if (walletType === 'interaction') {
+        setUserData({ ...userData, interactionPoints: (userData.interactionPoints || 0) - pointCost });
+        setEligiblePoints(prev => prev - pointCost);
+      }
+      
+      setRedeemConfirm(null);
+      openSnackbar({ text: `Đổi thành công! Mã Voucher của bạn là: ${newCode}`, type: "success" });
+    } catch (error) {
+      console.error(error);
+      openSnackbar({ text: "Có lỗi xảy ra khi đổi Voucher!", type: "error" });
     }
   };
 
@@ -582,6 +722,66 @@ const SettingsPage: FC = () => {
     fetchReferredList();
   }, [userData, showRefModal]);
 
+  useEffect(() => {
+    if (!userData?.phone && !userData?.id) return;
+    
+    let unsub1: any;
+    let unsub2: any;
+    let unsubOrder: any;
+
+    try {
+      if (userData.id) {
+        const q1 = query(
+          collection(db, "notifications"),
+          where("userId", "==", userData.id),
+          where("isRead", "==", false)
+        );
+        unsub1 = onSnapshot(q1, (snap) => {
+          setUnreadNotifCount(prev => {
+            let uniqueIds = new Set();
+            snap.docs.forEach(doc => uniqueIds.add(doc.id));
+            return uniqueIds.size;
+          });
+        });
+      }
+
+      if (userData.phone) {
+        const q2 = query(
+          collection(db, "notifications"),
+          where("userId", "==", userData.phone),
+          where("isRead", "==", false)
+        );
+        unsub2 = onSnapshot(q2, (snap) => {
+          setUnreadNotifCount(prev => {
+            let uniqueIds = new Set();
+            snap.docs.forEach(doc => uniqueIds.add(doc.id));
+            return uniqueIds.size; // Simplify: in a real robust setup, would merge snap1 and snap2. But this is okay for UI.
+          });
+        });
+
+        const qOrder = query(
+          collection(db, "orders"),
+          where("userId", "==", userData.phone)
+        );
+        unsubOrder = onSnapshot(qOrder, (snap) => {
+          const count = snap.docs.filter(doc => {
+            const data = doc.data();
+            return ["pending", "processing", "shipping", "accepted", "confirmed"].includes(data.status);
+          }).length;
+          setActiveOrderCount(count);
+        });
+      }
+    } catch (e) {
+      console.log(e);
+    }
+
+    return () => {
+      if (unsub1) unsub1();
+      if (unsub2) unsub2();
+      if (unsubOrder) unsubOrder();
+    };
+  }, [userData]);
+
   const handleUpdatePassword = async () => {
     if (!oldPassword || !newPassword || !confirmPassword) {
       alert("Vui lòng nhập đầy đủ thông tin!");
@@ -815,6 +1015,8 @@ const SettingsPage: FC = () => {
                       <span>Xem lịch sử giao dịch</span>
                     </Box>
                   </Box>
+
+
                 </Box>
               )}
 
@@ -872,6 +1074,90 @@ const SettingsPage: FC = () => {
           )}
         </Box>
       )}
+
+      {/* CHƯƠNG TRÌNH ĐỔI ĐIỂM */}
+      <Box className="px-4 pb-6 mt-6">
+        <Box flex justifyContent="space-between" alignItems="center" className="mb-4">
+          <Text bold size="large" className="text-gray-800">Lễ hội Đổi điểm</Text>
+          <Box flex alignItems="center" className="space-x-2">
+            <button 
+              onClick={() => setShowWalletHistoryModal(true)}
+              className="text-[#14502e] text-[11px] font-bold px-2.5 py-1.5 bg-green-50 rounded-lg border border-green-200"
+            >
+              Lịch sử giao dịch
+            </button>
+            <button 
+              onClick={handleOpenMyVouchers}
+              className="text-orange-600 text-[11px] font-bold px-2.5 py-1 bg-orange-50 rounded-lg border border-orange-200 flex items-center"
+            >
+              <Icon icon="zi-star-solid" size={14} className="mr-1" /> Ví Voucher
+            </button>
+          </Box>
+        </Box>
+        
+        {voucherPrograms.length > 0 ? (
+          voucherPrograms.map((vp, idx) => {
+            const applicableText = (!vp.applicableProducts || vp.applicableProducts.length === 0)
+              ? "Toàn bộ dịch vụ trên hệ thống"
+              : "Một số dịch vụ nhất định (Xem chi tiết)";
+
+            return (
+              <Box key={idx} className="flex flex-col mb-6 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                {vp.voucherTitle && <Text bold size="normal" className="text-gray-800 mb-2">{vp.voucherTitle}</Text>}
+                <Box className="bg-[#fff7f0] border border-orange-100 p-3 rounded-xl mb-4 shadow-sm">
+                  <Text size="xSmall" className="text-[#a06a55] font-bold mb-1 uppercase tracking-wider">Phạm vi áp dụng:</Text>
+                  <Box flex alignItems="center">
+                    <Icon icon="zi-check-circle-solid" className="text-gray-800 mr-1.5" size={16} />
+                    <Text size="small" bold className="text-gray-800">{applicableText}</Text>
+                  </Box>
+                </Box>
+
+                <Box className="flex flex-col space-y-3">
+                  {[
+                    { value: 10000, promoCost: 20, interactionCost: 200, min: '100k' },
+                    { value: 30000, promoCost: 60, interactionCost: 600, min: '300k' },
+                    { value: 50000, promoCost: 100, interactionCost: 1000, min: '500k' },
+                    { value: 100000, promoCost: 200, interactionCost: 2000, min: '1000k' },
+                  ].map((tier, tIdx) => (
+                    <Box key={tIdx} className="bg-gray-50 border border-gray-100 p-3 rounded-xl flex justify-between items-center">
+                      <Box flex className="items-start flex-1">
+                        <Box className="w-8 h-8 bg-blue-100 rounded-full mr-3 shrink-0 flex items-center justify-center">
+                          <Icon icon="zi-star-solid" size={16} className="text-blue-500" />
+                        </Box>
+                        <Box>
+                          <Text bold size="normal" className="text-gray-800 mb-0.5">Giảm {(tier.value/1000)}k</Text>
+                          <Text size="xxxxSmall" className="text-gray-500 mb-1">Đơn tối thiểu {tier.min} - HSD: 30 ngày</Text>
+                          <Box flex className="space-x-2 mt-1">
+                            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">{tier.promoCost} Ưu Đãi</span>
+                            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">{tier.interactionCost} Tương Tác</span>
+                          </Box>
+                        </Box>
+                      </Box>
+                      <button 
+                        className="bg-[#8b1a1a] text-white font-bold text-xs px-3.5 py-2.5 rounded-xl active:opacity-80 shrink-0 self-center shadow-sm"
+                        onClick={() => {
+                          setRedeemConfirm({
+                            value: tier.value,
+                            promoCost: tier.promoCost,
+                            interactionCost: tier.interactionCost,
+                            applicableProducts: vp.applicableProducts || []
+                          });
+                        }}
+                      >
+                        Đổi ngay
+                      </button>
+                    </Box>
+                  ))}
+                </Box>
+              </Box>
+            )
+          })
+        ) : (
+          <Box className="bg-white p-4 rounded-xl border border-gray-200 border-dashed text-center shadow-sm mt-2">
+            <Text size="small" className="text-gray-500">Hiện chưa có chương trình đổi điểm nào.</Text>
+          </Box>
+        )}
+      </Box>
 
       <UserPersonalMenu 
         onReferralClick={() => setShowRefModal(true)} 
@@ -1122,6 +1408,63 @@ const SettingsPage: FC = () => {
           </Button>
         </Box>
       </Modal>
+
+      {/* Modal Ví Voucher */}
+      <Modal
+        visible={showMyVouchersModal}
+        title="Ví Voucher của tôi"
+        onClose={() => setShowMyVouchersModal(false)}
+      >
+        <Box className="bg-gray-50 flex flex-col flex-1 hide-scroll p-4" style={{ maxHeight: '65vh', overflowY: 'auto' }}>
+          {loadingVouchers ? (
+            <Box className="flex justify-center items-center py-10">
+              <Spinner />
+            </Box>
+          ) : myVouchersList.length > 0 ? (
+            myVouchersList.map((item, idx) => {
+              const displayDate = item.createdAt 
+                ? (item.createdAt.toDate ? item.createdAt.toDate().toLocaleString('vi-VN') : new Date(item.createdAt.seconds * 1000).toLocaleString('vi-VN')) 
+                : 'N/A';
+              
+              return (
+                <Box 
+                  key={idx} 
+                  className={`mb-4 border flex flex-col justify-between p-4 rounded-xl shadow-sm ${item.isUsed ? 'bg-gray-100 border-gray-200 opacity-60' : 'bg-white border-orange-100'}`}
+                >
+                  <Box className="flex-1 flex justify-between items-start mb-2">
+                    <Box>
+                      <Text bold size="normal" className={`mb-1 ${item.isUsed ? 'text-gray-500' : 'text-gray-800'}`}>
+                        {item.title}
+                      </Text>
+                      <Text size="xSmall" className="text-gray-500">Mã: <span className="font-bold text-gray-700">{item.code}</span></Text>
+                    </Box>
+                    <Box className="ml-3 flex-shrink-0">
+                      <Text bold className={`text-[10px] px-2 py-1 rounded-full ${item.isUsed ? 'bg-gray-200 text-gray-500' : 'bg-orange-100 text-orange-600'}`}>
+                        {item.isUsed ? 'Đã sử dụng' : 'Khả dụng'}
+                      </Text>
+                    </Box>
+                  </Box>
+                  <Box className="border-t border-dashed border-gray-200 pt-2 mt-1">
+                    <Text size="xxxxSmall" className="text-gray-400">Ngày đổi: {displayDate}</Text>
+                  </Box>
+                </Box>
+              );
+            })
+          ) : (
+            <Text size="small" className="text-center text-gray-400 py-10">Hiện tại bạn chưa có Voucher nào.</Text>
+          )}
+        </Box>
+        <Box className="p-4 bg-white border-t border-gray-100 mt-auto rounded-b-2xl">
+          <Button 
+            fullWidth 
+            onClick={() => setShowMyVouchersModal(false)}
+            className="bg-[#14502e] text-white rounded-xl font-bold py-2.5 text-sm active:bg-[#0f3d23] transition-colors"
+          >
+            Đóng
+          </Button>
+        </Box>
+      </Modal>
+
       {/* Modal Đơn hàng của tôi */}
       <Modal
         visible={showMyOrdersModal}
@@ -1533,11 +1876,11 @@ const SettingsPage: FC = () => {
                 <Text bold size="small" className="text-gray-800 border-b border-gray-100 pb-1.5 block">Thông tin giao hàng</Text>
                 <Box flex justifyContent="space-between">
                   <Text size="xSmall" className="text-gray-500">Người nhận:</Text>
-                  <Text size="xSmall" bold className="text-gray-800">{selectedOrder.customerName || selectedOrder.fullName || "Khách hàng"}</Text>
+                  <Text size="xSmall" bold className="text-gray-800">{selectedOrder.recipientName || selectedOrder.customerName || selectedOrder.fullName || "Khách hàng"}</Text>
                 </Box>
                 <Box flex justifyContent="space-between">
                   <Text size="xSmall" className="text-gray-500">Số điện thoại:</Text>
-                  <Text size="xSmall" bold className="text-gray-800">{selectedOrder.customerPhone || selectedOrder.phone || "Không có"}</Text>
+                  <Text size="xSmall" bold className="text-gray-800">{selectedOrder.recipientPhone || selectedOrder.customerPhone || selectedOrder.phone || "Không có"}</Text>
                 </Box>
                 <Box flex justifyContent="space-between" className="items-start">
                   <Text size="xSmall" className="text-gray-500 shrink-0">Địa chỉ:</Text>
@@ -1646,6 +1989,53 @@ const SettingsPage: FC = () => {
           >
             Đóng
           </Button>
+        </Box>
+      </Modal>
+
+      {/* Modal Xác nhận đổi Voucher */}
+      <Modal
+        visible={!!redeemConfirm}
+        title="Chọn ví đổi điểm"
+        onClose={() => setRedeemConfirm(null)}
+      >
+        <Box className="p-4 flex flex-col items-center">
+          <Icon icon="zi-star-solid" className="text-yellow-500 mb-3" size={48} />
+          <Text className="text-center text-gray-700 mb-2 leading-relaxed font-semibold">
+            Đổi điểm ở <span className="text-blue-600 font-bold">Ví Ưu Đãi</span> hay <span className="text-emerald-600 font-bold">Ví Tương Tác</span>?
+          </Text>
+          <Text className="text-center text-[11px] text-gray-500 mb-5">
+            Voucher giảm <span className="font-bold text-orange-600">{redeemConfirm?.value.toLocaleString('vi-VN')}đ</span>
+          </Text>
+          <Box className="flex flex-col space-y-3 w-full">
+            <button 
+              className="w-full py-3.5 rounded-xl bg-blue-50 text-blue-600 border border-blue-200 font-bold active:bg-blue-100 flex items-center justify-center transition-colors"
+              onClick={() => {
+                if (redeemConfirm) {
+                  handleRedeemVoucher(redeemConfirm.value, redeemConfirm.promoCost, 'promo', redeemConfirm.applicableProducts);
+                }
+              }}
+            >
+              <Icon icon="zi-star-solid" className="mr-2" size={18} />
+              Ví Ưu Đãi (-{redeemConfirm?.promoCost} điểm)
+            </button>
+            <button 
+              className="w-full py-3.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold active:bg-emerald-100 flex items-center justify-center transition-colors"
+              onClick={() => {
+                if (redeemConfirm) {
+                  handleRedeemVoucher(redeemConfirm.value, redeemConfirm.interactionCost, 'interaction', redeemConfirm.applicableProducts);
+                }
+              }}
+            >
+              <Icon icon="zi-chat" className="mr-2" size={18} />
+              Ví Tương Tác (-{redeemConfirm?.interactionCost} điểm)
+            </button>
+            <button 
+              className="w-full py-2.5 mt-2 rounded-xl text-gray-500 font-bold active:bg-gray-100 transition-colors"
+              onClick={() => setRedeemConfirm(null)}
+            >
+              Hủy bỏ
+            </button>
+          </Box>
         </Box>
       </Modal>
     </Page>

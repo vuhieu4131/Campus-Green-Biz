@@ -223,35 +223,50 @@ const ShopPublicView: FC = () => {
           // Trường hợp 1: ID trên URL chính là Document ID (VD: Số điện thoại)
           currentShopData = shopDoc.data();
         } else {
-          // Trường hợp 2: ID trên URL là zaloId / providerId
+          // Trường hợp 2: ID trên URL là phone / zaloId / providerId
           const usersRef = collection(db, "users");
           const shopsRef = collection(db, "shops");
           
-          let qZalo = query(usersRef, where("zaloId", "==", id));
-          let snapZalo = await getDocs(qZalo);
+          let qPhone = query(shopsRef, where("phone", "==", id));
+          let snapPhone = await getDocs(qPhone);
 
-          if (!snapZalo.empty) {
-             currentShopData = snapZalo.docs[0].data();
-             actualShopId = snapZalo.docs[0].id;
+          if (!snapPhone.empty) {
+             currentShopData = snapPhone.docs[0].data();
+             actualShopId = snapPhone.docs[0].id;
           } else {
-             qZalo = query(shopsRef, where("zaloId", "==", id));
-             snapZalo = await getDocs(qZalo);
-             if (!snapZalo.empty) {
-                currentShopData = snapZalo.docs[0].data();
-                actualShopId = snapZalo.docs[0].id;
+             qPhone = query(usersRef, where("phone", "==", id));
+             snapPhone = await getDocs(qPhone);
+             if (!snapPhone.empty) {
+                 currentShopData = snapPhone.docs[0].data();
+                 actualShopId = snapPhone.docs[0].id;
              } else {
-                 let qProvider = query(usersRef, where("providerId", "==", id));
-                 let snapProvider = await getDocs(qProvider);
-                 if (!snapProvider.empty) {
-                     currentShopData = snapProvider.docs[0].data();
-                     actualShopId = snapProvider.docs[0].id;
+                 let qZalo = query(usersRef, where("zaloId", "==", id));
+                 let snapZalo = await getDocs(qZalo);
+      
+                 if (!snapZalo.empty) {
+                    currentShopData = snapZalo.docs[0].data();
+                    actualShopId = snapZalo.docs[0].id;
                  } else {
-                     qProvider = query(shopsRef, where("providerId", "==", id));
-                     snapProvider = await getDocs(qProvider);
-                     if (!snapProvider.empty) {
-                         currentShopData = snapProvider.docs[0].data();
-                         actualShopId = snapProvider.docs[0].id;
-                     }
+                    qZalo = query(shopsRef, where("zaloId", "==", id));
+                    snapZalo = await getDocs(qZalo);
+                    if (!snapZalo.empty) {
+                       currentShopData = snapZalo.docs[0].data();
+                       actualShopId = snapZalo.docs[0].id;
+                    } else {
+                        let qProvider = query(usersRef, where("providerId", "==", id));
+                        let snapProvider = await getDocs(qProvider);
+                        if (!snapProvider.empty) {
+                            currentShopData = snapProvider.docs[0].data();
+                            actualShopId = snapProvider.docs[0].id;
+                        } else {
+                            qProvider = query(shopsRef, where("providerId", "==", id));
+                            snapProvider = await getDocs(qProvider);
+                            if (!snapProvider.empty) {
+                                currentShopData = snapProvider.docs[0].data();
+                                actualShopId = snapProvider.docs[0].id;
+                            }
+                        }
+                    }
                  }
              }
           }

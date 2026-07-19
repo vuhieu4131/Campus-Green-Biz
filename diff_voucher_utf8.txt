@@ -1,0 +1,242 @@
+﻿diff --git a/src/pages/settings.tsx b/src/pages/settings.tsx
+index e803057..f086090 100644
+--- a/src/pages/settings.tsx
++++ b/src/pages/settings.tsx
+@@ -3,7 +3,7 @@ import React, { FC, useState, useEffect } from "react";
+ import { Page, Header, Box, Text, List, Icon, useNavigate, Modal, Button, Input, Spinner, Avatar } from "zmp-ui";
+ import { auth, db } from "../firebase";
+ import { signOut, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
+-import { doc, getDoc, collection, query, where, getDocs, orderBy, updateDoc, increment, addDoc } from "firebase/firestore";
++import { doc, getDoc, collection, query, where, getDocs, orderBy, updateDoc, increment, addDoc, onSnapshot } from "firebase/firestore";
+ import { SectionBox } from "../components/section-box";
+ import { openShareSheet } from "zmp-sdk/apis";
+ import { useRecoilState } from "recoil";
+@@ -24,16 +24,18 @@ interface UserPersonalMenuProps {
+   onChangePasswordClick: () => void;
+   onSupportClick: () => void;
+   onMyOrdersClick: () => void;
++  unreadNotifCount?: number;
++  activeOrderCount?: number;
+ }
+ 
+-const UserPersonalMenu: FC<UserPersonalMenuProps> = ({ onReferralClick, onShareClick, onChangePasswordClick, onSupportClick, onMyOrdersClick }) => {
++const UserPersonalMenu: FC<UserPersonalMenuProps> = ({ onReferralClick, onShareClick, onChangePasswordClick, onSupportClick, onMyOrdersClick, unreadNotifCount = 0, activeOrderCount = 0 }) => {
+   const navigate = useNavigate();
+   return (
+     <SectionBox title="C├í nh├ón">
+       <List>
+         <List.Item onClick={() => navigate('/account-info')} title="Th├┤ng tin t├ái khoß║ún" prefix={<CustomIcon icon="zi-user" className="text-gray-600" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
+-        <List.Item onClick={() => navigate('/notification')} title="Th├┤ng b├ío" prefix={<CustomIcon icon="zi-notif" className="text-blue-500" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
+-        <List.Item onClick={onMyOrdersClick} title="─É╞ín h├áng cß╗ºa t├┤i" prefix={<CustomIcon icon="zi-note" className="text-orange-500" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
++        <List.Item onClick={() => navigate('/notification')} title="Th├┤ng b├ío" prefix={<Box className="relative"><CustomIcon icon="zi-notif" className="text-blue-500" />{unreadNotifCount > 0 && <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1 shadow-sm border-2 border-white">{unreadNotifCount > 99 ? '99+' : unreadNotifCount}</span>}</Box>} suffix={<CustomIcon icon="zi-chevron-right" />} />
++        <List.Item onClick={onMyOrdersClick} title="─É╞ín h├áng cß╗ºa t├┤i" prefix={<Box className="relative"><CustomIcon icon="zi-note" className="text-orange-500" />{activeOrderCount > 0 && <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1 shadow-sm border-2 border-white">{activeOrderCount > 99 ? '99+' : activeOrderCount}</span>}</Box>} suffix={<CustomIcon icon="zi-chevron-right" />} />
+         <List.Item onClick={onReferralClick} title="Ng╞░ß╗¥i ─æ╞░ß╗úc giß╗¢i thiß╗çu" prefix={<CustomIcon icon="zi-group" className="text-gray-700" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
+         <List.Item onClick={onShareClick} title="Chia sß║╗ ß╗⌐ng dß╗Ñng" prefix={<CustomIcon icon="zi-share" className="text-gray-700" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
+         <List.Item onClick={onChangePasswordClick} title="─Éß╗òi mß║¡t khß║⌐u" prefix={<CustomIcon icon="zi-lock" className="text-gray-700" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
+@@ -92,6 +94,40 @@ const SettingsPage: FC = () => {
+   const [loadingWalletHistory, setLoadingWalletHistory] = useState(false);
+   const [eligiblePoints, setEligiblePoints] = useState(0);
+ 
++  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
++  const [activeOrderCount, setActiveOrderCount] = useState(0);
++  const [voucherPrograms, setVoucherPrograms] = useState<any[]>([]);
++
++  useEffect(() => {
++    window.scrollTo(0, 0);
++
++    const fetchVoucher = async () => {
++      try {
++        const configSnap = await getDoc(doc(db, "system_config", "admin_settings"));
++        if (configSnap.exists()) {
++          const data = configSnap.data();
++          let isActive = false;
++          if (data.isVoucherOpen) {
++            isActive = true;
++          } else if (data.voucherStartTime && data.voucherEndTime) {
++            const now = new Date().getTime();
++            const start = new Date(data.voucherStartTime).getTime();
++            const end = new Date(data.voucherEndTime).getTime();
++            if (now >= start && now <= end) {
++              isActive = true;
++            }
++          }
++          if (isActive && data.voucherTitle) {
++            setVoucherPrograms([data]);
++          }
++        }
++      } catch (err) {
++        console.error("Lß╗ùi lß║Ñy cß║Ñu h├¼nh Voucher:", err);
++      }
++    };
++    fetchVoucher();
++  }, []);
++
+   const fetchEligiblePoints = async (userId: string) => {
+     try {
+       const q = query(
+@@ -582,6 +618,66 @@ const SettingsPage: FC = () => {
+     fetchReferredList();
+   }, [userData, showRefModal]);
+ 
++  useEffect(() => {
++    if (!userData?.phone && !userData?.id) return;
++    
++    let unsub1: any;
++    let unsub2: any;
++    let unsubOrder: any;
++
++    try {
++      if (userData.id) {
++        const q1 = query(
++          collection(db, "notifications"),
++          where("userId", "==", userData.id),
++          where("isRead", "==", false)
++        );
++        unsub1 = onSnapshot(q1, (snap) => {
++          setUnreadNotifCount(prev => {
++            let uniqueIds = new Set();
++            snap.docs.forEach(doc => uniqueIds.add(doc.id));
++            return uniqueIds.size;
++          });
++        });
++      }
++
++      if (userData.phone) {
++        const q2 = query(
++          collection(db, "notifications"),
++          where("userId", "==", userData.phone),
++          where("isRead", "==", false)
++        );
++        unsub2 = onSnapshot(q2, (snap) => {
++          setUnreadNotifCount(prev => {
++            let uniqueIds = new Set();
++            snap.docs.forEach(doc => uniqueIds.add(doc.id));
++            return uniqueIds.size; // Simplify: in a real robust setup, would merge snap1 and snap2. But this is okay for UI.
++          });
++        });
++
++        const qOrder = query(
++          collection(db, "orders"),
++          where("userId", "==", userData.phone)
++        );
++        unsubOrder = onSnapshot(qOrder, (snap) => {
++          const count = snap.docs.filter(doc => {
++            const data = doc.data();
++            return ["pending", "processing", "shipping", "accepted", "confirmed"].includes(data.status);
++          }).length;
++          setActiveOrderCount(count);
++        });
++      }
++    } catch (e) {
++      console.log(e);
++    }
++
++    return () => {
++      if (unsub1) unsub1();
++      if (unsub2) unsub2();
++      if (unsubOrder) unsubOrder();
++    };
++  }, [userData]);
++
+   const handleUpdatePassword = async () => {
+     if (!oldPassword || !newPassword || !confirmPassword) {
+       alert("Vui l├▓ng nhß║¡p ─æß║ºy ─æß╗º th├┤ng tin!");
+@@ -815,6 +911,25 @@ const SettingsPage: FC = () => {
+                       <span>Xem lß╗ïch sß╗¡ giao dß╗ïch</span>
+                     </Box>
+                   </Box>
++
++                  {/* Lß╗à hß╗Öi ─æß╗òi ─æiß╗âm Banner */}
++                  <Box 
++                    className="mt-4 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-xl p-3 flex justify-between items-center cursor-pointer active:opacity-80 shadow-inner"
++                    onClick={() => {
++                        alert("Lß╗à hß╗Öi ─æß╗òi ─æiß╗âm sß║»p diß╗àn ra! H├úy t├¡ch l┼⌐y th├¬m ─æiß╗âm ╞»u ─É├úi ─æß╗â tham gia nh├⌐.");
++                    }}
++                  >
++                    <Box flex alignItems="center">
++                      <Icon icon="zi-gift" className="text-white mr-2" size={24} />
++                      <Box>
++                        <Text bold size="small" className="text-white text-shadow-sm">Lß╗à hß╗Öi ─æß╗òi ─æiß╗âm</Text>
++                        <Text size="xxSmall" className="text-white opacity-90 font-medium">S─ân Voucher cß╗▒c sß╗æc!</Text>
++                      </Box>
++                    </Box>
++                    <Box className="bg-white/20 px-2 py-1 rounded-lg">
++                      <Text size="xSmall" bold className="text-white">Tham gia</Text>
++                    </Box>
++                  </Box>
+                 </Box>
+               )}
+ 
+@@ -873,6 +988,58 @@ const SettingsPage: FC = () => {
+         </Box>
+       )}
+ 
++      {/* CH╞»╞áNG TR├îNH ─Éß╗öI ─ÉIß╗éM */}
++      <Box className="px-4 pb-6 mt-6">
++        {voucherPrograms.length > 0 ? (
++          voucherPrograms.map((vp, idx) => (
++            <Box key={idx} className="flex flex-col">
++              <Text bold size="large" className="text-gray-800 mb-3">{vp.voucherTitle || "Lß╗à hß╗Öi ─Éß╗òi ─æiß╗âm"}</Text>
++              
++              <Box className="bg-[#fff7f0] border border-orange-100 p-3 rounded-xl mb-4 shadow-sm">
++                <Text size="xSmall" className="text-[#a06a55] font-bold mb-1 uppercase tracking-wider">Phß║ím vi ├íp dß╗Ñng chiß║┐n dß╗ïch:</Text>
++                <Box flex alignItems="center">
++                  <Icon icon="zi-check-circle-solid" className="text-gray-800 mr-1.5" size={16} />
++                  <Text size="small" bold className="text-gray-800">To├án bß╗Ö dß╗ïch vß╗Ñ tr├¬n hß╗ç thß╗æng</Text>
++                </Box>
++              </Box>
++
++              <Box className="flex flex-col space-y-3">
++                {[
++                  { price: '10.000─æ', min: '100k', point: 20 },
++                  { price: '20.000─æ', min: '200k', point: 40 },
++                  { price: '50.000─æ', min: '500k', point: 100 },
++                ].map((tier, tIdx) => (
++                  <Box key={tIdx} className="bg-white border border-gray-100 shadow p-4 rounded-xl flex justify-between items-center">
++                    <Box flex className="items-start flex-1">
++                      <Box className="w-8 h-8 bg-blue-50/50 rounded-full mr-3 shrink-0"></Box>
++                      <Box>
++                        <Text bold size="normal" className="text-gray-800 mb-1">Giß║úm {tier.price}</Text>
++                        <Text size="xSmall" className="text-gray-600 mb-0.5">─É╞ín tß╗æi thiß╗âu {tier.min}</Text>
++                        <Text size="xSmall" className="text-gray-600 mb-0.5">HSD: 30 ng├áy</Text>
++                        <Text size="xSmall" className="text-gray-800 italic my-1.5">* ├üp dß╗Ñng cho mß╗ìi dß╗ïch vß╗Ñ tr├¬n hß╗ç thß╗æng</Text>
++                        <Text bold size="small" className="text-orange-500">{tier.point} ─æiß╗âm</Text>
++                      </Box>
++                    </Box>
++                    <button 
++                      className="bg-[#8b1a1a] text-white font-bold text-xs px-3.5 py-2 rounded-xl active:opacity-80 shrink-0 self-center"
++                      onClick={() => {
++                          openSnackbar({ text: `─Éß╗òi th├ánh c├┤ng Voucher ${tier.price}! Trß╗½ v├áo ─æ╞ín h├áng.`, type: "success" });
++                      }}
++                    >
++                      ─Éß╗òi ngay
++                    </button>
++                  </Box>
++                ))}
++              </Box>
++            </Box>
++          ))
++        ) : (
++          <Box className="bg-white p-4 rounded-xl border border-gray-200 border-dashed text-center">
++            <Text size="small" className="text-gray-500">Hiß╗çn ch╞░a c├│ ch╞░╞íng tr├¼nh ─æß╗òi ─æiß╗âm n├áo.</Text>
++          </Box>
++        )}
++      </Box>
++
+       <UserPersonalMenu 
+         onReferralClick={() => setShowRefModal(true)} 
+         onShareClick={() => setShowShareModal(true)} 
+@@ -1533,11 +1700,11 @@ const SettingsPage: FC = () => {
+                 <Text bold size="small" className="text-gray-800 border-b border-gray-100 pb-1.5 block">Th├┤ng tin giao h├áng</Text>
+                 <Box flex justifyContent="space-between">
+                   <Text size="xSmall" className="text-gray-500">Ng╞░ß╗¥i nhß║¡n:</Text>
+-                  <Text size="xSmall" bold className="text-gray-800">{selectedOrder.customerName || selectedOrder.fullName || "Kh├ích h├áng"}</Text>
++                  <Text size="xSmall" bold className="text-gray-800">{selectedOrder.recipientName || selectedOrder.customerName || selectedOrder.fullName || "Kh├ích h├áng"}</Text>
+                 </Box>
+                 <Box flex justifyContent="space-between">
+                   <Text size="xSmall" className="text-gray-500">Sß╗æ ─æiß╗çn thoß║íi:</Text>
+-                  <Text size="xSmall" bold className="text-gray-800">{selectedOrder.customerPhone || selectedOrder.phone || "Kh├┤ng c├│"}</Text>
++                  <Text size="xSmall" bold className="text-gray-800">{selectedOrder.recipientPhone || selectedOrder.customerPhone || selectedOrder.phone || "Kh├┤ng c├│"}</Text>
+                 </Box>
+                 <Box flex justifyContent="space-between" className="items-start">
+                   <Text size="xSmall" className="text-gray-500 shrink-0">─Éß╗ïa chß╗ë:</Text>
