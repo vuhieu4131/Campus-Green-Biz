@@ -44,7 +44,7 @@ const ChatListPage = () => {
         };
       });
 
-      const resolvedChats = await Promise.all(chatPromises);
+      const resolvedChats: any[] = await Promise.all(chatPromises);
       
       // Sort in memory to avoid requiring a composite index in Firestore
       resolvedChats.sort((a, b) => {

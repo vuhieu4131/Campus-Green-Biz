@@ -58,11 +58,12 @@ const formatDate = (timestamp) => {
 
 interface ProviderProps {
   userData: any;
+  setUserData?: (data: any) => void;
   onBackToProfile?: () => void; // Dấu ? nghĩa là hàm này có thể có hoặc không
   onLogout?: () => void;        // Định nghĩa thêm hàm đăng xuất
 }
 
-export const ProviderView: FC<ProviderProps> = ({ userData, onBackToProfile, onLogout }) => {
+export const ProviderView: FC<ProviderProps> = ({ userData, setUserData, onBackToProfile, onLogout }) => {
   const navigate = useNavigate();
   const { openSnackbar } = useSnackbar();
 
@@ -501,7 +502,7 @@ export const ProviderView: FC<ProviderProps> = ({ userData, onBackToProfile, onL
 
           openSnackbar({ text: `Đã đổi thành công ${vipToAdd} điểm VIP!`, type: "success" });
           
-          setUserData((prev: any) => ({
+          if (setUserData) setUserData((prev: any) => ({
               ...prev,
               spendingPoints: (prev.spendingPoints || 0) - promoToDeduct,
               vipPoints: (prev.vipPoints || 0) + vipToAdd,
@@ -554,7 +555,7 @@ export const ProviderView: FC<ProviderProps> = ({ userData, onBackToProfile, onL
 
           openSnackbar({ text: `Đã đổi thành công ${vipToAdd} điểm VIP!`, type: "success" });
           
-          setUserData((prev: any) => ({
+          if (setUserData) setUserData((prev: any) => ({
               ...prev,
               interactionPoints: (prev.interactionPoints || 0) - interactionToDeduct,
               vipPoints: (prev.vipPoints || 0) + vipToAdd,
@@ -2786,7 +2787,7 @@ useEffect(() => {
                       className="text-blue-600 font-medium cursor-pointer inline-flex items-center mt-1 border border-blue-100 bg-blue-50 px-2 py-1 rounded"
                       onClick={() => navigate(`/profile?id=${selectedOrderDetail.userId || selectedOrderDetail.customerPhone || selectedOrderDetail.phone}`)}
                     >
-                      <Icon icon="zi-user" as any size={12} className="mr-1" /> Trang cá nhân
+                      <Icon icon="zi-user" size={12 as any} className="mr-1" /> Trang cá nhân
                     </div>
                   </Box>
                 )}

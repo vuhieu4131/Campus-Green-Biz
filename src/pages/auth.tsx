@@ -147,7 +147,7 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
 
       if (refPhone) {
         try {
-          let referrerRef = null;
+          let referrerRef: any = null;
           let referrerDocId = "";
           let referrerType: "user" | "shop" = "user";
 

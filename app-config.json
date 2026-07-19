@@ -9,6 +9,9 @@
     "hideIOSSafeAreaBottom": false,
     "actionBarHidden": true
   },
+  "pages": [
+    "/"
+  ],
   "listCSS": [],
   "listSyncJS": [],
   "listAsyncJS": [],

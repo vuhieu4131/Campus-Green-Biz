@@ -107,10 +107,12 @@ const ChatDetailPage = () => {
       <Header 
         textColor="white"
         title={
-          <Box onClick={navigateToProfile} className="active:opacity-50 transition-opacity">
-            {otherUser ? otherUser.name : "Đang tải..."}
-          </Box>
-        } 
+          (
+            <Box onClick={navigateToProfile} className="active:opacity-50 transition-opacity inline-block">
+              {otherUser ? otherUser.name : "Đang tải..."}
+            </Box>
+          ) as unknown as string
+        }
         showBackIcon 
       />
       <Box className="p-4 flex flex-col space-y-3">

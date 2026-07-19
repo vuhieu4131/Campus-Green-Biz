@@ -154,7 +154,7 @@ const ShopPublicView: FC = () => {
 
   // 1.5. PHÂN TRANG SẢN PHẨM CUỘN VÔ HẠN (LOAD 10 SẢN PHẨM MỖI LẦN)
   const [visibleCount, setVisibleCount] = useState(10);
-  const sentinelRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<any>(null);
 
   useEffect(() => {
     setVisibleCount(10);
@@ -346,7 +346,7 @@ const ShopPublicView: FC = () => {
         where("participants", "array-contains", currentUser.uid)
       );
       const snap = await getDocs(q);
-      let existingChatId = null;
+      let existingChatId: string | null = null;
       snap.forEach((docSnap) => {
         const data = docSnap.data();
         if (data.participants.includes(targetUserId)) {

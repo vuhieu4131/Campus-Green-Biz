@@ -1,7 +1,7 @@
 import CustomIcon from '../custom-icon';
 import React, { useState } from "react";
 import { Box, Button, Input, Select, Text, useSnackbar, Header, Icon, Spinner, Avatar, Page } from "zmp-ui";
-import { doc, setDoc, serverTimestamp, collection, query, where, getDocs, updateDoc, increment, getDoc } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp, collection, query, where, getDocs, updateDoc, increment, getDoc, addDoc } from "firebase/firestore";
 import { db } from "../../firebase";
 
 const { Option } = Select;
@@ -218,7 +218,7 @@ export const RegisterForm: React.FunctionComponent<RegisterProps> = ({ userInfo,
           console.log(`Đã cộng ${referrerPoints} điểm cho người giới thiệu (ID: ${referrerIdToUpdate})`);
       }
 
-      openSnackbar({ text: `Đăng ký thành công! Bạn nhận được ${POINT_NEW_USER} điểm thưởng.`, type: "success" });
+      openSnackbar({ text: `Đăng ký thành công! Bạn nhận được ${newUserPoints} điểm thưởng.`, type: "success" });
       onSuccess(); 
     } catch (error) {
       console.error("Lỗi đăng ký:", error);

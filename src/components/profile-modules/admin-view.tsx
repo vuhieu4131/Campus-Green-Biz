@@ -1,7 +1,7 @@
 import CustomIcon from '../custom-icon';
 import React, { FC, useState, useEffect } from "react";
 import { Box, Text, Icon, Modal, Avatar, Button, Input, useSnackbar, Spinner, Select, Switch, useNavigate, Page } from "zmp-ui";
-import { collection, query, where, getDocs, doc, updateDoc, deleteDoc, orderBy, addDoc, serverTimestamp, getDoc, setDoc, onSnapshot } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, updateDoc, deleteDoc, orderBy, addDoc, serverTimestamp, getDoc, setDoc, onSnapshot, increment } from "firebase/firestore";
 import { db, auth, storage } from "../../firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -443,7 +443,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
         // 👉 TỰ ĐỘNG LÀM SẠCH: XÓA CÁC SHOP ĐĂNG KÝ SAU 30 NGÀY KHÔNG HOÀN THIỆN
         if (featureId === "providers") {
             const now = new Date();
-            const validShops = [];
+            const validShops: any[] = [];
             for (const shop of rawData) {
                 if (shop.status === 'pending' || !shop.status || shop.status === 'rejected') {
                     const dateToCheck = shop.registrationUpdatedAt ? 
@@ -1350,7 +1350,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                       <Select 
                         label="Chọn Icon hiển thị" 
                         value={newCategoryIcon} 
-                        onChange={(val) => setNewCategoryIcon(val)}
+                        onChange={(val) => setNewCategoryIcon(val as string)}
                       >
                         <Option value="zi-store" title="Cửa hàng (zi-store)" />
                         <Option value="zi-memory" title="Công nghệ (zi-memory)" />
@@ -2917,11 +2917,12 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
             ) : (
               <Box className="mt-4 p-3 bg-gray-50 rounded-lg border">
                 <Text size="small" bold className="mb-2 text-red-600">Lý do từ chối:</Text>
-                <TextArea 
+                <textarea 
                   value={rejectReason} 
                   onChange={(e) => setRejectReason(e.target.value)} 
                   placeholder="Ví dụ: Hình ảnh mờ, thông tin không hợp lệ..." 
                   rows={3} 
+                  className="w-full bg-white border border-gray-200 rounded-lg p-2 mt-1 focus:outline-none focus:border-green-500"
                 />
                 <Box flex className="gap-2 mt-3">
                   <Button className="flex-1 bg-white text-gray-600 border border-gray-200" onClick={() => setShowRejectReasonInput(false)}>Hủy</Button>

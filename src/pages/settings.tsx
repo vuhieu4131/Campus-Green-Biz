@@ -8,8 +8,7 @@ import { SectionBox } from "../components/section-box";
 import { openShareSheet } from "zmp-sdk/apis";
 import { useRecoilState } from "recoil";
 import { cartState } from "../state";
-import OrderCancelModal from "../components/profile-modules/order-cancel-modal";
-import RateOrderModal from "../components/profile-modules/rate-order-modal";
+
 
 const isWithin15Days = (createdAt: any) => {
   if (!createdAt) return true;
@@ -133,7 +132,7 @@ const SettingsPage: FC = () => {
   const [myOrders, setMyOrders] = useState<any[]>([]);
   const [loadingMyOrders, setLoadingMyOrders] = useState(false);
   const [cart, setCart] = useRecoilState(cartState);
-  const [ordersTab, setOrdersTab] = useState<'cart' | 'history'>('cart');
+  const [ordersTab, setOrdersTab] = useState<'cart' | 'pending' | 'history'>('cart');
 
   const getStatusDisplay = (status: string) => {
     switch(status) {
@@ -250,7 +249,7 @@ const SettingsPage: FC = () => {
         const localPhone = localStorage.getItem("user_phone");
         const finalPhone = phoneFromEmail || localPhone;
 
-        let foundData = null;
+        let foundData: any = null;
 
         if (finalPhone) {
           try {
@@ -1001,7 +1000,7 @@ const SettingsPage: FC = () => {
             onClick={() => !passLoading && handleUpdatePassword()}
             style={{ opacity: passLoading ? 0.7 : 1 }}
           >
-            {passLoading ? <Spinner size="small" /> : "Cập nhật"}
+            {passLoading ? <Spinner /> : "Cập nhật"}
           </Box>
         </Box>
       </Modal>
@@ -1077,7 +1076,6 @@ const SettingsPage: FC = () => {
         visible={showWalletHistoryModal}
         title={activeWalletTab === 'rank' ? "Lịch sử Ví Tính Hạng" : activeWalletTab === 'promo' ? "Lịch sử Ví Ưu Đãi" : "Lịch sử Ví Tương Tác"}
         onClose={() => setShowWalletHistoryModal(false)}
-        actions={[{ text: "Đóng", onClick: () => setShowWalletHistoryModal(false), highLight: true }]}
       >
         <Box p={4} className="max-h-[60vh] overflow-y-auto hide-scroll">
           {loadingWalletHistory ? (
@@ -1114,16 +1112,24 @@ const SettingsPage: FC = () => {
             <Text size="small" className="text-center text-gray-400 py-10">Không có dữ liệu giao dịch.</Text>
           )}
         </Box>
+        <Box className="p-4 bg-white border-t border-gray-100 mt-auto rounded-b-2xl">
+          <Button 
+            fullWidth 
+            onClick={() => setShowWalletHistoryModal(false)}
+            className="bg-[#14502e] text-white rounded-xl font-bold py-2.5 text-sm active:bg-[#0f3d23] transition-colors"
+          >
+            Đóng
+          </Button>
+        </Box>
       </Modal>
       {/* Modal Đơn hàng của tôi */}
       <Modal
         visible={showMyOrdersModal}
         title="Đơn hàng của tôi"
         onClose={() => setShowMyOrdersModal(false)}
-        actions={[{ text: "Đóng", onClick: () => setShowMyOrdersModal(false), highLight: true }]}
         modalClassName="order-management-modal"
       >
-        <Box className="bg-gray-50 flex flex-col flex-1 hide-scroll p-4 space-y-3" style={{ height: '100%', overflowY: 'auto' }}>
+        <Box className="bg-gray-50 flex flex-col flex-1 hide-scroll p-4 space-y-3" style={{ maxHeight: '65vh', overflowY: 'auto' }}>
           {/* Tab Selection */}
           <Box flex className="border-b border-gray-150 mb-4 bg-gray-50 p-1.5 rounded-xl">
             <button 
@@ -1179,9 +1185,9 @@ const SettingsPage: FC = () => {
 
                       return (
                         <Box key={idx} className="p-3 flex space-x-3">
-                          <img src={item.product.image || item.product.gallery?.[0] || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png"} className="w-16 h-16 object-cover rounded-lg border border-gray-100" alt="product" />
+                          <img src={item.product.image || (item.product as any).gallery?.[0] || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png"} className="w-16 h-16 object-cover rounded-lg border border-gray-100" alt="product" />
                           <Box className="flex-1">
-                            <Box flex justifyContent="space-between" alignItems="start">
+                              <Box flex justifyContent="space-between" alignItems="flex-start">
                               <Text bold size="small" className="text-gray-900 leading-tight flex-1 line-clamp-2 pr-2">
                                 {item.product.title || item.product.name}
                               </Text>
@@ -1288,7 +1294,7 @@ const SettingsPage: FC = () => {
                                     {imgUrl ? (
                                       <img src={imgUrl} className="w-full h-full object-cover" alt="" />
                                     ) : (
-                                      <Icon icon="zi-image" size={16} className="text-gray-400" />
+                                      <Icon icon="zi-photo" size={16} className="text-gray-400" />
                                     )}
                                   </Box>
                                   <Box className="flex-1 min-w-0">
@@ -1318,7 +1324,7 @@ const SettingsPage: FC = () => {
                                   {singleImg ? (
                                     <img src={singleImg} className="w-full h-full object-cover" alt="" />
                                   ) : (
-                                    <Icon icon="zi-image" size={16} className="text-gray-400" />
+                                    <Icon icon="zi-photo" size={16} className="text-gray-400" />
                                   )}
                                 </Box>
                                 <Box className="flex-1 min-w-0">
@@ -1396,7 +1402,7 @@ const SettingsPage: FC = () => {
                                     {imgUrl ? (
                                       <img src={imgUrl} className="w-full h-full object-cover" alt="" />
                                     ) : (
-                                      <Icon icon="zi-image" size={16} className="text-gray-400" />
+                                      <Icon icon="zi-photo" size={16} className="text-gray-400" />
                                     )}
                                   </Box>
                                   <Box className="flex-1 min-w-0">
@@ -1426,7 +1432,7 @@ const SettingsPage: FC = () => {
                                   {singleImg ? (
                                     <img src={singleImg} className="w-full h-full object-cover" alt="" />
                                   ) : (
-                                    <Icon icon="zi-image" size={16} className="text-gray-400" />
+                                    <Icon icon="zi-photo" size={16} className="text-gray-400" />
                                   )}
                                 </Box>
                                 <Box className="flex-1 min-w-0">
@@ -1472,6 +1478,15 @@ const SettingsPage: FC = () => {
             </Box>
           )}
         </Box>
+        <Box className="p-4 bg-white border-t border-gray-100 mt-auto rounded-b-2xl">
+          <Button 
+            fullWidth 
+            onClick={() => setShowMyOrdersModal(false)}
+            className="bg-[#14502e] text-white rounded-xl font-bold py-2.5 text-sm active:bg-[#0f3d23] transition-colors"
+          >
+            Đóng
+          </Button>
+        </Box>
       </Modal>
 
       {/* Modal Chi tiết đơn hàng */}
@@ -1479,7 +1494,6 @@ const SettingsPage: FC = () => {
         visible={showOrderDetailModal}
         title="Chi tiết đơn hàng"
         onClose={() => setShowOrderDetailModal(false)}
-        actions={[{ text: "Đóng", onClick: () => setShowOrderDetailModal(false), highLight: true }]}
       >
         {selectedOrder && (() => {
           const statusUI = getStatusDisplay(selectedOrder.status);
@@ -1549,7 +1563,7 @@ const SettingsPage: FC = () => {
                           {imgUrl ? (
                             <img src={imgUrl} className="w-full h-full object-cover" alt="" />
                           ) : (
-                            <Icon icon="zi-image" size={20} className="text-gray-400" />
+                            <Icon icon="zi-photo" size={20} className="text-gray-400" />
                           )}
                         </Box>
                         <Box className="flex-1 min-w-0">
@@ -1578,7 +1592,7 @@ const SettingsPage: FC = () => {
                           {singleImg ? (
                             <img src={singleImg} className="w-full h-full object-cover" alt="" />
                           ) : (
-                            <Icon icon="zi-image" size={20} className="text-gray-400" />
+                            <Icon icon="zi-photo" size={20} className="text-gray-400" />
                           )}
                         </Box>
                         <Box className="flex-1 min-w-0">
@@ -1624,6 +1638,15 @@ const SettingsPage: FC = () => {
             </Box>
           );
         })()}
+        <Box className="p-4 bg-white border-t border-gray-100 mt-auto rounded-b-2xl">
+          <Button 
+            fullWidth 
+            onClick={() => setShowOrderDetailModal(false)}
+            className="bg-[#14502e] text-white rounded-xl font-bold py-2.5 text-sm active:bg-[#0f3d23] transition-colors"
+          >
+            Đóng
+          </Button>
+        </Box>
       </Modal>
     </Page>
   );

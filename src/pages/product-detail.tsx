@@ -215,20 +215,21 @@ const ProductDetailPage: FC = () => {
     e.stopPropagation();
     if (!product) return;
     
-    const productTitle = product.title || product.name || "Sản phẩm Green Biz";
+    const productTitle: string = product.title || product.name || "Sản phẩm Green Biz";
     const productPrice = Number(product.price || 0).toLocaleString('vi-VN') + 'đ';
     const productPoints = product.points ? ` (+${product.points} Điểm ưu đãi)` : "";
-    const thumbImage = productImages[0] || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png";
+    const thumbImage: string = productImages[0] || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png";
     const shareLink = `https://zalo.me/s/2196212719506893777/detail/${product.id}`;
 
     try {
-      await openShareSheet({
+      const shareOptions: any = {
         type: "link",
         title: productTitle,
         subtitle: `Giá: ${productPrice}${productPoints} - Xem chi tiết trên Campus Green Biz!`,
         link: shareLink,
         thumb: thumbImage
-      });
+      };
+      await openShareSheet(shareOptions);
     } catch (error) {
       console.warn("Zalo openShareSheet failed, falling back to copy to clipboard:", error);
       try {

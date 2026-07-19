@@ -73,14 +73,14 @@ const AccountInfoPage: FC = () => {
                 docSnap = userSnap.docs[0];
                 currentColl = "users";
                 currentId = userSnap.docs[0].id;
-                setRole(docSnap.data().branchInfo ? "Quản lý chi nhánh" : "Thành viên");
+                setRole(docSnap.data()?.branchInfo ? "Quản lý chi nhánh" : "Thành viên");
               }
             }
           } catch (err) {
             console.error("Lỗi tải thông tin tài khoản:", err);
           }
         } else {
-          const data = docSnap.data();
+          const data = docSnap.data() || {};
           if (data.role === "admin") {
             setRole("Quản trị viên");
           } else if (data.branchInfo) {

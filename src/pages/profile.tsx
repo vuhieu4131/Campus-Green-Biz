@@ -109,7 +109,7 @@ const handleChat = async (currentUser: any, targetUserId: string, navigate: any,
       where("participants", "array-contains", currentUser.uid)
     );
     const snap = await getDocs(q);
-    let existingChatId = null;
+    let existingChatId: string | null = null;
     snap.forEach((docSnap) => {
       const data = docSnap.data();
       if (data.participants.includes(targetUserId)) {
@@ -699,7 +699,7 @@ const NewMemberView: FC<{
                       </Text>
                     </Box>
                   )}
-                  {(post.images?.length > 1 || post.originalPost?.images?.length > 1) && (
+                  {(((post.images?.length || 0) > 1) || ((post.originalPost?.images?.length || 0) > 1)) && (
                     <span className="absolute top-1 right-1 text-white opacity-80 inline-flex bg-black/30 p-0.5 rounded-sm">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>

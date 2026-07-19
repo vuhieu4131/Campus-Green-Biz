@@ -223,6 +223,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
       });
       return unsubscribe;
     }
+    return undefined;
   }, [showComments, data.id]);
 
   // Trạng thái theo dõi tác giả bài viết
@@ -235,13 +236,13 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
       return;
     }
 
-    const authorRef = doc(db, "users", data.authorId);
+    const authorRef = doc(db, "users", data.authorId as string);
     const unsub = onSnapshot(authorRef, (docSnap) => {
       if (docSnap.exists()) {
         const followers = docSnap.data().followers || [];
         setIsFollowing(currentUser ? followers.includes(currentUser.uid) : false);
       } else {
-        const shopRef = doc(db, "shops", data.authorId);
+        const shopRef = doc(db, "shops", data.authorId as string);
         getDoc(shopRef).then((shopSnap) => {
           if (shopSnap.exists()) {
             const followers = shopSnap.data().followers || [];
@@ -302,7 +303,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
   React.useEffect(() => {
     if (!data.authorId) return;
 
-    const authorRef = doc(db, "users", data.authorId);
+    const authorRef = doc(db, "users", data.authorId as string);
     const unsub = onSnapshot(authorRef, (docSnap) => {
       if (docSnap.exists()) {
         const docData = docSnap.data();
@@ -311,7 +312,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
           avatar: docData.avatar || data.authorAvatar
         });
       } else {
-        const shopRef = doc(db, "shops", data.authorId);
+        const shopRef = doc(db, "shops", data.authorId as string);
         getDoc(shopRef).then((shopSnap) => {
           if (shopSnap.exists()) {
             const shopData = shopSnap.data();

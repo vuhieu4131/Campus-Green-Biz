@@ -14,6 +14,12 @@ export interface RawPost {
   isPinned?: boolean;
   likedBy?: string[];
   status?: string;
+  sharedFrom?: string;
+  originalAuthorId?: string;
+  originalPost?: any;
+  location?: any;
+  videoUrl?: string;
+  attachedProduct?: any;
 }
 
 export const sortPostsOnEdge = (posts: RawPost[]): RawPost[] => {
