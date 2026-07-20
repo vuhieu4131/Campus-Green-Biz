@@ -7,6 +7,14 @@ import { ConfigProvider } from "./config-provider";
 
 
 const MyApp = () => {
+  React.useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const refCode = urlParams.get('ref');
+    if (refCode) {
+      localStorage.setItem('referral_code', refCode);
+    }
+  }, []);
+
   return (
     <RecoilRoot>
       <ConfigProvider

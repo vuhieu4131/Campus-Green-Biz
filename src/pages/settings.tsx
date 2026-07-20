@@ -1374,7 +1374,7 @@ const SettingsPage: FC = () => {
           
           <Box className="border-2 border-green-500 p-2 rounded-xl mb-6">
             <img 
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${referralCode}`} 
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`https://zalo.me/s/3525851935148341014/?ref=${referralCode}`)}`} 
               alt="QR Code" 
               width={150} height={150} 
             />

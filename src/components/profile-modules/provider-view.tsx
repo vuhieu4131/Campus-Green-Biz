@@ -22,7 +22,7 @@ const isWithin15Days = (createdAt: any) => {
 };
 
 // 👉 Placeholder cho App ID của bạn
-const YOUR_APP_ID = "2196212719506893777"; 
+const YOUR_APP_ID = "3525851935148341014"; 
 
 // 👉 1. HÀM TÍNH RANK SHOP & LOGIC LÊN HẠNG (CẬP NHẬT)
 const calculateShopRankInfo = (points: number) => {

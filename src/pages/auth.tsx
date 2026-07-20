@@ -1,6 +1,6 @@
 import CustomIcon from '../components/custom-icon';
 import React, { FC, useState } from "react";
-import { Box, Text, Input, Button, Switch, Avatar, Icon, useNavigate } from "zmp-ui"; 
+import { Box, Text, Input, Button, Switch, Avatar, Icon, useNavigate, useSnackbar } from "zmp-ui"; 
 import { useRecoilValueLoadable } from "recoil";
 import { userState } from "state";
 import { auth, db } from "../firebase"; 
@@ -19,14 +19,16 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
   const navigate = useNavigate(); 
   const userInfoLoadable = useRecoilValueLoadable(userState);
   const userInfo = userInfoLoadable.state === "hasValue" ? userInfoLoadable.contents : null;
+  const { openSnackbar } = useSnackbar();
 
   const [formType, setFormType] = useState<"login" | "register">("login");
   const [phone, setPhone] = useState("0000869131");
   const [password, setPassword] = useState("123456");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [referralCode, setReferralCode] = useState("");
+  const [referralCode, setReferralCode] = useState(localStorage.getItem('referral_code') || "");
   const [isShopConfig, setIsShopConfig] = useState(false);
+  const [showForgotPwdModal, setShowForgotPwdModal] = useState(false);
 
   if (!visible) return null;
 
@@ -321,18 +323,23 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
             <Box className="flex justify-end">
               <Text 
                 className="text-blue-500 text-sm cursor-pointer"
-                onClick={async () => {
+                onClick={() => {
                   try {
-                    await openChat({
+                    openChat({
                       type: 'oa',
                       id: '1234567890', // Default Zalo OA ID placeholder
-                      message: `Xin chào, tôi cần hỗ trợ khôi phục mật khẩu cho số điện thoại: ${phone}`
+                      message: `Xin chào, tôi cần hỗ trợ khôi phục mật khẩu cho số điện thoại: ${phone}`,
+                      success: () => {
+                        console.log("Mở Zalo OA thành công");
+                      },
+                      fail: (err) => {
+                        console.error("openChat fail callback:", err);
+                        setShowForgotPwdModal(true);
+                      }
                     });
                   } catch (err) {
-                    console.error("openChat failed:", err);
-                    const subject = encodeURIComponent("Hỗ trợ khôi phục mật khẩu");
-                    const body = encodeURIComponent(`Xin chào, tôi cần hỗ trợ khôi phục mật khẩu cho số điện thoại: ${phone}. Vui lòng giúp tôi lấy lại mật khẩu.`);
-                    window.location.href = `mailto:campusgreenbiz@gmail.com?subject=${subject}&body=${body}`;
+                    console.error("openChat try-catch failed:", err);
+                    setShowForgotPwdModal(true);
                   }
                 }}
               >
@@ -363,6 +370,45 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
           </Box>
         </Box>
       </Box>
+
+      {/* MODAL HƯỚNG DẪN QUÊN MẬT KHẨU */}
+      {showForgotPwdModal && (
+        <Box className="fixed inset-0 bg-black/50 z-[999999] flex items-center justify-center p-4">
+          <Box className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl flex flex-col items-center animate-fade-in text-center">
+            <Box className="w-16 h-16 rounded-full bg-orange-100 flex items-center justify-center mb-4">
+              <Icon icon="zi-info-circle" className="text-orange-500 text-3xl" />
+            </Box>
+            <Text.Title className="text-lg font-bold mb-2 text-gray-800">
+              Hỗ trợ khôi phục mật khẩu
+            </Text.Title>
+            <Text className="text-gray-600 text-sm mb-6 leading-relaxed">
+              Bạn vui lòng gửi email về địa chỉ <strong className="text-blue-600">campusgreenbiz@gmail.com</strong> với tiêu đề "Hỗ trợ khôi phục mật khẩu" và cung cấp số điện thoại của bạn để được ban quản trị hỗ trợ.
+            </Text>
+            
+            <Box className="flex space-x-3 w-full">
+              <Button 
+                variant="secondary"
+                fullWidth 
+                className="py-2.5 rounded-xl font-medium"
+                onClick={() => setShowForgotPwdModal(false)}
+              >
+                Đóng
+              </Button>
+              <Button 
+                fullWidth 
+                className="py-2.5 rounded-xl font-medium text-white border-none"
+                style={{ backgroundColor: "#8b191b" }}
+                onClick={() => {
+                  navigator.clipboard?.writeText("campusgreenbiz@gmail.com");
+                  openSnackbar({ text: "Đã copy email", type: "success" });
+                }}
+              >
+                Copy Email
+              </Button>
+            </Box>
+          </Box>
+        </Box>
+      )}
     </Box>
   );
 };
