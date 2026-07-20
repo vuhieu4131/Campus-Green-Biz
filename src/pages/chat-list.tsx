@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Page, Header, Box, Text, Avatar, List, useNavigate } from "zmp-ui";
+import { getDefaultAvatar, getValidAvatar } from "../utils/avatar";
 import { collection, query, where, orderBy, onSnapshot, getDoc, doc } from "firebase/firestore";
 import { db, auth } from "../firebase";
 
@@ -21,7 +22,7 @@ const ChatListPage = () => {
         const data = docSnap.data();
         const otherUserId = data.participants.find((id: string) => id !== currentUser.uid);
         
-        let otherUser = { name: "Người dùng", avatar: "https://i.pravatar.cc/150" };
+        let otherUser = { name: "Người dùng", avatar: getDefaultAvatar(otherUserId) };
         if (otherUserId) {
           // Fetch from users
           let userDoc = await getDoc(doc(db, "users", otherUserId));
@@ -32,7 +33,7 @@ const ChatListPage = () => {
             const uData = userDoc.data();
             otherUser = {
               name: uData.fullName || uData.name || uData.shopName || "Người dùng",
-              avatar: uData.avatar || uData.shopAvatar || "https://i.pravatar.cc/150"
+              avatar: getValidAvatar(uData.avatar || uData.shopAvatar, otherUserId)
             };
           }
         }

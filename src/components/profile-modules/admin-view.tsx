@@ -4,6 +4,7 @@ import { Box, Text, Icon, Modal, Avatar, Button, Input, useSnackbar, Spinner, Se
 import { collection, query, where, getDocs, doc, updateDoc, deleteDoc, orderBy, addDoc, serverTimestamp, getDoc, setDoc, onSnapshot, increment } from "firebase/firestore";
 import { db, auth, storage } from "../../firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
+import { getDefaultAvatar, getValidAvatar } from "../../utils/avatar";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 const { Option } = Select;
 import { openShareSheet } from "zmp-sdk/apis";
@@ -1236,7 +1237,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                       <Box key={m.id} flex alignItems="center" justifyContent="space-between" className="mb-3 pb-3 border-b border-gray-100 p-1">
                           <Box flex alignItems="center" className="flex-1 cursor-pointer active:opacity-70" onClick={() => setDetailUser(m)}>
                               <Box className="relative">
-                                  <Avatar src={m.avatar} />
+                                  <Avatar src={getValidAvatar(m.avatar, m.id)} />
                                   {/* Hiển thị Top 1, 2, 3 */}
                                   {sortFilter !== "all" && idx < 3 && (
                                       <Box className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border border-white">
@@ -1345,7 +1346,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                     <Box key={p.id} className="mb-4 pb-4 border-b border-gray-100">
                         <Box flex alignItems="center" mb={3} className="cursor-pointer active:opacity-70 relative" onClick={() => setDetailUser(p)}>
                             <Box className="relative">
-                                <Avatar src={p.avatar} />
+                                <Avatar src={getValidAvatar(p.avatar, p.id)} />
                                 {providerTab === 'active' && sortFilter !== "all" && idx < 3 && (
                                     <Box className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border border-white">
                                         {idx + 1}
@@ -2584,7 +2585,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
         style={{ paddingTop: 'calc(var(--zaui-safe-area-inset-top, 40px) + 12px)' }}
       >
         <Box flex alignItems="center" justifyContent="space-between">
-            <Box flex alignItems="center"><Avatar src={userData.avatar} size={48} /><Box ml={3}><Text.Title className="text-white" size="small">ADMIN</Text.Title><Text size="small">Xin chào, {userData.name}</Text></Box></Box>
+            <Box flex alignItems="center"><Avatar src={"https://firebasestorage.googleapis.com/v0/b/campusbizproject.firebasestorage.app/o/avatars%2F000_OK_3.png?alt=media&token=6c861511-4802-4d36-8f1f-add6f7e327f7"} size={48} /><Box ml={3}><Text.Title className="text-white" size="small">ADMIN</Text.Title><Text size="small">Xin chào, {userData.name}</Text></Box></Box>
             <Box flex style={{ paddingRight: '80px' }}>
                 <Box onClick={() => setShowChangePass(true)} className="bg-blue-700 p-2 rounded-full cursor-pointer active:opacity-80 mr-2"><CustomIcon icon="zi-lock" className="text-white" /></Box>
                 <Box onClick={onLogout} className="bg-blue-700 p-2 rounded-full cursor-pointer active:opacity-80"><CustomIcon icon="zi-leave" className="text-white" /></Box>
@@ -2671,7 +2672,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
 <Modal visible={!!detailUser} title="Chi tiết" onClose={() => setDetailUser(null)} actions={[{ text: "Đóng", onClick: () => setDetailUser(null), highLight: true }]}>
         {detailUser && (
             <Box p={4} flex flexDirection="column" alignItems="center">
-                <Avatar src={detailUser.avatar} size={72} />
+                <Avatar src={getValidAvatar(detailUser.avatar, detailUser.id)} size={72} />
 <Text.Title size="normal" className="mt-3">{detailUser.name}</Text.Title>
 <Text size="small" className="text-gray mb-2">{detailUser.phone}</Text>
 {/* 👉 Khối hiển thị Địa chỉ */}
@@ -2776,7 +2777,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
               <Box>
                 {/* Tác giả & Ngày đăng */}
                 <Box flex alignItems="center" mb={3}>
-                  <Avatar src="https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png" size={40} />
+                  <Avatar src={getDefaultAvatar()} size={40} />
                   <Box ml={2}>
                     <Text bold size="small" className="text-gray-800">{detailItem.authorName || "Người dùng ẩn danh"}</Text>
                     <Text size="xxSmall" className="text-gray-400">{formatDate(detailItem.createdAt)}</Text>

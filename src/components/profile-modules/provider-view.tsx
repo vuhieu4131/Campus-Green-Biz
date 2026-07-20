@@ -7,6 +7,7 @@ import { db, storage, auth } from "../../firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
 import { openShareSheet } from "zmp-sdk/apis";
+import { getValidAvatar } from "../../utils/avatar";
 
 const { Item } = List;
 const { TextArea } = Input;
@@ -445,7 +446,7 @@ export const ProviderView: FC<ProviderProps> = ({ userData, setUserData, onBackT
           const snapshot = await getDocs(q);
           const list = snapshot.docs
               .map(doc => ({ id: doc.id, ...doc.data() } as any))
-              .filter(item => item.type === "plus" && isWithin15Days(item.createdAt))
+              .filter(item => item.type === "plus" && item.walletType === "rank" && isWithin15Days(item.createdAt))
               .sort((a, b) => {
                   const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
                   const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
@@ -477,7 +478,7 @@ export const ProviderView: FC<ProviderProps> = ({ userData, setUserData, onBackT
           // Cập nhật điểm shop
           await updateDoc(doc(db, "shops", targetDocId), {
               spendingPoints: increment(-promoToDeduct),
-              vipPoints: increment(vipToAdd),
+              vipPushPoints: increment(vipToAdd),
               rankPoints: increment(vipToAdd)
           });
 
@@ -501,12 +502,22 @@ export const ProviderView: FC<ProviderProps> = ({ userData, setUserData, onBackT
               createdAt: serverTimestamp()
           });
 
+          // Thêm vào lịch sử nạp VIP
+          await addDoc(collection(db, "vip_points_requests"), {
+              shopId: targetDocId,
+              points: vipToAdd,
+              amount: 0,
+              status: "approved",
+              reason: `Đổi từ ${promoToDeduct} điểm Ví Ưu Đãi`,
+              createdAt: serverTimestamp()
+          });
+
           openSnackbar({ text: `Đã đổi thành công ${vipToAdd} điểm VIP!`, type: "success" });
           
           if (setUserData) setUserData((prev: any) => ({
               ...prev,
               spendingPoints: (prev.spendingPoints || 0) - promoToDeduct,
-              vipPoints: (prev.vipPoints || 0) + vipToAdd,
+              vipPushPoints: (prev.vipPushPoints || 0) + vipToAdd,
               rankPoints: (prev.rankPoints || 0) + vipToAdd
           }));
       } catch (e) {
@@ -530,7 +541,7 @@ export const ProviderView: FC<ProviderProps> = ({ userData, setUserData, onBackT
           // Cập nhật điểm shop
           await updateDoc(doc(db, "shops", targetDocId), {
               interactionPoints: increment(-interactionToDeduct),
-              vipPoints: increment(vipToAdd),
+              vipPushPoints: increment(vipToAdd),
               rankPoints: increment(vipToAdd)
           });
 
@@ -554,12 +565,22 @@ export const ProviderView: FC<ProviderProps> = ({ userData, setUserData, onBackT
               createdAt: serverTimestamp()
           });
 
+          // Thêm vào lịch sử nạp VIP
+          await addDoc(collection(db, "vip_points_requests"), {
+              shopId: targetDocId,
+              points: vipToAdd,
+              amount: 0,
+              status: "approved",
+              reason: `Đổi từ ${interactionToDeduct} điểm Ví Tương Tác`,
+              createdAt: serverTimestamp()
+          });
+
           openSnackbar({ text: `Đã đổi thành công ${vipToAdd} điểm VIP!`, type: "success" });
           
           if (setUserData) setUserData((prev: any) => ({
               ...prev,
               interactionPoints: (prev.interactionPoints || 0) - interactionToDeduct,
-              vipPoints: (prev.vipPoints || 0) + vipToAdd,
+              vipPushPoints: (prev.vipPushPoints || 0) + vipToAdd,
               rankPoints: (prev.rankPoints || 0) + vipToAdd
           }));
           setEligiblePoints(prev => prev - interactionToDeduct);
@@ -773,16 +794,50 @@ const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
 
   useEffect(() => {
     if (!showVipModal || !userData.id) return;
-    const q = query(
+    const q1 = query(
       collection(db, "vip_points_requests"), 
       where("shopId", "==", userData.id), 
       orderBy("createdAt", "desc")
     );
-    const unsub = onSnapshot(q, (snap) => {
-      const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-      setMyVipRequests(list);
+    const q2 = query(
+      collection(db, "point_transactions"),
+      where("userId", "==", userData.id),
+      where("walletType", "==", "rank"),
+      orderBy("createdAt", "desc")
+    );
+    
+    let list1: any[] = [];
+    let list2: any[] = [];
+    
+    const updateMergedList = () => {
+      const merged = [...list1, ...list2].sort((a, b) => {
+        const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+        const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+        return dateB.getTime() - dateA.getTime();
+      });
+      setMyVipRequests(merged);
+    };
+
+    const unsub1 = onSnapshot(q1, (snap) => {
+      list1 = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+      updateMergedList();
     });
-    return () => unsub();
+
+    const unsub2 = onSnapshot(q2, (snap) => {
+      // Lọc các giao dịch có lý do là quy đổi điểm sang VIP
+      list2 = snap.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as any))
+        .filter(item => item.reason && item.reason.includes("Được quy đổi từ"))
+        .map(item => ({
+          ...item,
+          status: "approved",
+          points: item.amount,
+          amount: 0
+        }));
+      updateMergedList();
+    });
+
+    return () => { unsub1(); unsub2(); };
   }, [showVipModal, userData.id]);
 
   const [receiptUrl, setReceiptUrl] = useState("");
@@ -859,7 +914,7 @@ const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
     const unsub = onSnapshot(doc(db, "shops", userData.id), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        setShopVipPoints(data.vipPushPoints || 0);
+        setShopVipPoints((data.vipPushPoints || 0) + (data.vipPoints || 0));
       }
     });
     return () => unsub();
@@ -1504,7 +1559,7 @@ useEffect(() => {
         className="bg-white p-4 m-4 rounded-xl flex items-center shadow-md border border-gray-100 relative overflow-hidden active:opacity-80 cursor-pointer"
         onClick={() => setShowShopInfoModal(true)}
       >
-        <Avatar src={userData.avatar} size={64} className="border-2 border-blue-500 shadow" />
+        <Avatar src={getValidAvatar(userData.avatar, userData.id)} size={64} className="border-2 border-blue-500 shadow" />
         <Box ml={4} className="flex-1 z-10">
         <Box flex alignItems="center">
                <Text.Title size="normal" className="line-clamp-1 flex-1">{userData.name}</Text.Title>
@@ -1898,7 +1953,11 @@ useEffect(() => {
                       {req.orderCode && (
                         <Text size="xxxxSmall" className="text-gray-500 block mb-1">Mã đơn: <span className="font-semibold text-gray-800 select-all">{req.orderCode}</span></Text>
                       )}
-                      <Text size="xxxxSmall" className="text-gray-500 block mb-1">Số tiền: <span className="font-semibold text-gray-800">{(req.amount || 0).toLocaleString()}đ</span></Text>
+                      {req.reason ? (
+                        <Text size="xxxxSmall" className="text-gray-500 block mb-1">Giao dịch: <span className="font-semibold text-gray-800">{req.reason}</span></Text>
+                      ) : (
+                        <Text size="xxxxSmall" className="text-gray-500 block mb-1">Số tiền: <span className="font-semibold text-gray-800">{(req.amount || 0).toLocaleString()}đ</span></Text>
+                      )}
                       <Text size="xxxxSmall" className="text-gray-500 block">Thời gian: {formatDate(req.createdAt)}</Text>
                       {!isApp && req.rejectedReason && (
                         <Text size="xxxxSmall" className="text-red-500 block mt-1.5 font-semibold">Lý do từ chối: {req.rejectedReason}</Text>
@@ -2299,7 +2358,7 @@ useEffect(() => {
       {/* CÁC MODAL KHÁC GIỮ NGUYÊN */}
       <Modal visible={showReferralModal} title="Khách hàng giới thiệu" onClose={() => setShowReferralModal(false)} actions={[{ text: "Đóng", onClick: () => setShowReferralModal(false) }]}>
           <Box p={4} style={{ maxHeight: '60vh', overflowY: 'auto' }}>
-              {referralLoading ? <Box flex justifyContent="center"><Spinner /></Box> : referralList.length > 0 ? <Box><Box className="bg-blue-50 p-2 rounded-lg text-center mb-4 border border-blue-100"><Text bold className="text-blue-600">Tổng cộng: {referralList.length} thành viên</Text></Box>{referralList.map((cus, idx) => (<Box key={idx} flex alignItems="center" justifyContent="space-between" className="mb-3 pb-3 border-b border-gray-100 last:border-0"><Box flex alignItems="center"><Avatar src={cus.avatar || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png"} size={40} className="border" /><Box ml={3}><Text size="small" bold>{cus.fullName || cus.name || "Thành viên"}</Text><Text size="xxSmall" className="text-gray-500">{cus.phone}</Text></Box></Box><Box>{cus.referredType === "shop" ? (<span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-orange-100 text-orange-600 border border-orange-200">Shop</span>) : (<span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-blue-100 text-blue-600 border border-blue-200">Khách</span>)}</Box></Box>))}</Box> : <Text className="text-center text-gray-400 mt-10 p-4 bg-gray-50 rounded italic">Chưa giới thiệu được thành viên nào.</Text>}
+              {referralLoading ? <Box flex justifyContent="center"><Spinner /></Box> : referralList.length > 0 ? <Box><Box className="bg-blue-50 p-2 rounded-lg text-center mb-4 border border-blue-100"><Text bold className="text-blue-600">Tổng cộng: {referralList.length} thành viên</Text></Box>{referralList.map((cus, idx) => (<Box key={idx} flex alignItems="center" justifyContent="space-between" className="mb-3 pb-3 border-b border-gray-100 last:border-0"><Box flex alignItems="center"><Avatar src={getValidAvatar(cus.avatar, cus.id)} size={40} className="border" /><Box ml={3}><Text size="small" bold>{cus.fullName || cus.name || "Thành viên"}</Text><Text size="xxSmall" className="text-gray-500">{cus.phone}</Text></Box></Box><Box>{cus.referredType === "shop" ? (<span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-orange-100 text-orange-600 border border-orange-200">Shop</span>) : (<span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-blue-100 text-blue-600 border border-blue-200">Khách</span>)}</Box></Box>))}</Box> : <Text className="text-center text-gray-400 mt-10 p-4 bg-gray-50 rounded italic">Chưa giới thiệu được thành viên nào.</Text>}
           </Box>
       </Modal>
 

@@ -1,4 +1,5 @@
 import React, { FC, useState, useEffect, startTransition } from "react";
+import { getDefaultAvatar } from "../utils/avatar";
 import {
   Box,
   Header,
@@ -406,9 +407,9 @@ const NewMemberView: FC<{
       <Box
         className="w-full h-56 bg-cover bg-center cursor-pointer relative"
         style={{
-          backgroundImage: `url('${user.cover || 'https://images.unsplash.com/photo-1466611653911-95081537e5b7?w=800&fit=crop'}')`,
+          backgroundImage: `url('${user.cover || (role === "provider" ? "https://firebasestorage.googleapis.com/v0/b/campusbizproject.firebasestorage.app/o/banners%2F000_Banner_2.jpg?alt=media&token=b4125322-a3e2-40e0-91be-25debde54a52" : "https://images.unsplash.com/photo-1466611653911-95081537e5b7?w=800&fit=crop")}')`,
         }}
-        onClick={() => !isOtherProfile ? handleImageAction('cover') : setViewImage(user.cover || 'https://images.unsplash.com/photo-1466611653911-95081537e5b7?w=800&fit=crop')}
+        onClick={() => !isOtherProfile ? handleImageAction('cover') : setViewImage(user.cover || (role === "provider" ? "https://firebasestorage.googleapis.com/v0/b/campusbizproject.firebasestorage.app/o/banners%2F000_Banner_2.jpg?alt=media&token=b4125322-a3e2-40e0-91be-25debde54a52" : "https://images.unsplash.com/photo-1466611653911-95081537e5b7?w=800&fit=crop"))}
       >
         {!isOtherProfile && (
           <Box 
@@ -435,22 +436,22 @@ const NewMemberView: FC<{
       </Box>
 
       {/* 3. Thông tin User & Avatar */}
-      <Box className="px-4 relative mb-2 flex justify-between items-end">
-        <Box>
+      <Box className="px-4 relative mb-2 flex flex-col items-center">
+        <Box className="flex flex-col items-center w-full">
           <Box 
-            className="absolute -top-12 left-4 rounded-full border-4 border-white cursor-pointer"
-            onClick={() => !isOtherProfile ? handleImageAction('avatar') : setViewImage(user.avatar)}
+            className="absolute -top-12 left-1/2 -translate-x-1/2 rounded-full border-4 border-white cursor-pointer"
+            onClick={() => !isOtherProfile ? handleImageAction('avatar') : setViewImage(user.avatar || getDefaultAvatar(user.id))}
           >
-            <Avatar src={user.avatar} size={80} />
+            <Avatar src={user.avatar || getDefaultAvatar(user.id)} size={80} />
             {!isOtherProfile && (
               <Box className="absolute bottom-0 right-0 bg-[#14502e] text-white w-6 h-6 rounded-full flex items-center justify-center border border-white">
                 <Icon icon="zi-camera" size={12} />
               </Box>
             )}
           </Box>
-          <Box className="pt-12 flex flex-col gap-1">
-            <Box className="flex items-center gap-2 flex-wrap">
-              <Text.Title className="text-xl font-bold leading-none">{user.name}</Text.Title>
+          <Box className="pt-12 flex flex-col gap-1 items-center w-full">
+            <Box className="flex items-center gap-2 flex-wrap justify-center">
+              <Text.Title className="text-xl font-bold leading-none text-center">{user.name}</Text.Title>
               {role === "provider" ? (
                 <Box className={`flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border shadow-xs ${calculateShopRankInfo(rankPoints).color}`}>
                   <CustomIcon icon={calculateShopRankInfo(rankPoints).icon as any} size={10} className="mr-1 inline-flex" />
@@ -466,7 +467,7 @@ const NewMemberView: FC<{
           </Box>
         </Box>
         {isOtherProfile && (
-          <Box className="flex items-center space-x-2 shrink-0">
+          <Box className="flex items-center space-x-2 shrink-0 mt-3 justify-center w-full">
             <Button 
               className="rounded-full font-medium shadow-sm px-4 h-8 text-sm flex items-center justify-center"
               style={{ 
@@ -844,7 +845,7 @@ const NewMemberView: FC<{
             variant="secondary"
             fullWidth 
             onClick={() => {
-              setViewImage(actionSheetTarget === 'avatar' ? user.avatar : (user.cover || 'https://images.unsplash.com/photo-1466611653911-95081537e5b7?w=800&fit=crop'));
+              setViewImage(actionSheetTarget === 'avatar' ? user.avatar : (user.cover || (role === "provider" ? "https://firebasestorage.googleapis.com/v0/b/campusbizproject.firebasestorage.app/o/banners%2F000_Banner_2.jpg?alt=media&token=b4125322-a3e2-40e0-91be-25debde54a52" : "https://images.unsplash.com/photo-1466611653911-95081537e5b7?w=800&fit=crop")));
               setActionSheetVisible(false);
             }}
           >
@@ -869,7 +870,7 @@ const NewMemberView: FC<{
             followersList.map((item, idx) => (
               <Box key={idx} flex alignItems="center" justifyContent="space-between" className="mb-3 pb-3 border-b border-gray-100 last:border-0" onClick={() => { if (item.type === 'shop') { setShowFollowers(false); navigate(`/shop-details/${item.id}`); } }}>
                 <Box flex alignItems="center">
-                  <Avatar src={item.avatar || item.shopImage || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png"} size={40} className="border" />
+                  <Avatar src={item.avatar || item.shopImage || getDefaultAvatar(item.id)} size={40} className="border" />
                   <Box ml={3}>
                     <Text size="small" bold>{item.name || item.fullName || item.shopName || "Khách hàng"}</Text>
                   </Box>
@@ -887,7 +888,7 @@ const NewMemberView: FC<{
             followingList.map((item, idx) => (
               <Box key={idx} flex alignItems="center" justifyContent="space-between" className="mb-3 pb-3 border-b border-gray-100 last:border-0" onClick={() => { if (item.type === 'shop') { setShowFollowing(false); navigate(`/shop-details/${item.id}`); } }}>
                 <Box flex alignItems="center">
-                  <Avatar src={item.avatar || item.shopImage || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png"} size={40} className="border" />
+                  <Avatar src={item.avatar || item.shopImage || getDefaultAvatar(item.id)} size={40} className="border" />
                   <Box ml={3}>
                     <Text size="small" bold>{item.name || item.fullName || item.shopName || "Khách hàng"}</Text>
                   </Box>
@@ -1133,7 +1134,7 @@ const ProfilePage: FC = () => {
                 name: (targetUserData.collectionName === "shops" || targetUserData.role === "provider") 
                   ? (targetUserData.name || targetUserData.shopName || targetUserData.fullName || targetUserData.phone || "Shop")
                   : (targetUserData.fullName || targetUserData.name || targetUserData.phone || "Thành viên Campus"),
-                avatar: targetUserData.avatar || targetUserData.shopAvatar || "https://i.pravatar.cc/150?img=11",
+                avatar: targetUserData.avatar || targetUserData.shopAvatar || "",
                 cover: targetUserData.cover,
                 phone: targetUserData.phone
               }}
@@ -1161,7 +1162,7 @@ const ProfilePage: FC = () => {
               </Box>
             )}
             {userData?.role === "admin" && <AdminView userData={userData} onLogout={handleLogout} />}
-            {userData?.role === "provider" && showProviderDashboard && <ProviderView userData={userData} onLogout={handleLogout} onBackToProfile={() => setShowProviderDashboard(false)} />}
+            {userData?.role === "provider" && showProviderDashboard && <ProviderView userData={userData} setUserData={setUserData} onLogout={handleLogout} onBackToProfile={() => setShowProviderDashboard(false)} />}
             
             {(!userData?.role || userData?.role === "user" || userData?.role === "member" || userData?.role === "distributor" || (userData?.role === "provider" && !showProviderDashboard)) && (
               <NewMemberView
@@ -1173,7 +1174,7 @@ const ProfilePage: FC = () => {
                   name: (userData?.role === "provider" || userData?.collectionName === "shops")
                     ? (userData?.name || userData?.shopName || userData?.fullName || "Shop")
                     : (userData?.fullName || currentUser.email?.replace("@campus.com", "") || "Thành viên Campus"),
-                  avatar: userData?.avatar || "https://i.pravatar.cc/150?img=11",
+                  avatar: userData?.avatar || "",
                   cover: userData?.cover,
                   phone: userData?.phone
                 }}

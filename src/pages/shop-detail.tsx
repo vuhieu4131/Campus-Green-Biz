@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { Page, Header, Box, Text, Avatar, Button, Icon, Tabs, useSnackbar, Spinner, Modal } from "zmp-ui";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { doc, getDoc, collection, query, where, getDocs, deleteDoc } from "firebase/firestore";
+import { getValidAvatar } from "../utils/avatar";
 import { db } from "../firebase";
 import { openPhone, openChat } from "zmp-sdk/apis";
 
@@ -193,7 +194,7 @@ const filteredServices = selectedCategory === 'Tất cả'
           </Box>
 
           <Box className="px-4 -mt-12 flex items-end justify-between relative z-10">
-              <Avatar src={shop.avatar} size={88} className="border-4 border-white shadow-lg rounded-2xl bg-white" />
+              <img src={getValidAvatar(shop.avatar, shop.id)} style={{ width: 88, height: 88, objectFit: "cover" }} className="border-4 border-white shadow-lg rounded-2xl bg-white" alt="Shop Avatar" />
               
               {/* 👉 ĐÃ CẬP NHẬT: Sửa 2 nút bấm để mở Pop-up thay vì gọi ngay lập tức */}
               <Box className="flex gap-2 mb-1">

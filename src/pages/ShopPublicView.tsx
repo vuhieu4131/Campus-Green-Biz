@@ -1,7 +1,8 @@
 import React, { FC, useEffect, useState, useRef } from "react";
 import { Page, Header, Box, Text, Avatar, Button, Icon, Tabs, useSnackbar, Spinner, Modal, Sheet } from "zmp-ui";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { doc, getDoc, collection, query, where, getDocs, deleteDoc, updateDoc, serverTimestamp, addDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, getDoc, onSnapshot, updateDoc, serverTimestamp, addDoc } from "firebase/firestore";
+import { getValidAvatar } from "../utils/avatar";
 import { db, auth } from "../firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { openPhone, openChat } from "zmp-sdk/apis";
@@ -421,14 +422,13 @@ const ShopPublicView: FC = () => {
               {shop.cover ? (
                   <img src={shop.cover} className="w-full h-full object-cover" alt="Banner" />
               ) : (
-                  // ĐÃ CẬP NHẬT: Màu cam giống ảnh
-                  <Box className="w-full h-full bg-gradient-to-r from-orange-400 to-orange-600" />
+                  <img src="https://firebasestorage.googleapis.com/v0/b/campusbizproject.firebasestorage.app/o/banners%2F000_Banner_2.jpg?alt=media&token=b4125322-a3e2-40e0-91be-25debde54a52" className="w-full h-full object-cover" alt="Default Banner" />
               )}
               <Box className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
           </Box>
 
           <Box className="px-4 -mt-12 flex items-end justify-between relative z-10">
-              <Avatar src={shop.avatar} size={88} className="border-4 border-white shadow-lg rounded-2xl bg-white" />
+              <img src={getValidAvatar(shop.avatar, shop.id)} style={{ width: 88, height: 88, objectFit: "cover" }} className="border-4 border-white shadow-lg rounded-2xl bg-white" alt="Shop Avatar" />
               <Box className="flex gap-2 mb-1">
                   {/* ĐÃ SỬA LỖI TS: Thêm 'as any' */}
                   <Button

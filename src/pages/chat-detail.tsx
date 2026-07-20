@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { Page, Header, Box, Text, Avatar, Button, Icon, useSnackbar } from "zmp-ui";
+import { getDefaultAvatar, getValidAvatar } from "../utils/avatar";
 import { useParams, useNavigate } from "react-router-dom";
 import { collection, query, orderBy, onSnapshot, getDoc, doc, addDoc, serverTimestamp, updateDoc, increment } from "firebase/firestore";
 import { db, auth } from "../firebase";
@@ -37,7 +38,7 @@ const ChatDetailPage = () => {
               id: otherUserId,
               isShop,
               name: uData.fullName || uData.name || uData.shopName || "Người dùng",
-              avatar: uData.avatar || uData.shopAvatar || "https://i.pravatar.cc/150"
+              avatar: getValidAvatar(uData.avatar || uData.shopAvatar, otherUserId)
             });
           }
         }
@@ -124,7 +125,7 @@ const ChatDetailPage = () => {
               className={`flex ${isMe ? 'justify-end' : 'justify-start'} items-end space-x-2`}
             >
               {!isMe && (
-                <Avatar src={otherUser?.avatar || "https://i.pravatar.cc/150"} size={28} className="shrink-0" />
+                <Avatar src={getValidAvatar(otherUser?.avatar, otherUser?.id)} size={28} className="shrink-0" />
               )}
               <Box 
                 className={`max-w-[75%] px-3 py-2 rounded-2xl ${

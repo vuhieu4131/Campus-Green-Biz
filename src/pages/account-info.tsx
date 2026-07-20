@@ -1,6 +1,7 @@
 import CustomIcon from '../components/custom-icon';
 import React, { FC, useState, useEffect } from "react";
 import { Page, Header, Box, Input, Button, useSnackbar, Text, Icon } from "zmp-ui";
+import { getDefaultAvatar } from "../utils/avatar";
 import { auth, db, storage } from "../firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { doc, getDoc, updateDoc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
@@ -166,17 +167,11 @@ const AccountInfoPage: FC = () => {
           className="relative mb-3 cursor-pointer"
           onClick={() => !isUploading && fileInputRef.current?.click()}
         >
-          {avatar ? (
-            <img 
-              src={avatar} 
-              alt="Avatar" 
-              className={`w-28 h-28 rounded-full object-cover ${isUploading ? 'opacity-50' : ''}`} 
-            />
-          ) : (
-            <Box className={`w-28 h-28 rounded-full bg-[#e4e6eb] flex items-center justify-center overflow-hidden ${isUploading ? 'opacity-50' : ''}`}>
-              <Icon icon="zi-user-solid" className="text-white" style={{ fontSize: "100px", marginTop: "28px" }} />
-            </Box>
-          )}
+          <img 
+            src={avatar || getDefaultAvatar(currentUser?.uid)}
+            alt="Avatar" 
+            className={`w-28 h-28 rounded-full object-cover ${isUploading ? 'opacity-50' : ''}`} 
+          />
           
           <Box className="absolute bottom-0 right-0 bg-[#14502e] text-white w-8 h-8 rounded-full flex items-center justify-center border-2 border-white shadow-md">
             <Icon icon="zi-camera" size={16} />

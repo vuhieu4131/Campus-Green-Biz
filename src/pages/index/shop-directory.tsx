@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { db } from "../../firebase";
 import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
 import CustomIcon from "../../components/custom-icon";
+import { getDefaultAvatar } from "../../utils/avatar";
 
 export const ShopDirectory: FC = () => {
   const [shops, setShops] = useState<any[]>([]);
@@ -72,7 +73,7 @@ export const ShopDirectory: FC = () => {
               {/* Avatar overlapping banner */}
               <Box className="absolute -top-8 left-3">
                 <Avatar 
-                  src={shop.avatar || shop.shopAvatar || "https://i.pravatar.cc/150"} 
+                  src={shop.avatar || shop.shopAvatar || getDefaultAvatar(shop.id)} 
                   size={60} 
                   className="border-4 border-white shadow-sm"
                 />

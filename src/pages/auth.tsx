@@ -4,9 +4,11 @@ import { Box, Text, Input, Button, Switch, Avatar, Icon, useNavigate } from "zmp
 import { useRecoilValueLoadable } from "recoil";
 import { userState } from "state";
 import { auth, db } from "../firebase"; 
+import { getDefaultAvatar } from "../utils/avatar"; 
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, deleteUser } from "firebase/auth";
 // 👉 ĐÃ BỔ SUNG: Thêm collection, query, where, getDocs để hỗ trợ quét dữ liệu ngoại lệ
 import { doc, setDoc, getDoc, collection, query, where, getDocs, updateDoc, addDoc, serverTimestamp, increment } from "firebase/firestore"; 
+import { openChat } from "zmp-sdk/apis";
 
 interface AuthOverlayProps {
   visible: boolean;
@@ -262,7 +264,7 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
   };
 
   return (
-    <Box className="fixed inset-0 bg-white z-50 flex flex-col w-full h-full">
+    <Box className="fixed inset-0 bg-white flex flex-col w-full h-full" style={{ zIndex: 99999 }}>
       <Box className="flex items-center p-4 pb-0" style={{ paddingTop: 'calc(var(--zaui-safe-area-inset-top, 40px) + 8px)' }}>
         <div onClick={onClose} className="cursor-pointer flex items-center space-x-1 p-1.5 pr-3 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors active:scale-95">
           <Icon icon="zi-arrow-left" className="text-gray-600 text-2xl" />
@@ -272,7 +274,7 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
 
       <Box className="flex-1 overflow-y-auto px-6 pb-8">
         <Box className="flex flex-col items-center mb-6">
-          <Avatar src={userInfo?.avatar} size={80} className="mb-4 shadow-md" />
+          <Avatar src={getDefaultAvatar(phone)} size={80} className="mt-8 mb-4 shadow-md" />
           {formType === "login" ? (
             <>
               <Text.Title className="text-2xl font-bold mb-1">Xin chào {userInfo?.name || "bạn"}!</Text.Title>
@@ -317,7 +319,25 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
 
           {formType === "login" && (
             <Box className="flex justify-end">
-              <Text className="text-blue-500 text-sm">Quên mật khẩu?</Text>
+              <Text 
+                className="text-blue-500 text-sm cursor-pointer"
+                onClick={async () => {
+                  try {
+                    await openChat({
+                      type: 'oa',
+                      id: '1234567890', // Default Zalo OA ID placeholder
+                      message: `Xin chào, tôi cần hỗ trợ khôi phục mật khẩu cho số điện thoại: ${phone}`
+                    });
+                  } catch (err) {
+                    console.error("openChat failed:", err);
+                    const subject = encodeURIComponent("Hỗ trợ khôi phục mật khẩu");
+                    const body = encodeURIComponent(`Xin chào, tôi cần hỗ trợ khôi phục mật khẩu cho số điện thoại: ${phone}. Vui lòng giúp tôi lấy lại mật khẩu.`);
+                    window.location.href = `mailto:campusgreenbiz@gmail.com?subject=${subject}&body=${body}`;
+                  }
+                }}
+              >
+                Quên mật khẩu?
+              </Text>
             </Box>
           )}
 

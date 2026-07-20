@@ -1,6 +1,8 @@
 import CustomIcon from '../components/custom-icon';
 import React, { FC, useState, useEffect } from "react";
 import { Page, Header, Box, Text, List, Icon, useNavigate, Modal, Button, Input, Spinner, Avatar, useSnackbar } from "zmp-ui";
+import { AuthOverlay } from "./auth";
+import { getDefaultAvatar } from "../utils/avatar";
 import { auth, db } from "../firebase";
 import { signOut, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
 import { doc, getDoc, collection, query, where, getDocs, orderBy, updateDoc, increment, addDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
@@ -1416,7 +1418,7 @@ const SettingsPage: FC = () => {
                 <Box key={idx} flex alignItems="center" justifyContent="space-between" className="mb-3 pb-3 border-b border-gray-100 last:border-0">
                   <Box flex alignItems="center">
                     <Avatar 
-                      src={cus.avatar || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png"} 
+                      src={cus.avatar || getDefaultAvatar(cus.id)} 
                       size={40} 
                       className="border" 
                     />
@@ -2219,7 +2221,20 @@ const SettingsPage: FC = () => {
                 {selectedOrder.shopName && (
                   <Box flex justifyContent="space-between">
                     <Text size="small" className="text-gray-500">Cửa hàng:</Text>
-                    <Text size="small" bold className="text-gray-800">{selectedOrder.shopName}</Text>
+                    <Text 
+                      size="small" 
+                      bold 
+                      className="text-[#14502e] underline cursor-pointer"
+                      onClick={() => {
+                        setShowOrderDetailModal(false);
+                        const shopPhone = selectedOrder.shopId || selectedOrder.providerId || selectedOrder.ownerPhone;
+                        if (shopPhone) {
+                          setTimeout(() => navigate("/shop-details/" + shopPhone), 200);
+                        }
+                      }}
+                    >
+                      {selectedOrder.shopName}
+                    </Text>
                   </Box>
                 )}
               </Box>

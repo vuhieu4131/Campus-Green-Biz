@@ -2,6 +2,7 @@ import React, { FC, useState } from "react";
 import { useSetRecoilState } from "recoil";
 import { notificationsState } from "../state";
 import { Page, Box, Text, Icon, Avatar, Button, useSnackbar, useNavigate } from "zmp-ui";
+import { getDefaultAvatar } from "../utils/avatar";
 import { chooseImage } from "zmp-sdk";
 import { auth, db, storage } from "../firebase";
 import { collection, addDoc, serverTimestamp, query, where, getDocs, getDoc, doc, updateDoc, increment } from "firebase/firestore";
@@ -26,7 +27,7 @@ const CreatePostPage: FC = () => {
   const videoInputRef = React.useRef<HTMLInputElement>(null);
   const [video, setVideo] = useState<{url: string, file: File} | null>(null);
 
-  const avatarUrl = dbUserData?.avatar || dbUserData?.shopAvatar || currentUser?.photoURL || "https://i.pravatar.cc/150?img=11";
+  const avatarUrl = dbUserData?.avatar || dbUserData?.shopAvatar || currentUser?.photoURL || getDefaultAvatar(currentUser?.uid);
   const displayName = (userRole === "provider" || dbUserData?.collectionName === "shops" || dbUserData?.role === "provider")
     ? (dbUserData?.name || dbUserData?.shopName || dbUserData?.fullName || "Shop")
     : (dbUserData?.fullName || dbUserData?.name || currentUser?.displayName || currentUser?.email?.split('@')[0] || "Người dùng");
@@ -558,7 +559,7 @@ const CreatePostPage: FC = () => {
               </Box>
             ) : (
               allProducts.filter(p => String(p.title || p.name || "").toLowerCase().includes(searchProductQuery.toLowerCase())).map((p: any) => {
-                const img = p.image || p.images?.[0] || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png";
+                const img = p.image || p.images?.[0] || "";
                 return (
                   <Box 
                     key={p.id} 

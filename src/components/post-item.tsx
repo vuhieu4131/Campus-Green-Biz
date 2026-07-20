@@ -1,6 +1,7 @@
 import CustomIcon from './custom-icon';
 import React, { FC, useState } from "react";
 import { Box, Text, Avatar, Icon, Sheet, Input, useSnackbar, useNavigate } from "zmp-ui";
+import { getDefaultAvatar, getValidAvatar } from "../utils/avatar";
 import { ImageGrid } from "./image-grid";
 import { RawPost } from "../utils/edgeRanker";
 import { auth, db } from "../firebase";
@@ -338,7 +339,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
   };
 
   const resolvedAuthorName = maskPhoneNumber(authorProfile?.name || data.authorName || "Người dùng");
-  const resolvedAuthorAvatar = authorProfile?.avatar || data.authorAvatar || "https://i.pravatar.cc/150?img=11";
+  const resolvedAuthorAvatar = getValidAvatar(authorProfile?.avatar || data.authorAvatar, data.authorId);
 
   const handleLike = async () => {
     if (!isRealUser) {
@@ -421,7 +422,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
 
     try {
       let profileName = "Người dùng";
-      let profileAvatar = "https://i.pravatar.cc/150?img=11";
+      let profileAvatar = getDefaultAvatar(currentUser?.uid);
 
       const userRef = doc(db, "users", currentUser.uid);
       const userSnap = await getDoc(userRef);
@@ -450,7 +451,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
           }
         }
       }
-      if (profileAvatar === "https://i.pravatar.cc/150?img=11") {
+      if (profileAvatar === getDefaultAvatar(currentUser?.uid)) {
         profileAvatar = currentUser.photoURL || profileAvatar;
       }
 
@@ -744,7 +745,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
       onMouseUp={handleTouchEnd}
       onMouseLeave={handleTouchEnd}
     >
-      <Avatar src={cmt.authorAvatar || "https://i.pravatar.cc/150?img=11"} size={isReply ? 24 : 32} className="flex-shrink-0 mt-1" />
+      <Avatar src={getValidAvatar(cmt.authorAvatar, cmt.authorId)} size={isReply ? 24 : 32} className="flex-shrink-0 mt-1" />
       <Box className="flex-1 flex flex-col">
         <Box className="bg-gray-100 px-3 py-2 rounded-2xl w-fit max-w-[100%] active:bg-gray-200 transition-colors">
           <Text className="font-bold text-[14px] text-gray-800">{cmt.authorName || "Người dùng"}</Text>
@@ -877,7 +878,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
           <Box className="mx-4 mb-3 p-3 bg-gray-50 border border-gray-150 rounded-xl">
             {/* Original Author Info */}
             <Box className="flex items-center space-x-2 mb-2">
-              <Avatar src={data.originalPost.authorAvatar || "https://i.pravatar.cc/150?img=11"} size={28} className="border border-gray-200" />
+              <Avatar src={getValidAvatar(data.originalPost.authorAvatar, data.originalPost.authorId)} size={28} className="border border-gray-200" />
               <Text className="font-bold text-gray-800 text-[13px]">{data.originalPost.authorName}</Text>
             </Box>
             {/* Original Content */}
@@ -1178,7 +1179,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
             </Box>
           )}
           <Box className="flex space-x-3 items-center">
-            <Avatar src={currentUser?.photoURL || "https://i.pravatar.cc/150?img=11"} size={36} className="flex-shrink-0" />
+            <Avatar src={currentUser?.photoURL || getDefaultAvatar(currentUser?.uid)} size={36} className="flex-shrink-0" />
             <Box className="flex-1 bg-gray-100 rounded-full px-4 py-1 flex items-center">
               <Input
                 value={commentText}
@@ -1242,7 +1243,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
             setShowShare(false);
             try {
               let profileName = "Người dùng";
-              let profileAvatar = "https://i.pravatar.cc/150?img=11";
+              let profileAvatar = getDefaultAvatar(currentUser?.uid);
 
               const userRef = doc(db, "users", currentUser.uid);
               const userSnap = await getDoc(userRef);
@@ -1263,7 +1264,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
               if (profileName === "Người dùng") {
                 profileName = currentUser.displayName || currentUser.email?.split('@')[0] || profileName;
               }
-              if (profileAvatar === "https://i.pravatar.cc/150?img=11") {
+              if (profileAvatar === getDefaultAvatar(currentUser?.uid)) {
                 profileAvatar = currentUser.photoURL || profileAvatar;
               }
 

@@ -5,12 +5,13 @@ import { RawPost } from "../../utils/edgeRanker";
 import { db, auth } from "../../firebase";
 import { collection, query, getDocs, orderBy, limit, startAfter } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
+import { getDefaultAvatar } from "../../utils/avatar";
 
 const mockPosts: RawPost[] = [
   {
     id: "mock-p1",
     authorName: "Đức Nguyễn",
-    authorAvatar: "https://i.pravatar.cc/150?img=11",
+    authorAvatar: getDefaultAvatar("mock-p1"),
     content: "Hôm nay mình vừa mang gom vỏ hộp sữa giấy tái chế đến cơ sở đổi điểm. Cảm giác tích điểm đổi quà xanh thật là ý nghĩa! Mọi người cùng chung tay bảo vệ môi trường nhé! 🌿✨",
     images: ["https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=800&fit=crop"],
     likesCount: 24,
@@ -21,7 +22,7 @@ const mockPosts: RawPost[] = [
   {
     id: "mock-p2",
     authorName: "Hương Giang",
-    authorAvatar: "https://i.pravatar.cc/150?img=20",
+    authorAvatar: getDefaultAvatar("mock-p2"),
     content: "Shop Lâm Nghiệp Xanh hôm nay mới đăng bán thêm bộ thìa dĩa gỗ dừa siêu xinh, an toàn cho bé. Cả nhà vào gian hàng của shop xem thử nhé, giá hạt dẻ lắm luôn! 🥥🥄",
     images: ["https://images.unsplash.com/photo-1606115915090-be18fea23ce7?w=800&fit=crop"],
     likesCount: 15,

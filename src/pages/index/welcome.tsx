@@ -5,6 +5,7 @@ import { useRecoilValueLoadable } from "recoil";
 import { userState } from "state";
 import { auth, db } from "../../firebase";
 import { onAuthStateChanged } from "firebase/auth";
+import { getDefaultAvatar } from "../../utils/avatar";
 import { onSnapshot, doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import logo from "static/logo.png";
 
@@ -101,7 +102,7 @@ export const Welcome: FC = () => {
     };
   }, []);
 
-  const avatar = userInfo?.avatar || userData?.avatar || "https://i.pravatar.cc/150?img=11";
+  const avatar = userInfo?.avatar || userData?.avatar || getDefaultAvatar(userData?.id || auth.currentUser?.uid);
   const points = userData?.spendingPoints ?? userData?.points ?? 0;
 
   return (
