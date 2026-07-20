@@ -12,8 +12,8 @@
   "pages": [
     "/"
   ],
-  "listCSS": [],
-  "listSyncJS": [],
+  "listCSS": ["assets/index-k7RpN2Na.css"],
+  "listSyncJS": ["assets/index.CEmMi196.module.js"],
   "listAsyncJS": [],
   "template": {
     "name": "zaui-coffee",

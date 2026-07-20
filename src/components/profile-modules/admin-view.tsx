@@ -1,9 +1,9 @@
 import CustomIcon from '../custom-icon';
 import React, { FC, useState, useEffect } from "react";
 import { Box, Text, Icon, Modal, Avatar, Button, Input, useSnackbar, Spinner, Select, Switch, useNavigate, Page } from "zmp-ui";
-import { collection, query, where, getDocs, doc, updateDoc, deleteDoc, orderBy, addDoc, serverTimestamp, getDoc, setDoc, onSnapshot, increment } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, updateDoc, deleteDoc, orderBy, addDoc, serverTimestamp, getDoc, setDoc, onSnapshot, increment, collectionGroup } from "firebase/firestore";
 import { db, auth, storage } from "../../firebase";
-import { onAuthStateChanged, signOut } from "firebase/auth";
+import { onAuthStateChanged, signOut, updatePassword } from "firebase/auth";
 import { getDefaultAvatar, getValidAvatar } from "../../utils/avatar";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 const { Option } = Select;
@@ -99,6 +99,7 @@ export const AdminView: FC<AdminProps> = ({ userData, onLogout }) => {
   const [newAdminName, setNewAdminName] = useState("");
   const [newAdminPassword, setNewAdminPassword] = useState("");
   const [creatingAdmin, setCreatingAdmin] = useState(false);
+  const [adminTab, setAdminTab] = useState("create");
 
   const [detailUser, setDetailUser] = useState<any>(null);
   const [detailItem, setDetailItem] = useState<any>(null);
@@ -123,6 +124,63 @@ export const AdminView: FC<AdminProps> = ({ userData, onLogout }) => {
       };
       fetchReferrerForShop();
   }, [detailUser?.id, selectedFeature]);
+
+  const [detailUserVoucherCount, setDetailUserVoucherCount] = useState<number>(0);
+  const [detailUserTotalInteraction, setDetailUserTotalInteraction] = useState<number>(0);
+
+  useEffect(() => {
+      if (detailUser && (detailUser.id || detailUser.phone)) {
+          setDetailUserVoucherCount(0);
+          setDetailUserTotalInteraction(0);
+          const userId = detailUser.id || detailUser.phone;
+          
+          const fetchData = async () => {
+              // 1. Fetch vouchers
+              try {
+                  const q = query(collection(db, `users/${userId}/my_vouchers`));
+                  const snap = await getDocs(q);
+                  let count = 0;
+                  snap.forEach(doc => {
+                      if (!doc.data().isUsed) count++;
+                  });
+                  setDetailUserVoucherCount(count);
+              } catch(e) {
+                  setDetailUserVoucherCount(0);
+              }
+              
+              // 2. Fetch eligible interaction points (>48h)
+              try {
+                  const qTx = query(collection(db, "point_transactions"), where("userId", "==", userId));
+                  const txSnap = await getDocs(qTx);
+                  const now = new Date();
+                  let plusSum = 0;
+                  let minusSum = 0;
+
+                  txSnap.forEach(doc => {
+                      const tx = doc.data();
+                      if (tx.walletType === "interaction") {
+                          const isPlus = tx.type === "plus";
+                          if (isPlus) {
+                              const created = tx.createdAt?.toDate ? tx.createdAt.toDate() : (tx.createdAt?.seconds ? new Date(tx.createdAt.seconds * 1000) : null);
+                              if (created) {
+                                  const diffInHours = (now.getTime() - created.getTime()) / 3600000;
+                                  if (diffInHours >= 48) {
+                                      plusSum += tx.amount || 0;
+                                  }
+                              }
+                          } else {
+                              minusSum += tx.amount || 0;
+                          }
+                      }
+                  });
+                  setDetailUserTotalInteraction(Math.max(0, plusSum - minusSum));
+              } catch(e) {
+                  setDetailUserTotalInteraction(0);
+              }
+          };
+          fetchData();
+      }
+  }, [detailUser?.id, detailUser?.phone]);
 
   // 👉 BƯỚC 1: STATE CHO TÍNH NĂNG GỬI THÔNG BÁO RIÊNG
   const [showNotifyModal, setShowNotifyModal] = useState(false);
@@ -481,7 +539,6 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
 
   // 👉 BƯỚC 3: CẬP NHẬT HÀM TẢI DỮ LIỆU CÓ CHỨC NĂNG GOM NHÓM ĐỐI SOÁT
   const fetchData = async (featureId: string) => {
-    if (featureId === "create_admin") return;
     setLoading(true);
     setDataList([]);
     try {
@@ -489,6 +546,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
       switch (featureId) {
         case "members": q = query(collection(db, "users")); break;
         case "providers": q = query(collection(db, "shops")); break;
+        case "create_admin": q = query(collection(db, "users"), where("role", "==", "admin")); break;
         case "posts": q = query(collection(db, "services")); break;
         case "community_posts": q = query(collection(db, "posts")); break;
         case "banners": q = query(collection(db, "banners"), orderBy("createdAt", "desc")); break;
@@ -505,6 +563,40 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
       if (q) {
         const snapshot = await getDocs(q);
         let rawData = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
+        
+        // 👉 TỰ ĐỘNG ĐẾM VOUCHER CHO THÀNH VIÊN
+        if (featureId === "members") {
+            try {
+                const voucherSnap = await getDocs(collectionGroup(db, 'my_vouchers'));
+                const now = Date.now();
+                const voucherCounts: Record<string, number> = {};
+                
+                voucherSnap.docs.forEach(d => {
+                    const data = d.data();
+                    if (data.isUsed === false) {
+                        let isValid = true;
+                        if (data.expiryDate) {
+                            const exp = new Date(data.expiryDate).getTime();
+                            if (now > exp) isValid = false;
+                        }
+                        if (isValid) {
+                            const parentRef = d.ref.parent.parent;
+                            if (parentRef) {
+                                const userId = parentRef.id;
+                                voucherCounts[userId] = (voucherCounts[userId] || 0) + 1;
+                            }
+                        }
+                    }
+                });
+                
+                rawData.forEach(user => {
+                    user.voucherCount = voucherCounts[user.id] || 0;
+                });
+            } catch (e) {
+                console.error("Lỗi đếm voucher:", e);
+                rawData.forEach(user => { user.voucherCount = 0; });
+            }
+        }
         
         // 👉 TỰ ĐỘNG LÀM SẠCH: XÓA CÁC SHOP ĐĂNG KÝ SAU 30 NGÀY KHÔNG HOÀN THIỆN
         if (featureId === "providers") {
@@ -926,14 +1018,33 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
     if (!newAdminPhone || !newAdminName || !newAdminPassword) return openSnackbar({ text: "Thiếu thông tin!", type: "warning" });
     setCreatingAdmin(true);
     try {
-        const docRef = doc(db, "users", newAdminPhone);
-        if ((await getDoc(docRef)).exists()) { openSnackbar({ text: "SĐT đã tồn tại!", type: "error" }); } 
+        const qUser = query(collection(db, "users"), where("phone", "==", newAdminPhone));
+        const qSnap = await getDocs(qUser);
+        if (!qSnap.empty) { openSnackbar({ text: "SĐT đã tồn tại!", type: "error" }); } 
         else {
+            const docRef = doc(db, "users", newAdminPhone);
             await setDoc(docRef, { id: newAdminPhone, phone: newAdminPhone, name: newAdminName, password: newAdminPassword, role: "admin", avatar: "https://img.icons8.com/color/48/administrator-male.png", createdAt: serverTimestamp(), status: "active" });
             openSnackbar({ text: "Tạo Admin thành công!", type: "success" });
-            setNewAdminPhone(""); setNewAdminName(""); setNewAdminPassword(""); setSelectedFeature(null); 
+            setNewAdminPhone(""); setNewAdminName(""); setNewAdminPassword(""); 
+            fetchData("create_admin");
+            setAdminTab("list");
         }
     } catch (error) { openSnackbar({ text: "Lỗi", type: "error" }); } finally { setCreatingAdmin(false); }
+  };
+
+  const handleDeleteAdmin = async (adminId: string, adminPhone: string) => {
+    if (adminPhone === "0000869131") {
+        return openSnackbar({ text: "Không thể xóa Admin chính hệ thống!", type: "warning" });
+    }
+    if (window.confirm("Bạn có chắc chắn muốn xóa Admin này?")) {
+        try {
+            await deleteDoc(doc(db, "users", adminId));
+            openSnackbar({ text: "Đã xóa Admin thành công!", type: "success" });
+            fetchData("create_admin");
+        } catch (error) {
+            openSnackbar({ text: "Có lỗi khi xóa", type: "error" });
+        }
+    }
   };
   // 👉 BƯỚC 2: HÀM XÁC NHẬN THU TIỀN TỪ SHOP
   const [approvingFeeFor, setApprovingFeeFor] = useState<string | null>(null);
@@ -1028,21 +1139,29 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
           const configRef = doc(db, "system_config", "admin_settings");
           const configSnap = await getDoc(configRef);
           
-          if (configSnap.exists()) {
-              const currentConfig = configSnap.data();
-              // 👉 QUAN TRỌNG: Cho phép đổi nếu đúng mật khẩu trong DB HOẶC nhập mật khẩu cứu hộ 'admin'
-              if (currentConfig.password !== oldPass && oldPass !== "admin") {
-                  openSnackbar({ text: "Mật khẩu cũ không đúng!", type: "error" });
-                  setPassLoading(false);
-                  return;
-              }
-          } 
+          let actualOldPass = "123456";
+          if (configSnap.exists() && configSnap.data().password) {
+              actualOldPass = configSnap.data().password;
+          }
           
+          if (actualOldPass !== oldPass && oldPass !== "admin") {
+              openSnackbar({ text: "Mật khẩu cũ không đúng!", type: "error" });
+              setPassLoading(false);
+              return;
+          }
           // Cập nhật mật khẩu mới
           await setDoc(configRef, {
               username: "0000869131", 
               password: newPass
           }, { merge: true });
+
+          if (auth.currentUser) {
+              try {
+                  await updatePassword(auth.currentUser, newPass);
+              } catch (authError) {
+                  console.error("Lỗi đồng bộ mật khẩu Firebase Auth", authError);
+              }
+          }
 
           openSnackbar({ text: "Đổi mật khẩu thành công!", type: "success" });
           setShowChangePass(false); setOldPass(""); setNewPass(""); setConfirmPass("");
@@ -1169,12 +1288,53 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
   // RENDER MODAL CONTENT
   const renderModalContent = () => {
     if (selectedFeature === "create_admin") return (
-        <Box>
-            <Text size="small" className="mb-4 text-gray">Tạo tài khoản phụ.</Text>
-            <Box mb={4}><Input label="SĐT Admin" value={newAdminPhone} onChange={(e) => setNewAdminPhone(e.target.value)} type="number" /></Box>
-            <Box mb={4}><Input label="Tên hiển thị" value={newAdminName} onChange={(e) => setNewAdminName(e.target.value)} /></Box>
-            <Box mb={4}><Input.Password label="Mật khẩu" value={newAdminPassword} onChange={(e) => setNewAdminPassword(e.target.value)} /></Box>
-            <Button fullWidth loading={creatingAdmin} onClick={handleCreateAdmin}>Tạo tài khoản</Button>
+        <Box className="h-full flex flex-col bg-white">
+            <Box flex className="border-b border-gray-200 px-2 pt-2 bg-white shrink-0">
+                <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${adminTab==="create"?"border-blue-600 text-blue-600 font-bold":"border-transparent text-gray-500"}`} onClick={()=>setAdminTab("create")}>
+                    Tạo Admin
+                </Box>
+                <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${adminTab==="list"?"border-blue-600 text-blue-600 font-bold":"border-transparent text-gray-500"}`} onClick={()=>setAdminTab("list")}>
+                    Danh sách
+                </Box>
+            </Box>
+
+            <Box p={4} className="flex-1 overflow-y-auto hide-scroll">
+                {adminTab === "create" ? (
+                    <>
+                        <Text size="small" className="mb-4 text-gray-500 block">Tạo tài khoản phụ.</Text>
+                        <Box mb={4}><Input label="SĐT Admin" value={newAdminPhone} onChange={(e) => setNewAdminPhone(e.target.value)} type="number" /></Box>
+                        <Box mb={4}><Input label="Tên hiển thị" value={newAdminName} onChange={(e) => setNewAdminName(e.target.value)} /></Box>
+                        <Box mb={4}><Input.Password label="Mật khẩu" value={newAdminPassword} onChange={(e) => setNewAdminPassword(e.target.value)} /></Box>
+                        <Button fullWidth loading={creatingAdmin} onClick={handleCreateAdmin}>Tạo tài khoản</Button>
+                    </>
+                ) : (
+                    <>
+                        {loading ? (
+                            <Box flex justifyContent="center" p={4}><Spinner /></Box>
+                        ) : dataList.length === 0 ? (
+                            <Text className="text-center text-gray-500 mt-4">Chưa có admin phụ nào.</Text>
+                        ) : (
+                            dataList.map((admin) => (
+                                <Box key={admin.id} className="p-3 mb-3 border border-gray-100 rounded-xl shadow-sm flex items-center bg-gray-50">
+                                    <Avatar src={admin.avatar || "https://img.icons8.com/color/48/administrator-male.png"} size={48} className="mr-3 shrink-0" />
+                                    <Box flex flexDirection="column" className="flex-1">
+                                        <Text bold>{admin.name || admin.fullName}</Text>
+                                        <Text size="small" className="text-gray-500">SĐT: {admin.phone}</Text>
+                                    </Box>
+                                    {admin.phone !== "0000869131" && (
+                                        <Box 
+                                            className="ml-2 p-2 rounded-full bg-red-50 text-red-500 cursor-pointer active:bg-red-100 shrink-0"
+                                            onClick={() => handleDeleteAdmin(admin.id, admin.phone)}
+                                        >
+                                            <CustomIcon icon="zi-delete" />
+                                        </Box>
+                                    )}
+                                </Box>
+                            ))
+                        )}
+                    </>
+                )}
+            </Box>
         </Box>
     );
 
@@ -1194,21 +1354,15 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
             );
         }
 
-        // 2. Thuật toán đếm số người giới thiệu cực nhanh
-        const referralCounts: Record<string, number> = {};
-        dataList.forEach(u => {
-            const refVal = u.referrer || u.referralCode;
-            if (refVal) { referralCounts[refVal] = (referralCounts[refVal] || 0) + 1; }
-        });
-
         // 3. Logic Sắp xếp TOP
         if (sortFilter === 'top_spending') {
             processedList.sort((a, b) => (b.spendingPoints || 0) - (a.spendingPoints || 0));
         } else if (sortFilter === 'top_rank') {
             processedList.sort((a, b) => (b.rankPoints || 0) - (a.rankPoints || 0));
-        } else if (sortFilter === 'top_referral') {
-            processedList.forEach(m => m._refCount = referralCounts[m.phone] || 0);
-            processedList.sort((a, b) => (b._refCount || 0) - (a._refCount || 0));
+        } else if (sortFilter === 'top_interaction') {
+            processedList.sort((a, b) => (b.interactionPoints || 0) - (a.interactionPoints || 0));
+        } else if (sortFilter === 'top_voucher') {
+            processedList.sort((a, b) => (b.voucherCount || 0) - (a.voucherCount || 0));
         }
 
         return (
@@ -1225,9 +1379,10 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                   {/* Danh sách Chip bộ lọc cuộn ngang */}
                   <Box className="flex overflow-x-auto hide-scroll gap-2 mt-3 pb-1">
                       <Box onClick={() => setSortFilter("all")} className={`px-3 py-1.5 rounded-full whitespace-nowrap text-[11px] font-bold border cursor-pointer transition-colors ${sortFilter === "all" ? "bg-blue-600 text-white border-blue-600" : "bg-gray-50 text-gray-500 border-gray-200"}`}>Tất cả</Box>
-                      <Box onClick={() => setSortFilter("top_spending")} className={`px-3 py-1.5 rounded-full whitespace-nowrap text-[11px] font-bold border cursor-pointer transition-colors ${sortFilter === "top_spending" ? "bg-blue-600 text-white border-blue-600" : "bg-gray-50 text-gray-500 border-gray-200"}`}>Best Points</Box>
-                      <Box onClick={() => setSortFilter("top_rank")} className={`px-3 py-1.5 rounded-full whitespace-nowrap text-[11px] font-bold border cursor-pointer transition-colors ${sortFilter === "top_rank" ? "bg-yellow-500 text-white border-yellow-500" : "bg-gray-50 text-gray-500 border-gray-200"}`}>Best Rank</Box>
-                      <Box onClick={() => setSortFilter("top_referral")} className={`px-3 py-1.5 rounded-full whitespace-nowrap text-[11px] font-bold border cursor-pointer transition-colors ${sortFilter === "top_referral" ? "bg-purple-600 text-white border-purple-600" : "bg-gray-50 text-gray-500 border-gray-200"}`}>Best Ref</Box>
+                      <Box onClick={() => setSortFilter("top_rank")} className={`px-3 py-1.5 rounded-full whitespace-nowrap text-[11px] font-bold border cursor-pointer transition-colors ${sortFilter === "top_rank" ? "bg-blue-600 text-white border-blue-600" : "bg-gray-50 text-gray-500 border-gray-200"}`}>Rank</Box>
+                      <Box onClick={() => setSortFilter("top_spending")} className={`px-3 py-1.5 rounded-full whitespace-nowrap text-[11px] font-bold border cursor-pointer transition-colors ${sortFilter === "top_spending" ? "bg-blue-600 text-white border-blue-600" : "bg-gray-50 text-gray-500 border-gray-200"}`}>Ví ưu đãi</Box>
+                      <Box onClick={() => setSortFilter("top_interaction")} className={`px-3 py-1.5 rounded-full whitespace-nowrap text-[11px] font-bold border cursor-pointer transition-colors ${sortFilter === "top_interaction" ? "bg-blue-600 text-white border-blue-600" : "bg-gray-50 text-gray-500 border-gray-200"}`}>Ví tương tác</Box>
+                      <Box onClick={() => setSortFilter("top_voucher")} className={`px-3 py-1.5 rounded-full whitespace-nowrap text-[11px] font-bold border cursor-pointer transition-colors ${sortFilter === "top_voucher" ? "bg-blue-600 text-white border-blue-600" : "bg-gray-50 text-gray-500 border-gray-200"}`}>Ví voucher</Box>
                   </Box>
               </Box>
 
@@ -1258,9 +1413,10 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
     )}
                                   
                                   {/* Hiển thị lý do đứng Top */}
-                                  {sortFilter === 'top_spending' && <Text size="xxxxSmall" className="text-green-600 font-bold mt-0.5">Tiêu dùng: {m.spendingPoints || 0} đ</Text>}
-                                  {sortFilter === 'top_rank' && <Text size="xxxxSmall" className="text-yellow-600 font-bold mt-0.5">Tích lũy: {m.rankPoints || 0} đ</Text>}
-                                  {sortFilter === 'top_referral' && <Text size="xxxxSmall" className="text-purple-600 font-bold mt-0.5">Đã giới thiệu: {m._refCount || referralCounts[m.phone] || 0} người</Text>}
+                                  {sortFilter === 'top_rank' && <Text size="xxxxSmall" className="text-yellow-600 font-bold mt-0.5">Tổng tích lũy: {(m.rankPoints || 0).toLocaleString()} đ</Text>}
+                                  {sortFilter === 'top_spending' && <Text size="xxxxSmall" className="text-purple-600 font-bold mt-0.5">Ví ưu đãi: {(m.spendingPoints || 0).toLocaleString()} đ</Text>}
+                                  {sortFilter === 'top_interaction' && <Text size="xxxxSmall" className="text-green-600 font-bold mt-0.5">Ví tương tác: {(m.interactionPoints || 0).toLocaleString()}</Text>}
+                                  {sortFilter === 'top_voucher' && <Text size="xxxxSmall" className="text-blue-600 font-bold mt-0.5">Ví voucher: {(m.voucherCount || 0).toLocaleString()}</Text>}
                               </Box>
                               <Text size="xxSmall" className="bg-blue-100 text-blue-600 px-2 py-1 rounded mr-2 shrink-0">{m.rank || "Mới"}</Text>
                           </Box>
@@ -2673,8 +2829,20 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
         {detailUser && (
             <Box p={4} flex flexDirection="column" alignItems="center">
                 <Avatar src={getValidAvatar(detailUser.avatar, detailUser.id)} size={72} />
-<Text.Title size="normal" className="mt-3">{detailUser.name}</Text.Title>
-<Text size="small" className="text-gray mb-2">{detailUser.phone}</Text>
+                <Box className="flex items-center mt-3 gap-2">
+                    <Text.Title 
+                        size="normal" 
+                        className="cursor-pointer text-blue-700 active:opacity-50 transition-opacity" 
+                        onClick={() => {
+                            setDetailUser(null);
+                            navigate(`/profile?id=${detailUser.id || detailUser.phone}`);
+                        }}
+                    >
+                        {detailUser.fullName || detailUser.name || "Thành viên"}
+                    </Text.Title>
+                    <Text size="xxSmall" className="bg-blue-100 text-blue-600 px-2 py-0.5 rounded font-bold">{detailUser.rank || "Mới"}</Text>
+                </Box>
+                <Text size="small" className="text-gray mb-2 mt-1">{detailUser.phone}</Text>
 {/* 👉 Khối hiển thị Địa chỉ */}
 {detailUser.address && (
     <Box className="w-full bg-gray-50 p-3 rounded-lg border border-gray-100 mb-3 flex flex-col relative">
@@ -2688,10 +2856,6 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
     </Box>
 )}
 
-<Box className="w-full bg-blue-50 p-3 rounded-lg border border-blue-100 mb-2 flex justify-between">
-  <Text size="small">Vai trò</Text>
-  <Text size="small" bold className="uppercase text-blue-700">{(detailUser.role==='provider' || detailUser.shopName || selectedFeature === 'providers') ? 'Nhà cung cấp' : 'Thành viên'}</Text>
-  </Box>
 
 {/* 👉 Khối Nút Xem gian hàng */}
 {(detailUser.role === 'provider' || detailUser.shopName || selectedFeature === 'providers') && (
@@ -2707,16 +2871,17 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
     </Box>
 )}
                 {(detailUser.role==='provider' || detailUser.shopName || selectedFeature === 'providers') && (<Box className="w-full bg-orange-50 p-3 rounded-lg border border-orange-100 mb-2 flex justify-between items-center"><Text size="small">Người giới thiệu</Text><Text size="small" bold className="text-orange-700">{detailUser.referrerName && (detailUser.referrer || detailUser.referralCode) ? `${detailUser.referrerName} - ${detailUser.referrer || detailUser.referralCode}` : (detailUser.referrerName || detailUser.referrer || detailUser.referralCode || "Vãng lai")}</Text></Box>)}
-                <Box className="w-full bg-yellow-50 p-3 rounded-lg border border-yellow-100 mb-2 flex justify-between"><Text size="small">Hạng thành viên</Text><Text size="small" bold className="text-yellow-700">{detailUser.rank||"Mới"}</Text></Box>
+
                 <Box className="w-full grid grid-cols-2 gap-2 mt-2">
-                    <Box className="bg-gray-50 p-3 rounded-lg text-center border border-gray-100"><CustomIcon icon="zi-star-solid" className="text-yellow-500 mb-1" /><Text size="xxSmall" className="text-gray">Điểm tiêu dùng</Text><Text size="large" bold>{detailUser.spendingPoints?.toLocaleString()||0}</Text></Box>
-                    <Box className="bg-gray-50 p-3 rounded-lg text-center border border-gray-100"><CustomIcon icon="zi-poll-solid" className="text-green-500 mb-1" /><Text size="xxSmall" className="text-gray">Tổng tích lũy</Text><Text size="large" bold>{detailUser.rankPoints?.toLocaleString()||0}</Text></Box>
-                    {(detailUser.role === 'provider' || detailUser.shopName || selectedFeature === 'providers') && (
-                        <>
-                            <Box className="bg-gray-50 p-3 rounded-lg text-center border border-gray-100"><CustomIcon icon="zi-chat-solid" className="text-[#288F4E] mb-1" /><Text size="xxSmall" className="text-gray">Ví tương tác</Text><Text size="large" bold className="text-green-700">{(detailUser.interactionPoints || 0).toLocaleString()}</Text></Box>
-                            <Box className="bg-gray-50 p-3 rounded-lg text-center border border-gray-100"><CustomIcon icon="zi-star-solid" className="text-purple-600 mb-1" /><Text size="xxSmall" className="text-gray">Ví đẩy hàng VIP</Text><Text size="large" bold className="text-purple-700">{(detailUser.vipPushPoints || 0).toLocaleString()}</Text></Box>
-                        </>
-                    )}
+                    <Box className="bg-gray-50 p-3 rounded-lg text-center border border-gray-100 flex flex-col justify-center items-center"><CustomIcon icon="zi-ticket" className="text-blue-500 mb-1" /><Text size="xxSmall" className="text-gray">Ví voucher</Text><Text size="large" bold className="text-blue-700">{detailUserVoucherCount}</Text></Box>
+                    <Box className="bg-gray-50 p-3 rounded-lg text-center border border-gray-100 flex flex-col justify-center items-center"><CustomIcon icon="zi-poll-solid" className="text-green-500 mb-1" /><Text size="xxSmall" className="text-gray">Tổng tích lũy</Text><Text size="large" bold>{detailUser.rankPoints?.toLocaleString()||0}</Text></Box>
+                    <Box className="bg-gray-50 p-2 rounded-lg text-center border border-gray-100 flex flex-col justify-center items-center">
+                        <CustomIcon icon="zi-chat-solid" className="text-[#288F4E] mb-1" />
+                        <Text size="xxSmall" className="text-gray">Ví tương tác</Text>
+                        <Text size="xSmall" className="text-gray-500 mt-1">Tổng: <span className="font-bold text-[14px]">{(detailUser.interactionPoints || 0).toLocaleString()}</span></Text>
+                        <Text size="xSmall" className="text-green-700 mt-0.5">Khả dụng: <span className="font-bold text-[14px]">{detailUserTotalInteraction.toLocaleString()}</span></Text>
+                    </Box>
+                    <Box className="bg-gray-50 p-3 rounded-lg text-center border border-gray-100 flex flex-col justify-center items-center"><CustomIcon icon="zi-star-solid" className="text-purple-600 mb-1" /><Text size="xxSmall" className="text-gray">Ví ưu đãi</Text><Text size="large" bold className="text-purple-700">{(detailUser.spendingPoints || 0).toLocaleString()}</Text></Box>
                 </Box>
                 
                 {/* 👉 BƯỚC 3: NÚT GỬI THÔNG BÁO CHO NGƯỜI NÀY */}
@@ -2734,31 +2899,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                         <CustomIcon icon="zi-chat" className="mr-1" /> Gửi thông báo riêng
                     </Button>
                 </Box>
-                {/* 👉 BƯỚC 4: KHUNG LỊCH SỬ THÔNG BÁO */}
-                <Box mt={4} className="w-full border border-gray-200 rounded-xl overflow-hidden shadow-md">
-                    <Box className="bg-gray-50 p-2.5 border-b border-gray-200 flex justify-between items-center">
-                        <Text size="xSmall" bold className="text-gray-700">Lịch sử thông báo đã gửi</Text>
-                        <Text size="xxxxSmall" className="bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-bold">{userNotifs.length}</Text>
-                    </Box>
-                    
-                    <Box className="p-2 bg-white max-h-40 overflow-y-auto hide-scroll">
-                        {loadingNotifs ? (
-                            <Box flex justifyContent="center" py={3}><Spinner /></Box>
-                        ) : userNotifs.length === 0 ? (
-                            <Text size="xSmall" className="text-center text-gray-400 italic py-4">Chưa có thông báo nào.</Text>
-                        ) : (
-                            userNotifs.map((notif, idx) => (
-                                <Box key={notif.id || idx} className="mb-2 pb-2 border-b border-gray-50 last:border-0 last:mb-0 last:pb-0">
-                                    <Box flex justifyContent="space-between" mb={0.5}>
-                                        <Text size="xSmall" bold className="text-blue-800 line-clamp-1 flex-1 pr-2">{notif.title}</Text>
-                                        <Text size="xxxxSmall" className="text-gray-400 shrink-0">{formatDate(notif.createdAt)}</Text>
-                                    </Box>
-                                    <Text size="xxxxSmall" className="text-gray-600 line-clamp-2">{notif.content}</Text>
-                                </Box>
-                            ))
-                        )}
-                    </Box>
-                </Box>
+
             </Box>
         )}
       </Modal>
