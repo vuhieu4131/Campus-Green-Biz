@@ -359,16 +359,18 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
       });
       if (newLiked) {
         // Tích điểm tương tác (Thích bài viết): +1 điểm
-        // Kiểm tra giới hạn 30 điểm/ngày cho người thích
-        const isLikerCapped = await checkDailyPointsForAction(currentUser.uid, "like", 30);
-        if (!isLikerCapped) {
-          await awardInteractionPoints(currentUser.uid, 1, "Thưởng tương tác: Thích bài viết", data.id, "like");
-        }
-        // Kiểm tra giới hạn 30 điểm/ngày cho tác giả nhận like
-        if (data.authorId && data.authorId !== currentUser.uid) {
-          const isAuthorCapped = await checkDailyPointsForAction(data.authorId, "received_like", 30);
-          if (!isAuthorCapped) {
-            await awardInteractionPoints(data.authorId, 1, `Điểm tương tác: Bài viết được thích bởi ${currentUser.displayName || "Thành viên"}`, data.id, "received_like");
+        if (data.authorId !== currentUser.uid) {
+          // Kiểm tra giới hạn 30 điểm/ngày cho người thích
+          const isLikerCapped = await checkDailyPointsForAction(currentUser.uid, "like", 30);
+          if (!isLikerCapped) {
+            await awardInteractionPoints(currentUser.uid, 1, "Thưởng tương tác: Thích bài viết", data.id, "like");
+          }
+          // Kiểm tra giới hạn 30 điểm/ngày cho tác giả nhận like
+          if (data.authorId) {
+            const isAuthorCapped = await checkDailyPointsForAction(data.authorId, "received_like", 30);
+            if (!isAuthorCapped) {
+              await awardInteractionPoints(data.authorId, 1, `Điểm tương tác: Bài viết được thích bởi ${currentUser.displayName || "Thành viên"}`, data.id, "received_like");
+            }
           }
         }
       } else {
@@ -481,14 +483,14 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
       const commentSnap = await getDocs(qComment);
       const isFirstCommentOnPost = commentSnap.empty;
 
-      if (isFirstCommentOnPost) {
+      if (isFirstCommentOnPost && data.authorId !== currentUser.uid) {
         // Kiểm tra giới hạn 15 điểm/ngày cho người bình luận
         const isCommenterCapped = await checkDailyPointsForAction(currentUser.uid, "comment", 15);
         if (!isCommenterCapped) {
           await awardInteractionPoints(currentUser.uid, 5, "Thưởng tương tác: Bình luận bài viết", data.id, "comment");
         }
         // Kiểm tra giới hạn 15 điểm/ngày cho tác giả bài viết
-        if (data.authorId && data.authorId !== currentUser.uid) {
+        if (data.authorId) {
           const isAuthorCapped = await checkDailyPointsForAction(data.authorId, "received_comment", 15);
           if (!isAuthorCapped) {
             await awardInteractionPoints(data.authorId, 5, `Điểm tương tác: Bài viết được bình luận bởi ${currentUser.displayName || "Thành viên"}`, data.id, "received_comment");
@@ -1308,11 +1310,11 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
               const shareSnap = await getDocs(qShare);
               const isFirstShareOnPost = shareSnap.empty;
 
-              if (isFirstShareOnPost) {
+              if (isFirstShareOnPost && data.authorId !== currentUser.uid) {
                 // Tích điểm tương tác cho người chia sẻ bài viết (+10 điểm)
                 await awardInteractionPoints(currentUser.uid, 10, "Thưởng tương tác: Chia sẻ bài viết lên tường", data.id, "share");
                 // Tích điểm tương tác cho tác giả bài viết
-                if (data.authorId && data.authorId !== currentUser.uid) {
+                if (data.authorId) {
                   await awardInteractionPoints(data.authorId, 10, `Điểm tương tác: Bài viết được chia sẻ bởi ${currentUser.displayName || "Thành viên"}`, data.id, "received_share");
                 }
               }
