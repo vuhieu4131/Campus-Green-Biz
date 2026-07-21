@@ -147,9 +147,9 @@ const ProductDetailPage: FC = () => {
       const newCart = [...cart];
       const index = newCart.findIndex(i => i.product.id === product.id && JSON.stringify(i.options) === JSON.stringify(selectedOptions));
       if (index >= 0) {
-        newCart[index] = { ...newCart[index], quantity: newCart[index].quantity + quantity };
+        newCart[index] = { ...newCart[index], quantity: newCart[index].quantity + quantity, referrerId: location.state?.referrerId || newCart[index].referrerId };
       } else {
-        newCart.push({ product: { ...product, categoryId: ['store'] }, quantity, options: selectedOptions });
+        newCart.push({ product: { ...product, categoryId: ['store'] }, quantity, options: selectedOptions, referrerId: location.state?.referrerId });
       }
       return newCart;
     });
@@ -177,9 +177,9 @@ const ProductDetailPage: FC = () => {
       const newCart = [...cart];
       const index = newCart.findIndex(i => i.product.id === product.id && JSON.stringify(i.options) === JSON.stringify(selectedOptions));
       if (index >= 0) {
-        newCart[index] = { ...newCart[index], quantity: newCart[index].quantity + quantity };
+        newCart[index] = { ...newCart[index], quantity: newCart[index].quantity + quantity, referrerId: location.state?.referrerId || newCart[index].referrerId };
       } else {
-        newCart.push({ product: { ...product, categoryId: ['store'] }, quantity, options: selectedOptions });
+        newCart.push({ product: { ...product, categoryId: ['store'] }, quantity, options: selectedOptions, referrerId: location.state?.referrerId });
       }
       return newCart;
     });
@@ -255,34 +255,42 @@ const ProductDetailPage: FC = () => {
     const productPrice = Number(product.price || 0).toLocaleString('vi-VN') + 'đ';
     const productPoints = product.points ? ` (+${product.points} Điểm ưu đãi)` : "";
     const thumbImage: string = productImages[0] || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png";
-    const shareLink = `https://zalo.me/s/2196212719506893777/detail/${product.id}`;
+    const shareLink = `https://zalo.me/s/3525851935148341014/detail/${product.id}`;
 
+    // Tự động copy ngầm đường link
     try {
-      const shareOptions: any = {
-        type: "link",
-        title: productTitle,
-        subtitle: `Giá: ${productPrice}${productPoints} - Xem chi tiết trên Campus Green Biz!`,
-        link: shareLink,
-        thumb: thumbImage
-      };
-      await openShareSheet(shareOptions);
-    } catch (error) {
-      console.warn("Zalo openShareSheet failed, falling back to copy to clipboard:", error);
-      try {
-        await navigator.clipboard.writeText(`${productTitle}\nGiá: ${productPrice}${productPoints}\nLink xem: ${shareLink}`);
+      await navigator.clipboard.writeText(shareLink);
+      // Nếu là giả lập (không phải mobile) thì hiện thông báo
+      if (!/android|iphone|ipad|ipod/i.test(navigator.userAgent.toLowerCase())) {
         openSnackbar({
-          text: "Đã sao chép thông tin sản phẩm vào bộ nhớ tạm! 🎉",
+          text: "Đã copy link sản phẩm! (Simulator)",
           type: "success",
           position: "top"
         });
-      } catch (clipError) {
-        console.error("Copy to clipboard failed:", clipError);
-        openSnackbar({
-          text: "Không thể chia sẻ hoặc sao chép liên kết sản phẩm.",
-          type: "error",
-          position: "top"
-        });
       }
+    } catch (err) {
+      console.warn("Không thể copy link tự động:", err);
+    }
+
+    // Chuyển qua Danh sách Zalo
+    try {
+      const shareOptions: any = {
+        type: "zmp_deep_link",
+        data: {
+          title: productTitle,
+          description: `Giá: ${productPrice}${productPoints} - Xem chi tiết trên Campus Green Biz!`,
+          thumbnail: thumbImage,
+          path: `/detail/${product.id}`
+        }
+      };
+      await openShareSheet(shareOptions);
+    } catch (error) {
+      console.warn("Exception in openShareSheet:", error);
+      openSnackbar({
+        text: "Không thể mở danh sách chia sẻ Zalo.",
+        type: "error",
+        position: "top"
+      });
     }
   };
 
@@ -330,7 +338,7 @@ const ProductDetailPage: FC = () => {
           {/* Share Button */}
           <Box 
             onClick={handleShareProduct}
-            className="absolute bottom-4 right-4 bg-black/60 active:bg-black/80 text-white w-10 h-10 rounded-full flex items-center justify-center shadow-lg z-10 cursor-pointer backdrop-blur-sm transition-all"
+            className="absolute bottom-4 right-4 bg-black/60 active:bg-black/80 text-white w-10 h-10 rounded-full flex items-center justify-center shadow-lg z-50 cursor-pointer backdrop-blur-sm transition-all"
           >
             <Icon icon="zi-share" className="text-white text-xl" />
           </Box>
@@ -408,8 +416,8 @@ const ProductDetailPage: FC = () => {
                           onClick={() => handleSelectOption(attr.name, val)}
                           className={`px-3.5 py-1.5 rounded-lg border text-xs transition-all ${
                             isSelected
-                              ? "border-[#14502e] bg-green-50 text-[#14502e] font-semibold"
-                              : "border-gray-200 bg-gray-50 text-gray-600 active:bg-gray-100"
+                              ? "border-[#14502e] bg-[#14502e] text-white font-semibold shadow-sm"
+                              : "border-gray-300 bg-white text-gray-700 active:bg-gray-50"
                           }`}
                         >
                           {val}
@@ -511,7 +519,7 @@ const ProductDetailPage: FC = () => {
       {fullscreenVisible && (
         <div className="fixed inset-0 bg-black/95 z-[9999] flex flex-col justify-between select-none">
           {/* Header */}
-          <div className="flex justify-between items-center p-4 text-white z-10 w-full">
+          <div className="flex justify-between items-center p-4 pt-16 text-white z-10 w-full">
             <button 
               onClick={() => setFullscreenVisible(false)} 
               className="flex items-center space-x-1.5 p-2 bg-white/10 active:bg-white/20 rounded-full px-3 py-1.5 transition-colors text-white cursor-pointer"

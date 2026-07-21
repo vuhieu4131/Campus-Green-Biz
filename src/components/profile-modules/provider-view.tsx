@@ -676,6 +676,7 @@ const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
         const orderData = orderSnap.exists() ? orderSnap.data() : null;
 
         let updateData: any = { status: newStatus };
+        let finalBuyerPoints = 0;
 
         if (newStatus === 'completed' && orderData) {
             const totalAmount = Number(orderData.totalAmount || orderData.totalPrice || orderData.total || 0);
@@ -695,52 +696,100 @@ const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
             updateData.platformFeeRate = platformFeeRate;
 
             // 2. CỘNG ĐIỂM TÍCH LŨY (10.000đ = 1 điểm)
-            const pointsEarned = Math.floor(totalAmount / 10000); 
-            if (pointsEarned > 0) {
-                if (orderData.userId) {
-                    try {
-                        let userRef: any = null;
-                        let userDocId = "";
-                        
-                        const qUser = query(collection(db, "users"), where("phone", "==", orderData.userId));
-                        const userSnap = await getDocs(qUser);
-                        if (!userSnap.empty) {
-                            userRef = doc(db, "users", userSnap.docs[0].id);
-                            userDocId = userSnap.docs[0].id;
-                        } else {
-                            const directRef = doc(db, "users", orderData.userId);
-                            const directSnap = await getDoc(directRef);
-                            if (directSnap.exists()) {
-                                userRef = directRef;
-                                userDocId = orderData.userId;
+            let totalPoints = Math.floor(totalAmount / 10000); 
+            if (totalPoints > 0) {
+                let buyerPoints = totalPoints;
+                const referrerPoints: Record<string, number> = {};
+
+                const items = orderData.items || orderData.cartItems || [];
+                items.forEach((item: any) => {
+                    if (item.referrerId && item.referrerId !== orderData.userId && item.product?.price) {
+                        const itemAmount = (Number(item.product.price) * (item.quantity || 1));
+                        const itemPts = Math.floor(itemAmount / 10000);
+                        if (itemPts > 0) {
+                            const refPts = Math.floor(itemPts * 0.2); // 20%
+                            if (refPts > 0) {
+                                buyerPoints -= refPts;
+                                referrerPoints[item.referrerId] = (referrerPoints[item.referrerId] || 0) + refPts;
                             }
                         }
+                    }
+                });
+
+                if (buyerPoints < 0) buyerPoints = 0;
+                finalBuyerPoints = buyerPoints;
+
+                // Cộng điểm cho người mua (80%)
+                if (orderData.userId && buyerPoints > 0) {
+                    try {
+                        const qUser = query(collection(db, "users"), where("phone", "==", orderData.userId));
+                        const userSnap = await getDocs(qUser);
+                        const userDocId = !userSnap.empty ? userSnap.docs[0].id : orderData.userId;
+                        const userRef = doc(db, "users", userDocId);
                         
-                        if (userRef) {
-                            await updateDoc(userRef, { 
-                                spendingPoints: increment(pointsEarned), 
-                                rankPoints: increment(pointsEarned) 
-                            });
-                            
-                            await addDoc(collection(db, "point_transactions"), { 
+                        await setDoc(userRef, { 
+                            spendingPoints: increment(buyerPoints), 
+                            rankPoints: increment(buyerPoints) 
+                        }, { merge: true });
+                        
+                        await addDoc(collection(db, "point_transactions"), { 
                                 userId: userDocId, 
                                 type: "plus", 
-                                amount: pointsEarned, 
+                                amount: buyerPoints, 
                                 description: `Tích điểm từ đơn hàng #${orderData.orderCode || orderId.slice(0,6).toUpperCase()}`, 
                                 walletType: "main", 
                                 createdAt: serverTimestamp() 
                             });
-                        }
                     } catch (e) {
                         console.error("Lỗi cộng điểm khách hàng:", e);
+                    }
+                }
+
+                // Cộng điểm cho người giới thiệu (20%)
+                for (const [refId, rPts] of Object.entries(referrerPoints)) {
+                    try {
+                        let refDocId = refId;
+                        let refUserRef = doc(db, "users", refDocId);
+
+                        const qRef = query(collection(db, "users"), where("phone", "==", refId));
+                        const refSnap = await getDocs(qRef);
+                        if (!refSnap.empty) {
+                            refDocId = refSnap.docs[0].id;
+                            refUserRef = doc(db, "users", refDocId);
+                        }
+                        
+                        await setDoc(refUserRef, { 
+                            spendingPoints: increment(rPts), 
+                            rankPoints: increment(rPts) 
+                        }, { merge: true });
+                        
+                        await addDoc(collection(db, "point_transactions"), { 
+                                userId: refDocId, 
+                                type: "plus", 
+                                amount: rPts, 
+                                description: `Hoa hồng giới thiệu sản phẩm từ đơn hàng #${orderData.orderCode || orderId.slice(0,6).toUpperCase()}`, 
+                                walletType: "main", 
+                                createdAt: serverTimestamp() 
+                            });
+
+                            await addDoc(collection(db, "notifications"), {
+                                userId: refDocId,
+                                title: "Nhận điểm giới thiệu",
+                                content: `Bạn vừa nhận được ${rPts} điểm ưu đãi từ việc chia sẻ giới thiệu sản phẩm trong đơn hàng #${orderData.orderCode || orderId.slice(0,6).toUpperCase()}.`,
+                                type: "bonus",
+                                createdAt: serverTimestamp(),
+                                isRead: false
+                            });
+                    } catch (e) {
+                        console.error("Lỗi cộng điểm người giới thiệu:", e);
                     }
                 }
                 if (orderData.shopId) {
                     try {
                         const shopRef = doc(db, "shops", orderData.shopId);
                         await updateDoc(shopRef, { 
-                            spendingPoints: increment(pointsEarned), 
-                            rankPoints: increment(pointsEarned) 
+                            spendingPoints: increment(totalPoints), 
+                            rankPoints: increment(totalPoints) 
                         });
                     } catch (e) {
                         console.error("Lỗi cộng điểm shop:", e);
@@ -763,7 +812,7 @@ const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
                 notifContent = `Tài xế đang trên đường giao đơn hàng #${orderData.orderCode || orderId.slice(0, 6).toUpperCase()} cho bạn. Vui lòng chú ý điện thoại.`;
             } else if (newStatus === "completed") {
                 notifTitle = "Giao hàng thành công";
-                notifContent = `Đơn hàng #${orderData.orderCode || orderId.slice(0, 6).toUpperCase()} đã được giao đến bạn. Chúc bạn một ngày vui vẻ!`;
+                notifContent = `Đơn hàng #${orderData.orderCode || orderId.slice(0, 6).toUpperCase()} đã giao thành công.${finalBuyerPoints > 0 ? ` Bạn được cộng ${finalBuyerPoints} điểm ưu đãi!` : ''}`;
             } else if (newStatus === "cancelled") {
                 notifTitle = "Đơn hàng đã hủy";
                 notifContent = `Đơn hàng #${orderData.orderCode || orderId.slice(0, 6).toUpperCase()} của bạn đã bị hủy.`;

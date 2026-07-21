@@ -478,7 +478,8 @@ const CartPage: FC = () => {
             shopName: i.product.shopName || "Gian hàng"
           },
           quantity: i.quantity,
-          options: i.options
+          options: i.options,
+          referrerId: i.referrerId || null
         })),
         totalPrice: finalTotalPrice,
         originalPrice: activeTotalPrice,
@@ -569,88 +570,97 @@ const CartPage: FC = () => {
           return (
             <Box 
               key={gIdx} 
-              className={`bg-white border-b border-gray-150 shadow-sm transition-all duration-200 ${
+              className={`border-b border-gray-150 shadow-sm transition-all duration-200 ${
                 isActive 
-                  ? "ring-2 ring-green-600 ring-inset" 
-                  : "opacity-75"
+                  ? "bg-green-50 ring-2 ring-green-600 ring-inset" 
+                  : "bg-white opacity-75"
               }`}
             >
               {/* Header nhà cung cấp */}
-              <Box flex justifyContent="space-between" alignItems="center" className="p-3 bg-gray-50 border-b border-gray-150">
-                <Box flex alignItems="center" className="space-x-1.5 flex-1 truncate pr-2">
-                  <CustomIcon icon="zi-store" size={16} className="text-gray-500" />
-                  <Text bold size="small" className="text-gray-800 truncate">
-                    {shopName}
-                  </Text>
-                </Box>
-                {isActive ? (
-                  <span className="text-[11px] font-bold text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-full flex items-center">
-                    <Icon icon="zi-check" size={12} className="mr-1" /> Đang lên đơn
-                  </span>
-                ) : (
-                  <button 
-                    className="text-[11px] font-semibold text-blue-600 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-full active:bg-blue-100 focus:outline-none"
-                    onClick={() => setActiveShop(shopName)}
+              <Box flex justifyContent="space-between" alignItems="center" className={`p-3 border-b border-gray-150 ${isActive ? 'bg-green-50' : 'bg-gray-50'}`}>
+                <Box flex alignItems="center" className="flex-1 overflow-hidden">
+                  <Box onClick={() => setActiveShop(shopName)} className="mr-2 flex items-center justify-center cursor-pointer">
+                    {isActive ? (
+                      <Icon icon="zi-check-circle" className="text-green-600 text-[22px]" />
+                    ) : (
+                      <div className="w-[20px] h-[20px] rounded-full border-2 border-gray-300 bg-white" />
+                    )}
+                  </Box>
+                  <Box 
+                    flex 
+                    alignItems="center" 
+                    className="space-x-1.5 flex-1 truncate pr-2 cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const targetProduct = items[0]?.product as any;
+                      const shopId = targetProduct?.providerId || targetProduct?.shopId || targetProduct?.ownerPhone;
+                      if (shopId) navigate(`/shop-details/${shopId}`);
+                    }}
                   >
-                    Chọn lên đơn
-                  </button>
-                )}
+                    <CustomIcon icon="zi-store" size={16} className={isActive ? "text-green-600" : "text-gray-500"} />
+                    <Text bold size="small" className={`truncate active:text-green-600 ${isActive ? "text-green-800" : "text-gray-800"}`}>
+                      {shopName} <Icon icon="zi-chevron-right" className={`${isActive ? "text-green-500" : "text-gray-400"} inline-block align-middle`} size={14} />
+                    </Text>
+                  </Box>
+                </Box>
               </Box>
 
               {/* Danh sách các sản phẩm của nhà cung cấp này */}
-              <Box className="divide-y divide-gray-100">
-                {items.map((item, idx) => {
-                  const optText = Object.entries(item.options || {})
-                    .map(([k, v]) => `${k}: ${v}`)
-                    .join(", ");
+              {isActive && (
+                <Box className="divide-y divide-gray-100">
+                  {items.map((item, idx) => {
+                    const optText = Object.entries(item.options || {})
+                      .map(([k, v]) => `${k}: ${v}`)
+                      .join(", ");
 
-                  const globalIdx = findCartIndex(item);
+                    const globalIdx = findCartIndex(item);
 
-                  return (
-                    <Box key={idx} className="p-4">
-                      <Box flex className="space-x-3">
-                        <img src={item.product.image} className="w-16 h-16 object-cover rounded-lg border border-gray-100" alt="product" />
-                        <Box className="flex-1">
-                          <Text bold size="small" className="text-gray-900 leading-tight">
-                            {item.product.title || item.product.name}
-                          </Text>
-                          {optText && (
-                            <Text className="text-gray-500 text-xs mt-1">
-                              {optText}
+                    return (
+                      <Box key={idx} className="p-4">
+                        <Box flex className="space-x-3">
+                          <img src={item.product.image} className="w-16 h-16 object-cover rounded-lg border border-gray-100" alt="product" />
+                          <Box className="flex-1">
+                            <Text bold size="small" className="text-gray-900 leading-tight">
+                              {item.product.title || item.product.name}
                             </Text>
-                          )}
-                          <Box flex justifyContent="space-between" alignItems="center" className="mt-2 pt-1 border-t border-dashed border-gray-50">
-                            <Text bold className="text-[#14502e] text-sm">
-                              {item.product.price?.toLocaleString("vi-VN")}đ
-                            </Text>
-                            <Box flex alignItems="center" className="space-x-2">
-                              <button 
-                                onClick={() => handleUpdateQuantity(globalIdx, -1)}
-                                className="w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 active:scale-95 transition-transform flex items-center justify-center text-gray-600 font-bold cursor-pointer"
-                              >
-                                {item.quantity === 1 ? (
-                                  <Icon icon="zi-delete" size={14} className="text-red-500" />
-                                ) : (
-                                  "-"
-                                )}
-                              </button>
-                              <Text size="small" bold className="text-gray-800 w-6 text-center">
-                                {item.quantity}
+                            {optText && (
+                              <Text className="text-gray-500 text-xs mt-1">
+                                {optText}
                               </Text>
-                              <button 
-                                onClick={() => handleUpdateQuantity(globalIdx, 1)}
-                                className="w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 active:scale-95 transition-transform flex items-center justify-center text-gray-600 font-bold cursor-pointer"
-                              >
-                                +
-                              </button>
+                            )}
+                            <Box flex justifyContent="space-between" alignItems="center" className="mt-2 pt-1 border-t border-dashed border-gray-50">
+                              <Text bold className="text-[#14502e] text-sm">
+                                {item.product.price?.toLocaleString("vi-VN")}đ
+                              </Text>
+                              <Box flex alignItems="center" className="space-x-2">
+                                <button 
+                                  onClick={() => handleUpdateQuantity(globalIdx, -1)}
+                                  className="w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 active:scale-95 transition-transform flex items-center justify-center text-gray-600 font-bold cursor-pointer"
+                                >
+                                  {item.quantity === 1 ? (
+                                    <Icon icon="zi-delete" size={14} className="text-red-500" />
+                                  ) : (
+                                    "-"
+                                  )}
+                                </button>
+                                <Text size="small" bold className="text-gray-800 w-6 text-center">
+                                  {item.quantity}
+                                </Text>
+                                <button 
+                                  onClick={() => handleUpdateQuantity(globalIdx, 1)}
+                                  className="w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 active:scale-95 transition-transform flex items-center justify-center text-gray-600 font-bold cursor-pointer"
+                                >
+                                  +
+                                </button>
+                              </Box>
                             </Box>
                           </Box>
                         </Box>
                       </Box>
-                    </Box>
-                  );
-                })}
-              </Box>
+                    );
+                  })}
+                </Box>
+              )}
             </Box>
           );
         })}

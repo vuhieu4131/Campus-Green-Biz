@@ -523,6 +523,11 @@ const SettingsPage: FC = () => {
             const qNotifs = query(collection(db, "notifications"), where("userId", "==", userId));
             const notifsSnap = await getDocs(qNotifs);
             const notifContents = new Set(notifsSnap.docs.map(doc => doc.data().content));
+
+            // Fetch existing point transactions to avoid duplicates
+            const qCachedTx = query(collection(db, "point_transactions"), where("userId", "==", userId));
+            const cachedTxSnap = await getDocs(qCachedTx);
+            const existingTxDescriptions = cachedTxSnap.docs.map(doc => doc.data().description || "");
             
             // 1. Đồng bộ các đơn hàng đã Hoàn thành trong quá khứ
             if (userPhone) {
@@ -536,13 +541,8 @@ const SettingsPage: FC = () => {
                 const totalAmount = Number(order.totalAmount || order.totalPrice || order.total || 0);
                 const pointsEarned = Math.floor(totalAmount / 10000);
                 
-                const qTx = query(
-                  collection(db, "point_transactions"),
-                  where("userId", "==", userId),
-                  where("description", "==", `Tích điểm từ đơn hàng #${orderCodeStr}`)
-                );
-                const txSnap = await getDocs(qTx);
-                if (txSnap.empty) {
+                const isOrderAwarded = existingTxDescriptions.some(desc => desc === `Tích điểm từ đơn hàng #${orderCodeStr}`);
+                if (!isOrderAwarded) {
                   if (pointsEarned > 0) {
                     totalPointsToAward += pointsEarned;
                     await addDoc(collection(db, "point_transactions"), {
@@ -596,13 +596,9 @@ const SettingsPage: FC = () => {
                 const rPhone = (refData as any).phone || "";
                 const rName = (refData as any).fullName || (refData as any).name || "Khách";
                 
-                const qTx = query(
-                  collection(db, "point_transactions"),
-                  where("userId", "==", userId),
-                  where("description", "==", `Thưởng giới thiệu thành viên mới: ${rName} (${rPhone})`)
-                );
-                const txSnap = await getDocs(qTx);
-                if (txSnap.empty) {
+                // Check if already awarded points for this phone number
+                const isReferralAwarded = existingTxDescriptions.some(desc => desc.startsWith("Thưởng giới thiệu thành viên mới: ") && desc.includes(`(${rPhone})`));
+                if (!isReferralAwarded) {
                   totalPointsToAward += 10;
                   await addDoc(collection(db, "point_transactions"), {
                     userId: userId,
@@ -635,13 +631,8 @@ const SettingsPage: FC = () => {
             if (currentData?.referralCode) {
               const refCodeStr = String(currentData.referralCode).trim();
               if (refCodeStr) {
-                const qTx = query(
-                  collection(db, "point_transactions"),
-                  where("userId", "==", userId),
-                  where("description", "==", `Thưởng nhập mã giới thiệu từ: ${refCodeStr}`)
-                );
-                const txSnap = await getDocs(qTx);
-                if (txSnap.empty) {
+                const isRefCodeAwarded = existingTxDescriptions.some(desc => desc === `Thưởng nhập mã giới thiệu từ: ${refCodeStr}`);
+                if (!isRefCodeAwarded) {
                   totalPointsToAward += 5;
                   await addDoc(collection(db, "point_transactions"), {
                     userId: userId,
@@ -2345,6 +2336,49 @@ const SettingsPage: FC = () => {
                   <Text size="small" bold className="text-gray-800">Thực tế thanh toán:</Text>
                   <Text size="small" bold className="text-red-500">{finalPrice.toLocaleString('vi-VN')}đ</Text>
                 </Box>
+                
+                {(() => {
+                  const totalAmount = selectedOrder.totalAmount || selectedOrder.totalPrice || selectedOrder.total || 0;
+                  let expectedBuyerPoints = Math.floor(totalAmount / 10000);
+                  let expectedReferrerPoints = 0;
+                  const itemsToCalc = selectedOrder.items || selectedOrder.cartItems || [];
+                  const buyerId = selectedOrder.userId || auth.currentUser?.uid;
+                  
+                  if (itemsToCalc.length > 0 && expectedBuyerPoints > 0) {
+                    itemsToCalc.forEach((item: any) => {
+                      if (item.referrerId && item.referrerId !== buyerId && item.product?.price) {
+                        const itemTotal = Number(item.product.price) * (item.quantity || 1);
+                        const itemPts = Math.floor(itemTotal / 10000);
+                        if (itemPts > 0) {
+                          const refPts = Math.floor(itemPts * 0.2);
+                          if (refPts > 0) {
+                            expectedReferrerPoints += refPts;
+                            expectedBuyerPoints -= refPts;
+                          }
+                        }
+                      }
+                    });
+                  }
+                  if (expectedBuyerPoints < 0) expectedBuyerPoints = 0;
+
+                  if (expectedBuyerPoints > 0 || expectedReferrerPoints > 0) {
+                    return (
+                      <Box className="mt-2 pt-2 border-t border-dashed border-gray-100 space-y-1">
+                        <Box flex justifyContent="space-between">
+                          <Text size="xSmall" className="text-gray-600">Điểm ưu đãi nhận được:</Text>
+                          <Text size="small" bold className="text-green-600">+{expectedBuyerPoints} điểm</Text>
+                        </Box>
+                        {expectedReferrerPoints > 0 && (
+                          <Box flex justifyContent="space-between">
+                            <Text size="xSmall" className="text-gray-500 italic">Chia sẻ cho người giới thiệu (20%):</Text>
+                            <Text size="xSmall" bold className="text-blue-500">+{expectedReferrerPoints} điểm</Text>
+                          </Box>
+                        )}
+                      </Box>
+                    );
+                  }
+                  return null;
+                })()}
               </Box>
             </Box>
           );

@@ -8,6 +8,7 @@ import { auth, db } from "../firebase";
 import { doc, updateDoc, increment, collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, deleteDoc, arrayUnion, arrayRemove, getDoc, getDocs, where } from "firebase/firestore";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { AuthOverlay } from "../pages/auth";
+import { openShareSheet } from "zmp-sdk/apis";
 
 const awardReputationPoints = async (userId: string, amount: number, description: string) => {
   try {
@@ -926,7 +927,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
                     image: data.originalPost.attachedProduct.image,
                     images: [data.originalPost.attachedProduct.image],
                   };
-                  navigate(`/detail/${data.originalPost.attachedProduct.id}`, { state: { product: prod } });
+                  navigate(`/detail/${data.originalPost.attachedProduct.id}`, { state: { product: prod, referrerId: data.authorId } });
                 }}
               >
                 {data.originalPost.attachedProduct.image && (
@@ -1026,7 +1027,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
                   image: data.attachedProduct.image,
                   images: [data.attachedProduct.image],
                 };
-                navigate(`/detail/${data.attachedProduct.id}`, { state: { product: prod } });
+                navigate(`/detail/${data.attachedProduct.id}`, { state: { product: prod, referrerId: data.authorId } });
               }}
             >
               {data.attachedProduct.image && (
@@ -1171,7 +1172,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
             ))
           )}
         </Box>
-        <Box className="p-3 border-t border-gray-200 flex flex-col bg-white">
+        <Box className="p-3 pb-24 border-t border-gray-200 flex flex-col bg-white">
           {replyingTo && (
             <Box className="flex items-center justify-between mb-2 px-2 bg-gray-50 rounded p-1">
               <Text size="xSmall" className="text-gray-600">Đang trả lời <span className="font-bold">{replyingTo.authorName}</span></Text>
@@ -1324,19 +1325,49 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
             <Box className="w-14 h-14 bg-[#14502e] rounded-full flex items-center justify-center mb-2 text-white shadow-md"><CustomIcon icon="zi-share" className="text-2xl" /></Box>
             <Text size="xSmall" className="text-center font-medium text-gray-600">Lên tường</Text>
           </Box>
-          <Box className="flex flex-col items-center cursor-pointer" onClick={() => { setShowShare(false); openSnackbar({ text: "Tính năng đang phát triển", type: "info" }); }}>
+          <Box className="flex flex-col items-center cursor-pointer" onClick={async () => {
+            const postDesc = data.content ? (data.content.length > 50 ? data.content.substring(0, 50) + "..." : data.content) : "Xem bài viết trên Campus Green Biz";
+            const postThumb = data.images && data.images.length > 0 ? data.images[0] : "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png";
+            try {
+              await openShareSheet({
+                type: "zmp_deep_link",
+                data: {
+                  title: "Campus Green Biz - Bài viết",
+                  description: postDesc,
+                  thumbnail: postThumb,
+                  path: `/post-detail?id=${data.id}`
+                }
+              } as any);
+              setShowShare(false);
+              try {
+                await updateDoc(doc(db, "posts", data.id), { sharesCount: increment(1) });
+                setSharesCount(prev => prev + 1);
+              } catch (e) {}
+            } catch (error) {
+              console.warn("Exception in openShareSheet:", error);
+              openSnackbar({ text: "Không thể mở danh sách chia sẻ Zalo.", type: "error" });
+            }
+          }}>
             <Box className="w-14 h-14 bg-[#0068ff] rounded-full flex items-center justify-center mb-2 text-white shadow-md"><CustomIcon icon="zi-chat" className="text-2xl" /></Box>
             <Text size="xSmall" className="text-center font-medium text-gray-600">Gửi bạn bè</Text>
           </Box>
           <Box className="flex flex-col items-center cursor-pointer" onClick={async () => {
-            navigator.clipboard?.writeText(`https://zalo.me/s/campus-green-biz/post-detail/${data.id}`); 
-            openSnackbar({ text: "Đã sao chép liên kết" }); 
-            setShowShare(false);
+            const shareLink = `https://zalo.me/s/3525851935148341014/?path=/post-detail?id=${data.id}`;
+            const postDesc = data.content ? (data.content.length > 50 ? data.content.substring(0, 50) + "..." : data.content) : "Xem chi tiết bài viết";
+            const clipboardText = `Campus Green Biz - Bài viết\n${postDesc}\nLink xem: ${shareLink}`;
+            
             try {
-              await updateDoc(doc(db, "posts", data.id), { sharesCount: increment(1) });
-              setSharesCount(prev => prev + 1);
-              // Không tính điểm khi sao chép liên kết chia sẻ theo yêu cầu
-            } catch (e) {}
+              await navigator.clipboard.writeText(clipboardText); 
+              openSnackbar({ text: "Đã sao chép nội dung bài viết và link!" }); 
+              setShowShare(false);
+              try {
+                await updateDoc(doc(db, "posts", data.id), { sharesCount: increment(1) });
+                setSharesCount(prev => prev + 1);
+              } catch (e) {}
+            } catch (err) {
+              console.warn("Lỗi sao chép:", err);
+              openSnackbar({ text: "Lỗi sao chép liên kết", type: "error" }); 
+            }
           }}>
             <Box className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mb-2 text-gray-700 shadow-md border border-gray-200"><CustomIcon icon="zi-copy" className="text-2xl" /></Box>
             <Text size="xSmall" className="text-center font-medium text-gray-600">Sao chép link</Text>
