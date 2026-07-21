@@ -15,6 +15,15 @@ const formatDate = (timestamp) => {
   return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()} ${date.getHours()}:${date.getMinutes()}`;
 };
 
+const calculateMemberRankInfo = (points: number) => {
+  const p = points || 0;
+  if (p < 100) return { name: "Thành viên mới", sub: "NEW MEMBER", color: "bg-gray-50 text-gray-600 border-gray-200", icon: "zi-star", target: 100 };
+  if (p < 500) return { name: "Hạng Đồng", sub: "KHÁCH HÀNG THÂN THIẾT", color: "bg-[#fffbeb] text-[#b45309] border-[#fde68a]", icon: "zi-shield-solid", target: 500 };
+  if (p < 1000) return { name: "Hạng Bạc", sub: "SILVER STATUS", color: "bg-[#f8fafc] text-[#475569] border-[#e2e8f0]", icon: "zi-heart-solid", target: 1000 };
+  if (p < 2000) return { name: "Hạng Vàng", sub: "ELITE STATUS", color: "bg-[#fffdf5] text-[#ca8a04] border-[#fef08a]", icon: "zi-diamond", target: 2000 };
+  return { name: "Hạng Kim Cương", sub: "DIAMOND STATUS", color: "bg-[#faf5ff] text-[#9333ea] border-[#e9d5ff]", icon: "zi-diamond-solid", target: 999999 };
+};
+
 const handleShareOrder = async (order) => {
   try {
     const orderCode = order.orderCode || order.id?.slice(0, 8).toUpperCase() || "UNKNOWN";
@@ -1418,7 +1427,10 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                   {sortFilter === 'top_interaction' && <Text size="xxxxSmall" className="text-green-600 font-bold mt-0.5">Ví tương tác: {(m.interactionPoints || 0).toLocaleString()}</Text>}
                                   {sortFilter === 'top_voucher' && <Text size="xxxxSmall" className="text-blue-600 font-bold mt-0.5">Ví voucher: {(m.voucherCount || 0).toLocaleString()}</Text>}
                               </Box>
-                              <Text size="xxSmall" className="bg-blue-100 text-blue-600 px-2 py-1 rounded mr-2 shrink-0">{m.rank || "Mới"}</Text>
+                              <Box className={`flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border shadow-xs mr-2 shrink-0 ${calculateMemberRankInfo(m.rankPoints || 0).color}`}>
+                                  <CustomIcon icon={calculateMemberRankInfo(m.rankPoints || 0).icon as any} size={10} className="mr-1 inline-flex" />
+                                  <span>{calculateMemberRankInfo(m.rankPoints || 0).name}</span>
+                              </Box>
                           </Box>
                           <Box className="p-2 ml-1 cursor-pointer active:opacity-50" onClick={(e) => { e.stopPropagation(); handleDeleteItem("users", m.id); }}>
                               <CustomIcon icon="zi-delete" className="text-red-500" />
@@ -2829,7 +2841,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
         {detailUser && (
             <Box p={4} flex flexDirection="column" alignItems="center">
                 <Avatar src={getValidAvatar(detailUser.avatar, detailUser.id)} size={72} />
-                <Box className="flex items-center mt-3 gap-2">
+                <Box className="flex flex-col items-center mt-3 gap-1.5">
                     <Text.Title 
                         size="normal" 
                         className="cursor-pointer text-blue-700 active:opacity-50 transition-opacity" 
@@ -2838,20 +2850,25 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                             navigate(`/profile?id=${detailUser.id || detailUser.phone}`);
                         }}
                     >
-                        {detailUser.fullName || detailUser.name || "Thành viên"}
+                        {selectedFeature === 'providers' ? (detailUser.name || detailUser.shopName || detailUser.phone || "Nhà cung cấp") : (detailUser.fullName || detailUser.name || "Thành viên")}
                     </Text.Title>
-                    <Text size="xxSmall" className="bg-blue-100 text-blue-600 px-2 py-0.5 rounded font-bold">{detailUser.rank || "Mới"}</Text>
+                    <Box className={`flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border shadow-xs ${calculateMemberRankInfo(detailUser.rankPoints || 0).color}`}>
+                        <CustomIcon icon={calculateMemberRankInfo(detailUser.rankPoints || 0).icon as any} size={10} className="mr-1 inline-flex" />
+                        <span>{calculateMemberRankInfo(detailUser.rankPoints || 0).name}</span>
+                    </Box>
                 </Box>
                 <Text size="small" className="text-gray mb-2 mt-1">{detailUser.phone}</Text>
-{/* 👉 Khối hiển thị Địa chỉ */}
-{detailUser.address && (
-    <Box className="w-full bg-gray-50 p-3 rounded-lg border border-gray-100 mb-3 flex flex-col relative">
+
+
+{/* 👉 Khối hiển thị Quản lý shop */}
+{selectedFeature === 'providers' && (detailUser.managerName || detailUser.fullName || detailUser.ownerName) && (
+    <Box className="w-full bg-blue-50 p-3 rounded-lg border border-blue-100 mb-3 flex flex-col relative">
         <Box flex alignItems="center" mb={1}>
-            <CustomIcon icon="zi-location" size={16} className="text-red-500 mr-1" />
-            <Text size="xSmall" className="text-gray-500">Địa chỉ liên hệ</Text>
+            <CustomIcon icon="zi-user" size={16} className="text-blue-500 mr-1" />
+            <Text size="xSmall" className="text-gray-500">Quản lý shop</Text>
         </Box>
         <Text size="small" bold className="text-gray-800">
-            {detailUser.address}
+            {detailUser.managerName || detailUser.fullName || detailUser.ownerName}
         </Text>
     </Box>
 )}

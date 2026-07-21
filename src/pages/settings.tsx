@@ -539,7 +539,25 @@ const SettingsPage: FC = () => {
                 const orderId = orderDoc.id;
                 const orderCodeStr = order.orderCode || orderId.slice(0, 6).toUpperCase();
                 const totalAmount = Number(order.totalAmount || order.totalPrice || order.total || 0);
-                const pointsEarned = Math.floor(totalAmount / 10000);
+                let pointsEarned = Math.floor(totalAmount / 10000);
+                
+                const itemsToCalc = order.items || order.cartItems || [];
+                const buyerId = order.userId || userId;
+                if (itemsToCalc.length > 0 && pointsEarned > 0) {
+                  itemsToCalc.forEach((item: any) => {
+                    if (item.referrerId && item.referrerId !== buyerId && item.product?.price) {
+                      const itemTotal = Number(item.product.price) * (item.quantity || 1);
+                      const itemPts = Math.floor(itemTotal / 10000);
+                      if (itemPts > 0) {
+                        const refPts = Math.floor(itemPts * 0.2);
+                        if (refPts > 0) {
+                          pointsEarned -= refPts;
+                        }
+                      }
+                    }
+                  });
+                }
+                if (pointsEarned < 0) pointsEarned = 0;
                 
                 const isOrderAwarded = existingTxDescriptions.some(desc => desc === `Tích điểm từ đơn hàng #${orderCodeStr}`);
                 if (!isOrderAwarded) {
@@ -681,7 +699,25 @@ const SettingsPage: FC = () => {
                   const txDoc = txSnap.docs[0];
                   const txData = txDoc.data();
                   const totalAmount = Number(order.totalAmount || order.totalPrice || order.total || 0);
-                  const correctPoints = Math.floor(totalAmount / 10000);
+                  let correctPoints = Math.floor(totalAmount / 10000);
+                  
+                  const itemsToCalc = order.items || order.cartItems || [];
+                  const buyerId = order.userId || userId;
+                  if (itemsToCalc.length > 0 && correctPoints > 0) {
+                    itemsToCalc.forEach((item: any) => {
+                      if (item.referrerId && item.referrerId !== buyerId && item.product?.price) {
+                        const itemTotal = Number(item.product.price) * (item.quantity || 1);
+                        const itemPts = Math.floor(itemTotal / 10000);
+                        if (itemPts > 0) {
+                          const refPts = Math.floor(itemPts * 0.2);
+                          if (refPts > 0) {
+                            correctPoints -= refPts;
+                          }
+                        }
+                      }
+                    });
+                  }
+                  if (correctPoints < 0) correctPoints = 0;
                   
                   if (txData.amount !== correctPoints) {
                     await updateDoc(doc(db, "point_transactions", txDoc.id), {
