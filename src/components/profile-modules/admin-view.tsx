@@ -1683,6 +1683,31 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                             <Text bold size="small" className="line-clamp-2">{displayTitle}</Text>
                             <Text size="xxSmall" className="text-gray">{displaySubtitle}</Text>
                             <Text size="xxSmall" className="text-gray">{formatDate(p.createdAt)}</Text>
+                            {(() => {
+                              const adminRate = Number(rewardPointRate) || 10;
+                              const pRate = p.rewardRate ? Number(p.rewardRate) : adminRate;
+                              const isHighRate = pRate > adminRate;
+                              const parsePriceStr = (val: any) => {
+                                  if (!val) return 0;
+                                  if (typeof val === 'number') return val;
+                                  const parsed = Number(val.toString().replace(/[^0-9]/g, ''));
+                                  return isNaN(parsed) ? 0 : parsed;
+                              };
+                              const basePrice = parsePriceStr(p.minPrice !== undefined ? p.minPrice : p.price);
+                              const earnedPoints = Math.floor((basePrice * (pRate / 100)) / 1000);
+                              
+                              if (earnedPoints > 0) {
+                                return (
+                                  <Box className="flex mt-1">
+                                    <Box className={`${isHighRate ? 'bg-gradient-to-r from-red-500 to-orange-500' : 'bg-gradient-to-r from-yellow-500 to-amber-500'} rounded-full px-1.5 py-0.5 flex items-center shadow-sm`}>
+                                      <CustomIcon icon="zi-star-solid" size={10} className="text-white mr-1" />
+                                      <Text className="text-white text-[10px] font-bold">+{earnedPoints} Điểm ưu đãi {isHighRate ? '🔥' : ''}</Text>
+                                    </Box>
+                                  </Box>
+                                );
+                              }
+                              return null;
+                            })()}
                           </Box>
                         </Box>
                         <Box flex justifyContent="space-between" alignItems="center">

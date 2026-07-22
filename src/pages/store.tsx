@@ -393,7 +393,7 @@ const HotProducts: FC<{ products: any[]; onProductClick: (product: any) => void;
   return (
     <Box className="mt-6 mb-4">
       <Text.Title className="font-bold text-base text-[#14502e] mb-3 px-4">Sản phẩm Hot 🔥</Text.Title>
-      <Box className="flex overflow-x-auto gap-3 pb-3 hide-scrollbar px-4">
+      <Box className="flex flex-nowrap overflow-x-auto gap-3 pb-3 hide-scrollbar px-4" style={{ WebkitOverflowScrolling: 'touch' }}>
         <style>{`
           .hide-scrollbar::-webkit-scrollbar { display: none; }
           .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -410,15 +410,39 @@ const HotProducts: FC<{ products: any[]; onProductClick: (product: any) => void;
             />
             <Text className="font-semibold text-gray-800 text-xs line-clamp-2 min-h-[32px] leading-tight mb-1">{p.name || p.title}</Text>
             {showPrice ? (
-              <Text className="font-bold text-[#14502e] text-xs">{(p.price || 0).toLocaleString('vi-VN')}đ</Text>
+              <Text className="font-bold text-[#14502e] text-xs">
+                {p.minPrice !== undefined 
+                  ? `${(p.minPrice || 0).toLocaleString('vi-VN')}đ`
+                  : `${(p.price || 0).toLocaleString('vi-VN')}đ`}
+              </Text>
             ) : (
               <Text className="text-blue-500 italic text-[11px] font-medium leading-normal block">Liên hệ báo giá</Text>
             )}
-            <Box className="flex text-yellow-400 mt-1 space-x-0.5">
-              {[...Array(5)].map((_, idx) => (
-                <CustomIcon key={idx} icon={idx < (p.stars || 5) ? "zi-star-solid" : "zi-star"} className="text-[10px]" />
-              ))}
-            </Box>
+            {(() => {
+              const parsePriceStr = (val: any) => {
+                  if (!val) return 0;
+                  if (typeof val === 'number') return val;
+                  const parsed = Number(val.toString().replace(/[^0-9]/g, ''));
+                  return isNaN(parsed) ? 0 : parsed;
+              };
+              const basePrice = parsePriceStr(p.minPrice !== undefined ? p.minPrice : p.price);
+              const adminRewardPointRate = Number(localStorage.getItem('rewardPointRate')) || 10;
+              const rewardPointRate = p.rewardRate ? Number(p.rewardRate) : adminRewardPointRate;
+              const earnedPoints = Math.floor((basePrice * (rewardPointRate / 100)) / 1000);
+              const isHighRate = rewardPointRate > adminRewardPointRate;
+              
+              if (showPrice && earnedPoints > 0) {
+                return (
+                  <Box className="flex mt-1.5">
+                    <Box className={`${isHighRate ? 'bg-gradient-to-r from-red-500 to-orange-500' : 'bg-gradient-to-r from-yellow-500 to-amber-500'} rounded-full px-1.5 py-0.5 flex items-center shadow-sm`}>
+                      <CustomIcon icon="zi-star-solid" size={10} className="text-white mr-1" />
+                      <Text className="text-white text-[10px] font-bold">+{earnedPoints} Điểm ưu đãi {isHighRate ? '🔥' : ''}</Text>
+                    </Box>
+                  </Box>
+                );
+              }
+              return null;
+            })()}
           </Box>
         ))}
       </Box>
@@ -439,15 +463,39 @@ const ProductsForYou: FC<{ products: any[]; onProductClick: (product: any) => vo
             />
             <Text className="font-semibold text-gray-800 text-sm line-clamp-2 min-h-[40px] leading-tight mb-1">{p.name || p.title}</Text>
             {showPrice ? (
-              <Text className="font-bold text-[#14502e] text-sm">{(p.price || 0).toLocaleString('vi-VN')}đ</Text>
+              <Text className="font-bold text-[#14502e] text-sm">
+                {p.minPrice !== undefined 
+                  ? `${(p.minPrice || 0).toLocaleString('vi-VN')}đ`
+                  : `${(p.price || 0).toLocaleString('vi-VN')}đ`}
+              </Text>
             ) : (
               <Text className="text-blue-500 italic text-xs font-medium leading-normal block">Liên hệ báo giá</Text>
             )}
-            <Box className="flex text-yellow-400 mt-1 space-x-0.5">
-              {[...Array(5)].map((_, idx) => (
-                <CustomIcon key={idx} icon={idx < (p.stars || 5) ? "zi-star-solid" : "zi-star"} className="text-[12px]" />
-              ))}
-            </Box>
+            {(() => {
+              const parsePriceStr = (val: any) => {
+                  if (!val) return 0;
+                  if (typeof val === 'number') return val;
+                  const parsed = Number(val.toString().replace(/[^0-9]/g, ''));
+                  return isNaN(parsed) ? 0 : parsed;
+              };
+              const basePrice = parsePriceStr(p.minPrice !== undefined ? p.minPrice : p.price);
+              const adminRewardPointRate = Number(localStorage.getItem('rewardPointRate')) || 10;
+              const rewardPointRate = p.rewardRate ? Number(p.rewardRate) : adminRewardPointRate;
+              const earnedPoints = Math.floor((basePrice * (rewardPointRate / 100)) / 1000);
+              const isHighRate = rewardPointRate > adminRewardPointRate;
+              
+              if (showPrice && earnedPoints > 0) {
+                return (
+                  <Box className="flex mt-1.5">
+                    <Box className={`${isHighRate ? 'bg-gradient-to-r from-red-500 to-orange-500' : 'bg-gradient-to-r from-yellow-500 to-amber-500'} rounded-full px-2 py-0.5 flex items-center shadow-sm`}>
+                      <CustomIcon icon="zi-star-solid" size={10} className="text-white mr-1" />
+                      <Text className="text-white text-[10px] font-bold">+{earnedPoints} Điểm ưu đãi {isHighRate ? '🔥' : ''}</Text>
+                    </Box>
+                  </Box>
+                );
+              }
+              return null;
+            })()}
           </Box>
         ))}
       </Box>

@@ -129,8 +129,15 @@ const CartPage: FC = () => {
     return groupedCart[activeShop] || [];
   }, [activeShop, groupedCart]);
 
+  const parsePrice = (val: any) => {
+    if (!val) return 0;
+    if (typeof val === 'number') return val;
+    const parsed = Number(val.toString().replace(/[^0-9]/g, ''));
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
   const activeTotalPrice = useMemo(() => {
-    return activeCartItems.reduce((sum, item) => sum + (item.product.price || 0) * item.quantity, 0);
+    return activeCartItems.reduce((sum, item) => sum + parsePrice(item.product.price) * (item.quantity || 1), 0);
   }, [activeCartItems]);
 
   const activeTotalQuantity = useMemo(() => {
@@ -280,14 +287,16 @@ const CartPage: FC = () => {
           } else {
               applicableTotal = activeCartItems.reduce((sum, item) => {
                   if (v.applicableProducts.includes(item.product.id)) {
-                      return sum + (item.product.price || 0) * item.quantity;
+                      return sum + parsePrice(item.product.price) * (item.quantity || 1);
                   }
                   return sum;
               }, 0);
           }
           
-          if (applicableTotal === 0) return false;
-          if (v.minOrderValue && applicableTotal < v.minOrderValue) return false;
+          if (applicableTotal <= 0) return false;
+          
+          const requiredMin = v.minOrderValue !== undefined ? Number(v.minOrderValue) : (v.value ? Number(v.value) * 10 : 0);
+          if (requiredMin > 0 && applicableTotal < requiredMin) return false;
           
           return true;
       });
@@ -309,13 +318,14 @@ const CartPage: FC = () => {
     } else {
         applicableTotal = activeCartItems.reduce((sum, item) => {
             if (selectedVoucher.applicableProducts.includes(item.product.id)) {
-                return sum + (item.product.price || 0) * item.quantity;
+                return sum + parsePrice(item.product.price) * (item.quantity || 1);
             }
             return sum;
         }, 0);
     }
 
-    if (selectedVoucher.minOrderValue && applicableTotal < selectedVoucher.minOrderValue) {
+    const requiredMin = selectedVoucher.minOrderValue !== undefined ? Number(selectedVoucher.minOrderValue) : (selectedVoucher.value ? Number(selectedVoucher.value) * 10 : 0);
+    if (requiredMin > 0 && applicableTotal < requiredMin) {
         return 0; // Not applicable
     }
 

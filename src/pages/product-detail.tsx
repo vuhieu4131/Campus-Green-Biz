@@ -27,15 +27,20 @@ const ProductDetailPage: FC = () => {
   const [activeImgIndex, setActiveImgIndex] = useState(0);
   const [swiperInstance, setSwiperInstance] = useState<any>(null);
   const [authVisible, setAuthVisible] = useState(false);
+  const [selectedPriceVariant, setSelectedPriceVariant] = useState<any>(null);
 
   const setCart = useSetRecoilState(cartState);
+
+  const [rewardPointRate, setRewardPointRate] = useState(10);
 
   useEffect(() => {
     const fetchConfig = async () => {
       try {
         const configSnap = await getDoc(doc(db, "system_config", "admin_settings"));
-        if (configSnap.exists() && configSnap.data().showPrice !== undefined) {
-          setShowPrice(configSnap.data().showPrice);
+        if (configSnap.exists()) {
+          const data = configSnap.data();
+          if (data.showPrice !== undefined) setShowPrice(data.showPrice);
+          if (data.rewardPointRate !== undefined) setRewardPointRate(Number(data.rewardPointRate));
         }
       } catch (e) {
         console.error("Lỗi khi tải cấu hình hiển thị giá:", e);
@@ -124,6 +129,16 @@ const ProductDetailPage: FC = () => {
         }
       }
     }
+    if (product?.hasPriceVariants && product.priceVariants && product.priceVariants.length > 0) {
+      if (!selectedPriceVariant) {
+        openSnackbar({
+          text: `Vui lòng chọn Mức giá!`,
+          type: "error",
+          position: "top"
+        });
+        return false;
+      }
+    }
     return true;
   };
 
@@ -155,11 +170,27 @@ const ProductDetailPage: FC = () => {
 
     setCart(cart => {
       const newCart = [...cart];
-      const index = newCart.findIndex(i => i.product.id === product.id && JSON.stringify(i.options) === JSON.stringify(selectedOptions));
+      
+      const finalOptions = { ...selectedOptions };
+      if (selectedPriceVariant) {
+        finalOptions['Gói'] = selectedPriceVariant.label;
+      }
+      
+      const productToAdd = { ...product, categoryId: ['store'] };
+      if (selectedPriceVariant) {
+        productToAdd.price = selectedPriceVariant.price;
+        if (selectedPriceVariant.originalPrice) {
+          productToAdd.originalPrice = selectedPriceVariant.originalPrice;
+        }
+        const effectiveRewardRate = product.rewardRate ? Number(product.rewardRate) : rewardPointRate;
+        productToAdd.points = Math.floor((selectedPriceVariant.price * effectiveRewardRate / 100) / 1000).toString();
+      }
+
+      const index = newCart.findIndex(i => i.product.id === product.id && JSON.stringify(i.options) === JSON.stringify(finalOptions));
       if (index >= 0) {
         newCart[index] = { ...newCart[index], quantity: newCart[index].quantity + quantity, referrerId: location.state?.referrerId || newCart[index].referrerId };
       } else {
-        newCart.push({ product: { ...product, categoryId: ['store'] }, quantity, options: selectedOptions, referrerId: location.state?.referrerId });
+        newCart.push({ product: productToAdd, quantity, options: finalOptions, referrerId: location.state?.referrerId });
       }
       return newCart;
     });
@@ -195,11 +226,27 @@ const ProductDetailPage: FC = () => {
 
     setCart(cart => {
       const newCart = [...cart];
-      const index = newCart.findIndex(i => i.product.id === product.id && JSON.stringify(i.options) === JSON.stringify(selectedOptions));
+      
+      const finalOptions = { ...selectedOptions };
+      if (selectedPriceVariant) {
+        finalOptions['Gói'] = selectedPriceVariant.label;
+      }
+      
+      const productToAdd = { ...product, categoryId: ['store'] };
+      if (selectedPriceVariant) {
+        productToAdd.price = selectedPriceVariant.price;
+        if (selectedPriceVariant.originalPrice) {
+          productToAdd.originalPrice = selectedPriceVariant.originalPrice;
+        }
+        const effectiveRewardRate = product.rewardRate ? Number(product.rewardRate) : rewardPointRate;
+        productToAdd.points = Math.floor((selectedPriceVariant.price * effectiveRewardRate / 100) / 1000).toString();
+      }
+
+      const index = newCart.findIndex(i => i.product.id === product.id && JSON.stringify(i.options) === JSON.stringify(finalOptions));
       if (index >= 0) {
         newCart[index] = { ...newCart[index], quantity: newCart[index].quantity + quantity, referrerId: location.state?.referrerId || newCart[index].referrerId };
       } else {
-        newCart.push({ product: { ...product, categoryId: ['store'] }, quantity, options: selectedOptions, referrerId: location.state?.referrerId });
+        newCart.push({ product: productToAdd, quantity, options: finalOptions, referrerId: location.state?.referrerId });
       }
       return newCart;
     });
@@ -223,7 +270,28 @@ const ProductDetailPage: FC = () => {
     );
   }
 
-  const discountPercent = product.discountPercent || (product.originalPrice && product.price ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100) : 0);
+  let displayPrice = product.price;
+  let displayOriginalPrice = product.originalPrice;
+  let isRange = false;
+
+  if (product.hasPriceVariants && product.priceVariants && product.priceVariants.length > 0) {
+    if (selectedPriceVariant) {
+      displayPrice = selectedPriceVariant.price;
+      displayOriginalPrice = selectedPriceVariant.originalPrice;
+    } else if (product.minPrice !== undefined && product.maxPrice !== undefined && product.minPrice !== product.maxPrice) {
+      isRange = true;
+    }
+  }
+
+  const discountPercent = (displayOriginalPrice && displayPrice && displayOriginalPrice > displayPrice) 
+    ? Math.round(((displayOriginalPrice - displayPrice) / displayOriginalPrice) * 100) 
+    : 0;
+
+  let displayPoints = Number(product.points) || 0;
+  if (product.hasPriceVariants && product.priceVariants && product.priceVariants.length > 0) {
+    const effectiveRewardRate = product.rewardRate ? Number(product.rewardRate) : rewardPointRate;
+    displayPoints = Math.floor((displayPrice * effectiveRewardRate / 100) / 1000);
+  }
 
   const productImages = product.gallery && product.gallery.length > 0
     ? product.gallery
@@ -349,12 +417,15 @@ const ProductDetailPage: FC = () => {
             ))}
           </Swiper>
           {/* Points Badge */}
-          {product.points && (
-            <Box className="absolute top-4 right-4 bg-gradient-to-r from-yellow-500 to-amber-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md flex items-center space-x-1 z-10">
-              <CustomIcon icon="zi-star-solid" className="text-yellow-200" size={14} />
-              <span>+{product.points} Điểm ưu đãi</span>
-            </Box>
-          )}
+          {displayPoints > 0 && (() => {
+            const isHighRate = product.rewardRate && Number(product.rewardRate) > rewardPointRate;
+            return (
+              <Box className={`absolute top-4 right-4 ${isHighRate ? 'bg-gradient-to-r from-red-500 to-orange-500' : 'bg-gradient-to-r from-yellow-500 to-amber-500'} text-white px-3 py-1 rounded-full text-xs font-bold shadow-md flex items-center space-x-1 z-10`}>
+                <CustomIcon icon="zi-star-solid" className="text-yellow-100" size={14} />
+                <span>+{displayPoints} Điểm ưu đãi {isHighRate ? '🔥' : ''}</span>
+              </Box>
+            );
+          })()}
           {/* Share Button */}
           <Box 
             onClick={handleShareProduct}
@@ -373,13 +444,20 @@ const ProductDetailPage: FC = () => {
               </Text>
             ) : (
               <>
-                <Text className="text-2xl font-extrabold text-[#14502e]">
-                  {product.price?.toLocaleString('vi-VN')}đ
-                </Text>
-                {product.originalPrice && product.originalPrice > product.price && (
+                {isRange ? (
+                  <Text className="text-2xl font-extrabold text-[#14502e]">
+                    {product.minPrice?.toLocaleString('vi-VN')}đ - {product.maxPrice?.toLocaleString('vi-VN')}đ
+                  </Text>
+                ) : (
+                  <Text className="text-2xl font-extrabold text-[#14502e]">
+                    {displayPrice?.toLocaleString('vi-VN')}đ
+                  </Text>
+                )}
+                
+                {displayOriginalPrice && displayOriginalPrice > displayPrice && (
                   <>
                     <Text size="small" className="text-gray-400 line-through ml-3 mt-1">
-                      {product.originalPrice.toLocaleString('vi-VN')}đ
+                      {displayOriginalPrice.toLocaleString('vi-VN')}đ
                     </Text>
                     {discountPercent > 0 && (
                       <span className="text-[10px] font-bold text-red-500 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full ml-3 mt-1">
@@ -414,12 +492,45 @@ const ProductDetailPage: FC = () => {
           )}
         </Box>
 
-        {/* Product Attributes (Size, Color, etc.) */}
-        {product.attributes && product.attributes.length > 0 && (
+        {((product.attributes && product.attributes.length > 0) || (product.hasPriceVariants && product.priceVariants && product.priceVariants.length > 0)) && (
           <Box className="bg-white p-4 mb-3 border-b border-gray-100 shadow-sm space-y-4">
             <Text bold className="text-gray-800 text-sm border-b border-gray-50 pb-2 block">
               Lựa chọn sản phẩm
             </Text>
+
+            {/* Price Variants Section */}
+            {product.hasPriceVariants && product.priceVariants && product.priceVariants.length > 0 && (
+              <Box className="space-y-2">
+                <Text className="text-xs text-gray-500 font-medium">
+                  Mức giá / Gói <span className="text-red-500">*</span>
+                </Text>
+                <Box className="flex flex-col gap-2">
+                  {product.priceVariants.map((variant: any, idx: number) => {
+                    const isSelected = selectedPriceVariant?.label === variant.label;
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => setSelectedPriceVariant(variant)}
+                        className={`flex justify-between items-center px-4 py-3 rounded-xl border transition-all ${
+                          isSelected
+                            ? "border-[#14502e] bg-[#f2f9f5]"
+                            : "border-gray-200 bg-white active:bg-gray-50"
+                        }`}
+                      >
+                        <Text className={`font-semibold text-sm ${isSelected ? "text-[#14502e]" : "text-gray-700"}`}>
+                          {variant.label}
+                        </Text>
+                        <Text className={`font-bold ${isSelected ? "text-[#14502e]" : "text-gray-900"}`}>
+                          {variant.price?.toLocaleString('vi-VN')}đ
+                        </Text>
+                      </button>
+                    );
+                  })}
+                </Box>
+              </Box>
+            )}
+
+            {/* Normal Attributes Section */}
             {product.attributes.map((attr: any, idx: number) => {
               const options = attr.values.split(",").map((v: string) => v.trim()).filter(Boolean);
               return (

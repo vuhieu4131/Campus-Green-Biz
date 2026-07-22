@@ -87,6 +87,9 @@ const SettingsPage: FC = () => {
   const [referredList, setReferredList] = useState<any[]>([]);
   const [loadingReferred, setLoadingReferred] = useState(false);
 
+  const [cancelOrderTarget, setCancelOrderTarget] = useState<any>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancellingOrder, setCancellingOrder] = useState(false);
   // Wallet states
   const [userData, setUserData] = useState<any>(null);
   const [points, setPoints] = useState(0);
@@ -385,6 +388,74 @@ const SettingsPage: FC = () => {
     }
   };
 
+  const handleCancelOrder = async () => {
+    if (!cancelOrderTarget) return;
+    if (!cancelReason.trim()) {
+      openSnackbar({ text: "Vui lòng nhập lý do huỷ đơn!", type: "warning", position: "top" });
+      return;
+    }
+    setCancellingOrder(true);
+    try {
+      openSnackbar({ text: "Đang huỷ đơn...", type: "loading", duration: 1500, position: "top" });
+      const orderRef = doc(db, "orders", cancelOrderTarget.id);
+      await updateDoc(orderRef, {
+        status: "cancelled",
+        cancelReason: cancelReason.trim(),
+        cancelledAt: new Date().toISOString()
+      });
+
+      // Bổ sung tính năng hoàn trả voucher (CHỈ KHI CHƯA XÁC NHẬN)
+      if (cancelOrderTarget.status === 'pending' || cancelOrderTarget.status === 'Chờ xác nhận' || !cancelOrderTarget.status) {
+        try {
+          const { query, collection, where, getDocs, deleteField } = await import("firebase/firestore");
+          
+          // 1. Hoàn trả voucher ở bảng user_vouchers (đặt hẹn)
+          const voucherQ1 = query(
+            collection(db, "user_vouchers"),
+            where("usedForOrderId", "==", cancelOrderTarget.id)
+          );
+          const voucherSnap1 = await getDocs(voucherQ1);
+          for (const vDoc of voucherSnap1.docs) {
+            await updateDoc(doc(db, "user_vouchers", vDoc.id), {
+              status: "active",
+              usedAt: deleteField(),
+              usedForOrderId: deleteField()
+            });
+          }
+
+          // 2. Hoàn trả voucher ở bảng my_vouchers (đặt hàng giỏ hàng)
+          const userId = userData?.id || userData?.phone || localStorage.getItem("user_phone");
+          if (userId && cancelOrderTarget.orderCode) {
+            const voucherQ2 = query(
+              collection(db, `users/${userId}/my_vouchers`),
+              where("orderCode", "==", cancelOrderTarget.orderCode)
+            );
+            const voucherSnap2 = await getDocs(voucherQ2);
+            for (const vDoc of voucherSnap2.docs) {
+              await updateDoc(doc(db, `users/${userId}/my_vouchers`, vDoc.id), {
+                isUsed: false,
+                usedAt: deleteField(),
+                orderCode: deleteField()
+              });
+            }
+          }
+        } catch (err) {
+          console.error("Lỗi hoàn trả voucher:", err);
+        }
+      }
+
+      openSnackbar({ text: "Đã huỷ đơn hàng thành công!", type: "success", position: "top" });
+      setCancelOrderTarget(null);
+      setCancelReason("");
+      handleOpenMyOrders();
+    } catch (err) {
+      console.error(err);
+      openSnackbar({ text: "Có lỗi xảy ra khi huỷ đơn!", type: "error", position: "top" });
+    } finally {
+      setCancellingOrder(false);
+    }
+  };
+
   const handleShareOrder = async (order: any) => {
     try {
       const orderCode = order.orderCode || order.id.slice(0, 8).toUpperCase();
@@ -544,9 +615,15 @@ const SettingsPage: FC = () => {
                 const itemsToCalc = order.items || order.cartItems || [];
                 const buyerId = order.userId || userId;
                 if (itemsToCalc.length > 0 && pointsEarned > 0) {
+                  const parsePriceStr = (val: any) => {
+                    if (!val) return 0;
+                    if (typeof val === 'number') return val;
+                    const parsed = Number(val.toString().replace(/[^0-9]/g, ''));
+                    return isNaN(parsed) ? 0 : parsed;
+                  };
                   itemsToCalc.forEach((item: any) => {
                     if (item.referrerId && item.referrerId !== buyerId && item.product?.price) {
-                      const itemTotal = Number(item.product.price) * (item.quantity || 1);
+                      const itemTotal = parsePriceStr(item.product.price) * (item.quantity || 1);
                       const itemPts = Math.floor(itemTotal / 10000);
                       if (itemPts > 0) {
                         const refPts = Math.floor(itemPts * 0.2);
@@ -704,9 +781,15 @@ const SettingsPage: FC = () => {
                   const itemsToCalc = order.items || order.cartItems || [];
                   const buyerId = order.userId || userId;
                   if (itemsToCalc.length > 0 && correctPoints > 0) {
+                    const parsePriceStr = (val: any) => {
+                      if (!val) return 0;
+                      if (typeof val === 'number') return val;
+                      const parsed = Number(val.toString().replace(/[^0-9]/g, ''));
+                      return isNaN(parsed) ? 0 : parsed;
+                    };
                     itemsToCalc.forEach((item: any) => {
                       if (item.referrerId && item.referrerId !== buyerId && item.product?.price) {
-                        const itemTotal = Number(item.product.price) * (item.quantity || 1);
+                        const itemTotal = parsePriceStr(item.product.price) * (item.quantity || 1);
                         const itemPts = Math.floor(itemTotal / 10000);
                         if (itemPts > 0) {
                           const refPts = Math.floor(itemPts * 0.2);
@@ -2381,9 +2464,16 @@ const SettingsPage: FC = () => {
                   const buyerId = selectedOrder.userId || auth.currentUser?.uid;
                   
                   if (itemsToCalc.length > 0 && expectedBuyerPoints > 0) {
+                    const parsePriceStr = (val: any) => {
+                      if (!val) return 0;
+                      if (typeof val === 'number') return val;
+                      const parsed = Number(val.toString().replace(/[^0-9]/g, ''));
+                      return isNaN(parsed) ? 0 : parsed;
+                    };
+
                     itemsToCalc.forEach((item: any) => {
                       if (item.referrerId && item.referrerId !== buyerId && item.product?.price) {
-                        const itemTotal = Number(item.product.price) * (item.quantity || 1);
+                        const itemTotal = parsePriceStr(item.product.price) * (item.quantity || 1);
                         const itemPts = Math.floor(itemTotal / 10000);
                         if (itemPts > 0) {
                           const refPts = Math.floor(itemPts * 0.2);
@@ -2419,11 +2509,23 @@ const SettingsPage: FC = () => {
             </Box>
           );
         })()}
-        <Box className="p-4 bg-white border-t border-gray-100 mt-auto rounded-b-2xl">
+        <Box className="p-4 bg-white border-t border-gray-100 mt-auto rounded-b-2xl flex space-x-3">
+          {selectedOrder && ['Chờ xác nhận', 'Đã xác nhận', 'pending', 'confirmed', 'accepted'].includes(selectedOrder.status || 'Chờ xác nhận') && (
+            <Button
+              variant="secondary"
+              className="flex-1 bg-red-50 text-red-600 border-none rounded-xl font-bold py-2.5 text-sm active:bg-red-100 transition-colors"
+              onClick={() => {
+                setShowOrderDetailModal(false);
+                setCancelOrderTarget(selectedOrder);
+                setCancelReason("");
+              }}
+            >
+              Hủy đơn
+            </Button>
+          )}
           <Button 
-            fullWidth 
+            className={`bg-[#14502e] text-white rounded-xl font-bold py-2.5 text-sm active:bg-[#0f3d23] transition-colors ${selectedOrder && ['Chờ xác nhận', 'Đã xác nhận', 'pending', 'confirmed', 'accepted'].includes(selectedOrder.status || 'Chờ xác nhận') ? 'flex-1' : 'w-full'}`}
             onClick={() => setShowOrderDetailModal(false)}
-            className="bg-[#14502e] text-white rounded-xl font-bold py-2.5 text-sm active:bg-[#0f3d23] transition-colors"
           >
             Đóng
           </Button>
@@ -2473,6 +2575,50 @@ const SettingsPage: FC = () => {
             >
               Hủy bỏ
             </button>
+          </Box>
+        </Box>
+      </Modal>
+
+      {/* Cancel Order Modal */}
+      <Modal
+        visible={!!cancelOrderTarget}
+        title="Huỷ đơn hàng"
+        onClose={() => setCancelOrderTarget(null)}
+      >
+        <Box className="p-4 flex flex-col space-y-4">
+          <Text className="text-gray-700 text-sm leading-relaxed">
+            Vui lòng cho biết lý do bạn muốn huỷ đơn hàng <span className="font-bold text-gray-900">#{cancelOrderTarget?.orderCode || cancelOrderTarget?.id?.slice(0, 6)?.toUpperCase()}</span>?
+          </Text>
+          {cancelOrderTarget && !['pending', 'Chờ xác nhận'].includes(cancelOrderTarget.status || 'pending') && (
+            <Text className="text-red-600 text-[13px] italic bg-red-50 p-2.5 rounded-xl border border-red-100 font-medium">
+              <Icon icon="zi-warning-solid" className="inline-block mr-1 -mt-0.5" size={14} />
+              Lưu ý: Đơn hàng đã được xác nhận. Việc huỷ đơn lúc này sẽ làm MẤT voucher đã áp dụng (nếu có) và không được hoàn lại.
+            </Text>
+          )}
+          <textarea
+            className="w-full border border-gray-300 rounded-xl p-3 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors bg-white"
+            rows={3}
+            placeholder="Nhập lý do huỷ đơn..."
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            disabled={cancellingOrder}
+          />
+          <Box flex className="gap-3 mt-2">
+            <Button 
+              variant="secondary" 
+              className="flex-1 bg-gray-100 text-gray-700 border-none rounded-xl py-2.5 font-bold"
+              onClick={() => setCancelOrderTarget(null)}
+              disabled={cancellingOrder}
+            >
+              Quay lại
+            </Button>
+            <Button 
+              className="flex-1 bg-red-600 text-white rounded-xl py-2.5 font-bold active:bg-red-700"
+              onClick={handleCancelOrder}
+              loading={cancellingOrder}
+            >
+              Xác nhận huỷ
+            </Button>
           </Box>
         </Box>
       </Modal>

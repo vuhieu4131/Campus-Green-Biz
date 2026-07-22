@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Page, Box, Input, Button, Text, useSnackbar, Header, Icon, Spinner, Select } from "zmp-ui";
+import { Page, Box, Input, Button, Text, useSnackbar, Header, Icon, Spinner, Select, Modal } from "zmp-ui";
 // 👉 BƯỚC 1: Bổ sung doc và getDoc để đọc cấu hình Admin
 import { collection, addDoc, updateDoc, serverTimestamp, query, where, getDocs, doc, getDoc, orderBy } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -29,18 +29,19 @@ const PostPage: React.FunctionComponent = () => {
 
   // 👉 BƯỚC 2: Thêm State lưu tỷ lệ điểm của Admin (Mặc định 10%)
   const [minRewardRate, setMinRewardRate] = useState(10);
+  const [defaultPlatformFeeRate, setDefaultPlatformFeeRate] = useState(15);
   const [dbCategories, setDbCategories] = useState<any[]>([]);
 
   const [uploadingImage, setUploadingImage] = useState(false); // State xoay vòng loading tải ảnh
   const [uploadingVideo, setUploadingVideo] = useState(false); // State xoay vòng loading tải video
 
   const [form, setForm] = useState<{
-    title: string; price: string; originalPrice: string; shopName: string; points: string; // 👉 THÊM originalPrice
+    title: string; price: string; originalPrice: string; shopName: string; points: string; rewardRate: string;
     description: string; images: string[]; videoUrl: string; selectedLocation: string; category: string;
     stock: string; 
     productCategory: string;
   }>({
-    title: "", price: "", originalPrice: "", shopName: "", points: "", // 👉 THÊM originalPrice: ""
+    title: "", price: "", originalPrice: "", shopName: "", points: "", rewardRate: "",
     description: "", images: [], videoUrl: "", selectedLocation: "", category: "", 
     stock: "",
     productCategory: ""
@@ -49,7 +50,13 @@ const PostPage: React.FunctionComponent = () => {
   // 👉 THÊM MỚI: State quản lý Phân loại hàng (Màu sắc, Size...)
   const [hasVariants, setHasVariants] = useState(false);
   const [attributes, setAttributes] = useState([{ name: "", values: "" }]);
+  
+  const [hasPriceVariants, setHasPriceVariants] = useState(false);
+  const [priceVariants, setPriceVariants] = useState([{ label: "", price: "", originalPrice: "" }]);
+
   const [isVip, setIsVip] = useState(false);
+  const [currentVipPoints, setCurrentVipPoints] = useState(0);
+  const [showVipModal, setShowVipModal] = useState(false);
 
  useEffect(() => {
   const init = async () => {
@@ -70,17 +77,38 @@ const PostPage: React.FunctionComponent = () => {
               category: editingPost.category || "package",
               stock: editingPost.stock && editingPost.stock !== -1 ? editingPost.stock.toString() : "",
               productCategory: editingPost.productCategory || "",
+              rewardRate: editingPost.rewardRate?.toString() || "",
           });
           setHasVariants(editingPost.hasVariants || false);
           if (editingPost.attributes && editingPost.attributes.length > 0) {
               setAttributes(editingPost.attributes);
           }
+          setHasPriceVariants(editingPost.hasPriceVariants || false);
+          if (editingPost.priceVariants && editingPost.priceVariants.length > 0) {
+              setPriceVariants(editingPost.priceVariants);
+          }
           setIsVip(editingPost.isVip || false);
       }
-          // 👉 BƯỚC 3: Lấy Tỷ lệ tích điểm từ Cấu hình Admin và tải danh mục
+          // 👉 BƯỚC 3: Lấy Tỷ lệ tích điểm và Tỷ lệ chi phí từ Cấu hình Admin
           const configSnap = await getDoc(doc(db, "system_config", "admin_settings"));
-          if (configSnap.exists() && configSnap.data().rewardPointRate !== undefined) {
-              setMinRewardRate(Number(configSnap.data().rewardPointRate));
+          if (configSnap.exists()) {
+              if (configSnap.data().rewardPointRate !== undefined) {
+                  const adminRate = Number(configSnap.data().rewardPointRate);
+                  setMinRewardRate(adminRate);
+              }
+              if (configSnap.data().platformFeeRate !== undefined) {
+                  const pFeeRate = Number(configSnap.data().platformFeeRate);
+                  setDefaultPlatformFeeRate(pFeeRate);
+                  
+                  // Chỉ cập nhật nếu là bài đăng mới
+                  if (!editingPost) {
+                    setForm(prev => ({
+                        ...prev,
+                        rewardRate: prev.rewardRate || pFeeRate.toString(),
+                        points: prev.price ? Math.floor((Number(prev.price) * pFeeRate / 100) / 1000).toString() : prev.points
+                    }));
+                  }
+              }
           }
 
           try {
@@ -124,6 +152,13 @@ const PostPage: React.FunctionComponent = () => {
               setUserRole(isDistributor ? "distributor" : (userData.role || "provider"));
               setShopAddress(userData.address || "");
           }
+
+          // Lấy điểm VIP từ bảng shops
+          const qShopForPoints = query(collection(db, "shops"), where("phone", "==", userPhone));
+          const snapShopForPoints = await getDocs(qShopForPoints);
+          if (!snapShopForPoints.empty) {
+              setCurrentVipPoints(snapShopForPoints.docs[0].data().vipPushPoints || 0);
+          }
       } catch (e) { console.error(e); }
       finally { setFetchingUser(false); }
   };
@@ -131,15 +166,26 @@ const PostPage: React.FunctionComponent = () => {
 }, []);
 
   // 👉 BƯỚC 4: Tự động tính điểm theo đúng Tỷ lệ Admin quy định
+  const handleVipChange = (checked: boolean) => {
+    if (checked && currentVipPoints < 10 && !editingPost?.isVip) {
+      setShowVipModal(true);
+      return;
+    }
+    setIsVip(checked);
+  };
+
   const handleChange = (field: string, value: string) => {
-    if (field === "price") {
-        const numericPrice = Number(value) || 0;
+    if (field === "price" || field === "rewardRate") {
+        const newPrice = field === "price" ? value : form.price;
+        const newRate = field === "rewardRate" ? value : form.rewardRate;
+        
+        const numericPrice = Number(newPrice) || 0;
+        const activeRate = Number(newRate) || minRewardRate;
         
         // Công thức: (Giá * Tỷ lệ % / 100) / 1000đ = Số điểm
-        // VD: (200.000 * 10 / 100) / 1000 = 20 điểm
-        const autoPoints = Math.floor((numericPrice * minRewardRate / 100) / 1000).toString();
+        const autoPoints = Math.floor((numericPrice * activeRate / 100) / 1000).toString();
         
-        setForm({ ...form, price: value, points: autoPoints });
+        setForm({ ...form, [field]: value, points: autoPoints });
     } else {
         setForm({ ...form, [field]: value });
     }
@@ -155,6 +201,19 @@ const PostPage: React.FunctionComponent = () => {
       const newAttr = [...attributes];
       newAttr[index][field] = val;
       setAttributes(newAttr);
+  };
+
+  // 👉 HÀM XỬ LÝ NHIỀU MỨC GIÁ
+  const addPriceVariant = () => setPriceVariants([...priceVariants, { label: "", price: "", originalPrice: "" }]);
+  const removePriceVariant = (index: number) => {
+      const newVar = [...priceVariants];
+      newVar.splice(index, 1);
+      setPriceVariants(newVar);
+  };
+  const handlePriceVariantChange = (index: number, field: string, val: string) => {
+      const newVar = [...priceVariants];
+      newVar[index][field] = val;
+      setPriceVariants(newVar);
   };
   // 👉 BƯỚC 3: HÀM UPLOAD NHIỀU ẢNH LÊN FIREBASE STORAGE
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -255,28 +314,29 @@ const handleRemoveVideo = () => {
     const numericPrice = Number(form.price) || 0;
     const numericOriginalPrice = Number(form.originalPrice) || 0; // 👉 BỔ SUNG
 
+    let basePriceForPoints = numericPrice;
+    if (hasPriceVariants && priceVariants.length > 0) {
+        basePriceForPoints = Math.min(...priceVariants.map(v => Number(v.price) || 0));
+    }
+
     // 👉 TÍNH % GIẢM GIÁ ĐỂ LƯU DATABASE
     const discountPercent = (numericOriginalPrice > numericPrice && numericPrice > 0)
         ? Math.round(((numericOriginalPrice - numericPrice) / numericOriginalPrice) * 100)
         : 0;
     // ...
     const enteredPoints = Number(form.points) || 0;
-    const requiredMinPoints = Math.floor((numericPrice * minRewardRate / 100) / 1000);
+    const requiredMinPointsSubmit = Math.floor((basePriceForPoints * minRewardRate / 100) / 1000);
 
-    if (enteredPoints < requiredMinPoints) {
+    if (!hasPriceVariants && enteredPoints < requiredMinPointsSubmit) {
         openSnackbar({ 
-            text: `Tỷ lệ tích điểm quy định là ${minRewardRate}%. Bạn phải tặng khách ít nhất ${requiredMinPoints} điểm!`, 
+            text: `Tỷ lệ tích điểm quy định là ${minRewardRate}%. Bạn phải tặng khách ít nhất ${requiredMinPointsSubmit} điểm!`, 
             type: "error", 
             position: "top" 
         });
         return;
     }
 
-    // 👉 CHỐT CHẶN: Bắt buộc phải có địa điểm (Bỏ điều kiện này cho Distributor và Shop/Provider)
-    if (userRole !== "distributor" && userRole !== "provider" && (!form.selectedLocation || form.selectedLocation.trim() === "")) {
-      openSnackbar({ text: "Bạn chưa có Địa điểm áp dụng. Vui lòng cập nhật trong Hồ sơ!", type: "error", position: "top" });
-      return;
-  }
+    // Đã gỡ bỏ validation Địa điểm áp dụng
     // 👉 CHỐT CHẶN: Nếu là Sản Phẩm thì bắt buộc nhập Kho
     if (form.category === "product" && (!form.stock || Number(form.stock) <= 0)) {
       openSnackbar({ text: "Vui lòng nhập Số lượng kho hợp lệ cho Sản phẩm!", type: "error", position: "top" });
@@ -314,6 +374,20 @@ const handleRemoveVideo = () => {
       }
 
       const validAttributes = hasVariants ? attributes.filter(a => a.name.trim() && a.values.trim()) : [];
+      const validPriceVariants = hasPriceVariants ? priceVariants.filter(v => v.label.trim() && v.price.trim()).map(v => ({
+          label: v.label.trim(),
+          price: Number(v.price),
+          originalPrice: v.originalPrice ? Number(v.originalPrice) : 0
+      })) : [];
+      
+      let minPrice = numericPrice;
+      let maxPrice = numericPrice;
+      
+      if (hasPriceVariants && validPriceVariants.length > 0) {
+          const prices = validPriceVariants.map(v => v.price);
+          minPrice = Math.min(...prices);
+          maxPrice = Math.max(...prices);
+      }
 
       // 👇 Gom dữ liệu lại thành 1 cục (Payload) để dùng chung
       const postData = {
@@ -327,7 +401,7 @@ const handleRemoveVideo = () => {
         image: form.images[0] || "",
         gallery: form.images,
         videoUrl: form.videoUrl,
-        locationAddress: (userRole === "distributor" || userRole === "provider") ? (shopAddress || "Toàn hệ thống") : form.selectedLocation, 
+        locationAddress: shopAddress || "Toàn hệ thống", 
         category: form.category,
         productCategory: form.productCategory || "Khác", // 👇 THÊM MỚI: Nếu shop quên nhập, mặc định là "Khác"
         providerId: userPhone, 
@@ -335,7 +409,12 @@ const handleRemoveVideo = () => {
         stock: form.stock ? Number(form.stock) : -1,
         hasVariants: hasVariants,
         attributes: validAttributes,
+        hasPriceVariants: hasPriceVariants,
+        priceVariants: validPriceVariants,
+        minPrice: minPrice,
+        maxPrice: maxPrice,
         isVip: isVip,
+        rewardRate: Number(form.rewardRate) || minRewardRate, // BỔ SUNG: Lưu Tỷ lệ chi phí App
       };
 
       // Khấu trừ điểm VIP của shop
@@ -383,13 +462,17 @@ const handleRemoveVideo = () => {
   };
   // 👉 BỔ SUNG: TÍNH TOÁN ĐIỂM HỢP LỆ THỜI GIAN THỰC (REAL-TIME)
   const numericPrice = Number(form.price) || 0;
+  let basePriceForUI = numericPrice;
+  if (hasPriceVariants && priceVariants.length > 0) {
+      basePriceForUI = Math.min(...priceVariants.map(v => Number(v.price) || 0));
+  }
   const enteredPoints = Number(form.points) || 0;
-  const requiredMinPoints = Math.floor((numericPrice * minRewardRate / 100) / 1000);
+  const requiredMinPoints = Math.floor((basePriceForUI * minRewardRate / 100) / 1000);
   
-  // Hợp lệ khi: Chưa nhập giá (0đ) HOẶC điểm nhập vào lớn hơn/bằng điểm tối thiểu
-  const isPointsValid = numericPrice === 0 || enteredPoints >= requiredMinPoints;
+  // Hợp lệ khi: Có nhiều mức giá (ẩn ô điểm thưởng), HOẶC Chưa nhập giá (0đ), HOẶC điểm nhập vào lớn/bằng điểm tối thiểu
+  const isPointsValid = hasPriceVariants || basePriceForUI === 0 || enteredPoints >= requiredMinPoints;
   // 👉 KIỂM TRA ĐỊA CHỈ: Có địa chỉ hay chưa? (Distributor và Shop mặc định là hợp lệ vì phân phối trực tiếp)
-  const hasValidLocation = userRole === "distributor" || userRole === "provider" || form.selectedLocation.trim().length > 0;
+  const hasValidLocation = true;
 
     if (fetchingUser) return <Page className="bg-white flex justify-center items-center"><Spinner /></Page>;
 
@@ -507,7 +590,7 @@ const handleRemoveVideo = () => {
               type="checkbox" 
               className="w-5 h-5 accent-purple-600 cursor-pointer shrink-0" 
               checked={isVip} 
-              onChange={(e) => setIsVip(e.target.checked)} 
+              onChange={(e) => handleVipChange(e.target.checked)} 
             />
           </Box>
           {isVip && (
@@ -593,67 +676,95 @@ const handleRemoveVideo = () => {
                         </Button>
                     </Box>
                 )}
-            </Box>
-        )}
-        {/* Chỉ hiện chọn Địa điểm áp dụng nếu không phải là Distributor và Shop (Chỉ dành cho các vai trò cần chi nhánh khác) */}
-        {userRole !== "distributor" && userRole !== "provider" && (
-            <Box mb={4}>
-                <Text size="small" className="mb-1 font-medium ml-1">Địa điểm áp dụng <span className="text-red-500">*</span></Text>
-                {myLocations.length > 0 ? (
-                    <Select
-                        placeholder="Chọn cơ sở thực hiện"
-                        value={form.selectedLocation}
-                        onChange={(val) => handleChange("selectedLocation", val as string)}
-                        closeOnSelect
-                    >
-                        <Option value="Toàn hệ thống" title="Toàn hệ thống (Tất cả chi nhánh)" />
-                        {myLocations.map((loc, idx) => {
-                            const addressStr = typeof loc === 'object' ? loc.address : loc;
-                            return <Option key={idx} value={addressStr} title={addressStr} />;
-                        })}
-                    </Select>
-                ) : (
-                    // 👉 CẢNH BÁO GẮT KHI CHƯA KHAI BÁO CƠ SỞ
-                    <Box className="bg-red-50 p-3 rounded-lg border border-red-200 flex items-start">
-                        <Icon icon="zi-warning-solid" className="text-red-500 mr-2 shrink-0" size={20}/>
-                        <Text size="xSmall" className="text-red-600">
-                            Bạn chưa thiết lập <b>Cơ sở thực hiện dịch vụ</b>. Vui lòng quay lại màn hình chính, chọn <b>"Quản lý hệ thống cơ sở"</b> để thêm chi nhánh trước khi đăng bài nhé!
+
+                {/* 4. Công tắc Bật/Tắt Phân loại mức giá */}
+                <Box flex justifyContent="space-between" alignItems="center" mb={2} mt={4}>
+                    <Text size="small" className="font-medium text-gray-700">Có nhiều mức giá (VD: Các gói 1, 3, 6 tháng)?</Text>
+                    <input type="checkbox" className="w-5 h-5 accent-blue-600" checked={hasPriceVariants} onChange={(e) => setHasPriceVariants(e.target.checked)} />
+                </Box>
+
+                {/* 5. Khung nhập Mức giá */}
+                {hasPriceVariants && (
+                    <Box className="mt-3 pl-3 border-l-2 border-purple-300">
+                        {priceVariants.map((variant, idx) => (
+                            <Box key={idx} mb={3} className="p-3 bg-white rounded-lg border border-gray-200 relative shadow-sm">
+                                <Box flex flexDirection="column" style={{ gap: 8 }}>
+                                    <Box>
+                                        <Text size="xxxxSmall" className="text-gray-500 mb-1">Tên gói (VD: 1 Tháng)</Text>
+                                        <Input placeholder="Tên gói" value={variant.label} onChange={(e) => handlePriceVariantChange(idx, "label", e.target.value)} />
+                                    </Box>
+                                    <Box flex style={{ gap: 8 }}>
+                                        <Box className="flex-1">
+                                            <Text size="xxxxSmall" className="text-gray-500 mb-1">Giá bán mới (đ)</Text>
+                                            <Input type="number" placeholder="Bắt buộc" value={variant.price} onChange={(e) => handlePriceVariantChange(idx, "price", e.target.value)} />
+                                        </Box>
+                                        <Box className="flex-1">
+                                            <Text size="xxxxSmall" className="text-gray-500 mb-1">Giá gốc (Tùy chọn)</Text>
+                                            <Input type="number" placeholder="Không bắt buộc" value={variant.originalPrice} onChange={(e) => handlePriceVariantChange(idx, "originalPrice", e.target.value)} />
+                                        </Box>
+                                    </Box>
+                                </Box>
+                                {priceVariants.length > 1 && (
+                                    <Box className="absolute -top-2 -right-2 bg-red-100 rounded-full cursor-pointer p-1 shadow-sm active:bg-red-200" onClick={() => removePriceVariant(idx)}>
+                                        <Icon icon="zi-close" className="text-red-500" size={14}/>
+                                    </Box>
+                                )}
+                            </Box>
+                        ))}
+                        <Button size="small" variant="secondary" className="bg-white text-purple-600 border-purple-200" onClick={addPriceVariant} prefixIcon={<Icon icon="zi-plus"/>}>
+                            Thêm mức giá khác
+                        </Button>
+                        <Text size="xxxxSmall" className="text-gray-400 mt-2 italic">
+                            * Lưu ý: Giá ở mục trên cùng sẽ bị vô hiệu, hệ thống sẽ sử dụng các giá ở đây.
                         </Text>
                     </Box>
                 )}
             </Box>
         )}
+        {/* Đã gỡ bỏ block Địa điểm áp dụng */}
 
         {/* 👉 GIAO DIỆN NHẬP GIÁ MỚI */}
-        <Box mb={3}>
-            <Input type="number" label="Giá gốc (Chưa giảm - Tùy chọn)" placeholder="Ví dụ: 300000" value={form.originalPrice} onChange={(e) => handleChange("originalPrice", e.target.value)} />
-        </Box>
+        {!hasPriceVariants && (
+            <Box mb={3}>
+                <Input type="number" label="Giá gốc (Chưa giảm - Tùy chọn)" placeholder="Ví dụ: 300000" value={form.originalPrice} onChange={(e) => handleChange("originalPrice", e.target.value)} />
+            </Box>
+        )}
 
         <Box mb={2} flex flexDirection="row" style={{ gap: 12 }}>
-          <Box style={{ flex: 1, position: 'relative' }}>
-            <Input type="number" label="Giá bán (Thực thu)" placeholder="200000" value={form.price} onChange={(e) => handleChange("price", e.target.value)} />
-            
-            {/* 👉 HIỂN THỊ NHÃN % GIẢM GIÁ THỜI GIAN THỰC (MÀU ĐỎ) */}
-            {Number(form.originalPrice) > Number(form.price) && Number(form.price) > 0 && (
-                <Box className="absolute -top-2 -right-2 bg-red-500 text-white px-2 py-0.5 rounded-full text-[10px] font-bold shadow-sm z-10 animate-pulse border border-white">
-                    Giảm {Math.round(((Number(form.originalPrice) - Number(form.price)) / Number(form.originalPrice)) * 100)}%
-                </Box>
-            )}
-          </Box>
-          <Box style={{ flex: 1 }}>
-            <Input type="number" label="Điểm thưởng" placeholder="10" value={form.points} onChange={(e) => handleChange("points", e.target.value)} />
-          </Box>
+          {!hasPriceVariants && (
+            <Box style={{ flex: 1, position: 'relative' }}>
+              <Input type="number" label="Giá bán (Thực thu)" placeholder="200000" value={form.price} onChange={(e) => handleChange("price", e.target.value)} />
+              
+              {/* 👉 HIỂN THỊ NHÃN % GIẢM GIÁ THỜI GIAN THỰC (MÀU ĐỎ) */}
+              {Number(form.originalPrice) > Number(form.price) && Number(form.price) > 0 && (
+                  <Box className="absolute -top-2 -right-2 bg-red-500 text-white px-2 py-0.5 rounded-full text-[10px] font-bold shadow-sm z-10 animate-pulse border border-white">
+                      Giảm {Math.round(((Number(form.originalPrice) - Number(form.price)) / Number(form.originalPrice)) * 100)}%
+                  </Box>
+              )}
+            </Box>
+          )}
+          {!hasPriceVariants && (
+            <Box style={{ flex: 1 }}>
+              <Input type="number" label="Tỷ lệ chi phí App (%)" placeholder={`${defaultPlatformFeeRate}`} value={form.rewardRate} onChange={(e) => handleChange("rewardRate", e.target.value)} />
+            </Box>
+          )}
+          {!hasPriceVariants && (
+            <Box style={{ flex: 1 }}>
+              <Input type="number" label="Điểm thưởng" placeholder="10" value={form.points} onChange={(e) => handleChange("points", e.target.value)} disabled={true} />
+            </Box>
+          )}
         </Box>
-        {/* 👉 Hiển thị cảnh báo nhỏ cho Shop biết */}
         {/* 👉 GIAO DIỆN CẢNH BÁO THỜI GIAN THỰC */}
-        {numericPrice > 0 && !isPointsValid ? (
-            <Text size="xxxxSmall" className="text-red-500 italic mb-4 ml-1 font-medium">
-                ⚠️ Tỷ lệ tối thiểu là {minRewardRate}% (Tương đương ít nhất {requiredMinPoints} điểm). Vui lòng nhập mức điểm cao hơn!
-            </Text>
-        ) : (
-            <Text size="xxxxSmall" className="text-gray-400 italic mb-4 ml-1">
-                * Hệ thống yêu cầu tối thiểu {minRewardRate}% (Ít nhất {requiredMinPoints} điểm). Bạn có thể tặng nhiều hơn để hút khách.
-            </Text>
+        {!hasPriceVariants && (
+          basePriceForUI > 0 && !isPointsValid ? (
+              <Text size="xxxxSmall" className="text-red-500 italic mb-4 ml-1 font-medium">
+                  ⚠️ Hệ thống yêu cầu tỷ lệ tối thiểu là {minRewardRate}% (Tương đương ít nhất {requiredMinPoints} điểm). Vui lòng nhập mức tỷ lệ chi phí cao hơn!
+              </Text>
+          ) : (
+              <Text size="xxxxSmall" className="text-gray-400 italic mb-4 ml-1">
+                  * Hệ thống yêu cầu tỷ lệ tối thiểu {minRewardRate}% (Tương đương {requiredMinPoints} điểm). Tăng tỷ lệ chi phí App đồng nghĩa với việc khách nhận được nhiều điểm hơn, giúp thu hút khách tốt hơn.
+              </Text>
+          )
         )}
         
         <Box mb={4}>
@@ -675,6 +786,22 @@ const handleRemoveVideo = () => {
           )}
         </Box>
       </Box>
+
+      {/* Modal báo thiếu điểm VIP */}
+      <Modal 
+          visible={showVipModal}
+          title="Không đủ điểm VIP"
+          onClose={() => setShowVipModal(false)}
+          actions={[
+              { text: "Đóng", close: true },
+              { text: "Nạp điểm ngay", highLight: true, onClick: () => { navigate("/profile", { state: { openVipWallet: true } }); setShowVipModal(false); } }
+          ]}
+      >
+          <Box className="text-center">
+              <Text className="mb-2">Ví điểm đẩy hàng VIP của bạn hiện còn <b>{currentVipPoints}</b> điểm.</Text>
+              <Text>Cần tối thiểu <b>10 điểm</b> để có thể đăng bài lên thư mục Sản phẩm Hot.</Text>
+          </Box>
+      </Modal>
     </Page>
   );
 };

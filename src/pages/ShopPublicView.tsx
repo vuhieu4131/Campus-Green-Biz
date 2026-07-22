@@ -580,11 +580,15 @@ const ShopPublicView: FC = () => {
                                 <img src={item.image || "https://via.placeholder.com/150"} className="absolute inset-0 w-full h-full object-cover" alt="Product" />
                                 
                                 {/* 👇 BỔ SUNG: HIỂN THỊ ĐIỂM TÍCH LŨY 👇 */}
-                                {item.points && (
-                                    <div className="absolute top-2 right-2 bg-yellow-400 text-white px-2 py-0.5 rounded text-[10px] font-bold shadow-sm z-10">
-                                        +{item.points} điểm
-                                    </div>
-                                )}
+                                {item.points && (() => {
+                                    const adminRewardRate = Number(localStorage.getItem('rewardPointRate')) || 10;
+                                    const isHighRate = item.rewardRate && Number(item.rewardRate) > adminRewardRate;
+                                    return (
+                                        <div className={`absolute top-2 right-2 ${isHighRate ? 'bg-gradient-to-r from-red-500 to-orange-500' : 'bg-gradient-to-r from-yellow-500 to-amber-500'} text-white px-2 py-0.5 rounded text-[10px] font-bold shadow-sm z-10 flex items-center`}>
+                                            +{item.points} điểm {isHighRate ? '🔥' : ''}
+                                        </div>
+                                    );
+                                })()}
 
                                 {/* 👉 Trạng thái duyệt dành cho chủ shop */}
                                 {isOwner && (

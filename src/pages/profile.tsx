@@ -181,7 +181,7 @@ const NewMemberView: FC<{
     setLoadingStats(true);
     try {
       const matched: any[] = [];
-      const chunks = [];
+      const chunks: string[][] = [];
       for (let i = 0; i < followers.length; i += 10) {
         chunks.push(followers.slice(i, i + 10));
       }
@@ -197,8 +197,8 @@ const NewMemberView: FC<{
           Promise.all(shopPromises)
         ]);
         
-        uDocs.forEach(d => { if (d.exists()) matched.push({ id: d.id, ...d.data(), type: 'user' }) });
-        sDocs.forEach(d => { if (d.exists()) matched.push({ id: d.id, ...d.data(), type: 'shop' }) });
+        uDocs.forEach((d: any) => { if (d.exists()) matched.push({ id: d.id, ...d.data(), type: 'user' }) });
+        sDocs.forEach((d: any) => { if (d.exists()) matched.push({ id: d.id, ...d.data(), type: 'shop' }) });
       }
       
       setFollowersList(matched);
@@ -921,6 +921,7 @@ const NewMemberView: FC<{
 const ProfilePage: FC = () => {
   const [authVisible, setAuthVisible] = useState(false);
   const navigate = useNavigate(); // Công cụ chuyển trang
+  const location = useLocation(); // Công cụ lấy state chuyển trang
 
   // Trạng thái quản lý User
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -1003,6 +1004,13 @@ const ProfilePage: FC = () => {
       setTargetUserData(null);
     }
   }, [profileId]);
+
+  // Tự động mở Dashboard và Modal VIP nếu nhận được tín hiệu từ trang Đăng bài
+  useEffect(() => {
+    if (location.state?.openVipWallet && userData?.role === "provider") {
+      setShowProviderDashboard(true);
+    }
+  }, [location.state, userData]);
 
   // Lắng nghe trạng thái đăng nhập từ Firebase
   // Lắng nghe trạng thái đăng nhập từ Firebase
@@ -1155,7 +1163,7 @@ const ProfilePage: FC = () => {
               </Box>
             )}
             {userData?.role === "admin" && <AdminView userData={userData} onLogout={handleLogout} />}
-            {userData?.role === "provider" && showProviderDashboard && <ProviderView userData={userData} setUserData={setUserData} onLogout={handleLogout} onBackToProfile={() => setShowProviderDashboard(false)} />}
+            {userData?.role === "provider" && showProviderDashboard && <ProviderView userData={userData} setUserData={setUserData} onLogout={handleLogout} onBackToProfile={() => setShowProviderDashboard(false)} initialOpenVipModal={location.state?.openVipWallet} />}
             
             {(!userData?.role || userData?.role === "user" || userData?.role === "member" || userData?.role === "distributor" || (userData?.role === "provider" && !showProviderDashboard)) && (
               <NewMemberView

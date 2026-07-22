@@ -63,9 +63,10 @@ interface ProviderProps {
   setUserData?: (data: any) => void;
   onBackToProfile?: () => void; // Dấu ? nghĩa là hàm này có thể có hoặc không
   onLogout?: () => void;        // Định nghĩa thêm hàm đăng xuất
+  initialOpenVipModal?: boolean;
 }
 
-export const ProviderView: FC<ProviderProps> = ({ userData, setUserData, onBackToProfile, onLogout }) => {
+export const ProviderView: FC<ProviderProps> = ({ userData, setUserData, onBackToProfile, onLogout, initialOpenVipModal }) => {
   const navigate = useNavigate();
   const { openSnackbar } = useSnackbar();
 
@@ -703,10 +704,17 @@ const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
                 let buyerPoints = totalPoints;
                 const referrerPoints: Record<string, number> = {};
 
+                const parsePriceStr = (val: any) => {
+                    if (!val) return 0;
+                    if (typeof val === 'number') return val;
+                    const parsed = Number(val.toString().replace(/[^0-9]/g, ''));
+                    return isNaN(parsed) ? 0 : parsed;
+                };
+
                 const items = orderData.items || orderData.cartItems || [];
                 items.forEach((item: any) => {
                     if (item.referrerId && item.referrerId !== orderData.userId && item.product?.price) {
-                        const itemAmount = (Number(item.product.price) * (item.quantity || 1));
+                        const itemAmount = (parsePriceStr(item.product.price) * (item.quantity || 1));
                         const itemPts = Math.floor(itemAmount / 10000);
                         if (itemPts > 0) {
                             const refPts = Math.floor(itemPts * 0.2); // 20%
@@ -838,7 +846,7 @@ const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
 };
   const [pendingCount, setPendingCount] = useState(0);
   const [shopVipPoints, setShopVipPoints] = useState(0);
-  const [showVipModal, setShowVipModal] = useState(false);
+  const [showVipModal, setShowVipModal] = useState(initialOpenVipModal || false);
   const [pointsToBuy, setPointsToBuy] = useState("");
   const [vipActiveTab, setVipActiveTab] = useState("buy");
   const [myVipRequests, setMyVipRequests] = useState<any[]>([]);
