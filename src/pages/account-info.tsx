@@ -6,6 +6,7 @@ import { auth, db, storage } from "../firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { doc, getDoc, updateDoc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { compressImage } from "../utils/compression";
 
 const AccountInfoPage: FC = () => {
   const { openSnackbar } = useSnackbar();
@@ -27,7 +28,8 @@ const AccountInfoPage: FC = () => {
       try {
         const filename = `avatars/${currentUser.uid}_${Date.now()}.jpg`;
         const storageRef = ref(storage, filename);
-        await uploadBytes(storageRef, file);
+        const compressedFile = await compressImage(file);
+        await uploadBytes(storageRef, compressedFile);
         const url = await getDownloadURL(storageRef);
         setAvatar(url);
         openSnackbar({ text: "Đã tải ảnh lên thành công!", type: "success" });

@@ -6,6 +6,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db } from "../firebase"; 
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { getUserInfo } from "zmp-sdk/apis";
+import { compressImage } from "../utils/compression";
 
 
 const { Option } = Select;
@@ -183,7 +184,8 @@ const PostPage: React.FunctionComponent = () => {
 
             // Upload từng ảnh lên Firebase
             const storageRef = ref(storage, `services_images/${Date.now()}_${file.name}`);
-            await uploadBytes(storageRef, file);
+            const compressedFile = await compressImage(file);
+            await uploadBytes(storageRef, compressedFile);
             const downloadURL = await getDownloadURL(storageRef);
             newImageUrls.push(downloadURL);
         }

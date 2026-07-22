@@ -129,6 +129,16 @@ const ProductDetailPage: FC = () => {
 
   const handleAddToCart = () => {
     if (!product) return;
+
+    if (!showPrice) {
+      const shopId = product.ownerPhone || product.providerId || product.shopId;
+      if (shopId) {
+        navigate(`/shop-details/${shopId}`, { state: { tab: 'info' } });
+      } else {
+        openSnackbar({ text: "Không tìm thấy thông tin cửa hàng.", type: "error", position: "top" });
+      }
+      return;
+    }
     
     const userPhone = localStorage.getItem("user_phone");
     if (!userPhone) {
@@ -159,6 +169,16 @@ const ProductDetailPage: FC = () => {
 
   const handleBuyNow = () => {
     if (!product) return;
+
+    if (!showPrice) {
+      const shopId = product.ownerPhone || product.providerId || product.shopId;
+      if (shopId) {
+        navigate(`/shop-details/${shopId}`, { state: { tab: 'info' } });
+      } else {
+        openSnackbar({ text: "Không tìm thấy thông tin cửa hàng.", type: "error", position: "top" });
+      }
+      return;
+    }
 
     const userPhone = localStorage.getItem("user_phone");
     if (!userPhone) {
@@ -444,41 +464,60 @@ const ProductDetailPage: FC = () => {
 
       {/* Sticky Bottom Actions */}
       <Box className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-150 p-4 shadow-lg z-50 flex flex-col space-y-3">
-        {/* Quantity Picker inside footer */}
-        <Box flex justifyContent="space-between" alignItems="center">
-          <Text bold className="text-gray-800 text-sm">Số lượng mua</Text>
-          <Box className="flex items-center space-x-3 bg-gray-50 border border-gray-200 rounded-full px-2 py-0.5">
-            <Box 
-              className="w-7 h-7 flex items-center justify-center bg-white rounded-full shadow-sm active:bg-gray-200 cursor-pointer text-gray-600 font-bold text-sm"
-              onClick={() => setQuantity(Math.max(1, quantity - 1))}
-            >
-              -
+        {!showPrice ? (
+          <button 
+            className="w-full bg-[#14502e] text-white font-bold rounded-xl h-12 flex items-center justify-center shadow-sm active:opacity-75 transition-opacity"
+            onClick={() => {
+              const shopId = product.ownerPhone || product.providerId || product.shopId;
+              if (shopId) {
+                navigate(`/shop-details/${shopId}`, { state: { tab: 'info' } });
+              } else {
+                openSnackbar({ text: "Không tìm thấy thông tin cửa hàng.", type: "error", position: "top" });
+              }
+            }}
+          >
+            <CustomIcon icon="zi-call" size={20} className="mr-2" />
+            Liên hệ nhà cung cấp
+          </button>
+        ) : (
+          <>
+            {/* Quantity Picker inside footer */}
+            <Box flex justifyContent="space-between" alignItems="center">
+              <Text bold className="text-gray-800 text-sm">Số lượng mua</Text>
+              <Box className="flex items-center space-x-3 bg-gray-50 border border-gray-200 rounded-full px-2 py-0.5">
+                <Box 
+                  className="w-7 h-7 flex items-center justify-center bg-white rounded-full shadow-sm active:bg-gray-200 cursor-pointer text-gray-600 font-bold text-sm"
+                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                >
+                  -
+                </Box>
+                <Text className="font-bold w-6 text-center text-gray-800 text-sm">{quantity}</Text>
+                <Box 
+                  className="w-7 h-7 flex items-center justify-center bg-white rounded-full shadow-sm active:bg-gray-200 cursor-pointer text-gray-600 font-bold text-sm"
+                  onClick={() => setQuantity(quantity + 1)}
+                >
+                  +
+                </Box>
+              </Box>
             </Box>
-            <Text className="font-bold w-6 text-center text-gray-800 text-sm">{quantity}</Text>
-            <Box 
-              className="w-7 h-7 flex items-center justify-center bg-white rounded-full shadow-sm active:bg-gray-200 cursor-pointer text-gray-600 font-bold text-sm"
-              onClick={() => setQuantity(quantity + 1)}
-            >
-              +
-            </Box>
-          </Box>
-        </Box>
 
-        {/* Action Buttons */}
-        <Box flex className="space-x-3">
-          <button 
-            className="flex-1 bg-green-50 text-[#14502e] border border-[#14502e] font-semibold rounded-xl h-11 flex items-center justify-center shadow-sm active:opacity-75 transition-opacity"
-            onClick={handleAddToCart}
-          >
-            Thêm vào giỏ
-          </button>
-          <button 
-            className="flex-1 bg-[#14502e] text-white font-bold rounded-xl h-11 flex items-center justify-center shadow-sm active:opacity-75 transition-opacity"
-            onClick={handleBuyNow}
-          >
-            Mua ngay
-          </button>
-        </Box>
+            {/* Action Buttons */}
+            <Box flex className="space-x-3">
+              <button 
+                className="flex-1 bg-green-50 text-[#14502e] border border-[#14502e] font-semibold rounded-xl h-11 flex items-center justify-center shadow-sm active:opacity-75 transition-opacity"
+                onClick={handleAddToCart}
+              >
+                Thêm vào giỏ
+              </button>
+              <button 
+                className="flex-1 bg-[#14502e] text-white font-bold rounded-xl h-11 flex items-center justify-center shadow-sm active:opacity-75 transition-opacity"
+                onClick={handleBuyNow}
+              >
+                Mua ngay
+              </button>
+            </Box>
+          </>
+        )}
       </Box>
 
       {/* Success Modal */}

@@ -23,8 +23,9 @@ import CustomIcon from "../components/custom-icon";
 // IMPORT CÔNG CỤ FIREBASE
 import { auth, db, storage } from "../firebase";
 import { onAuthStateChanged, signOut, User } from "firebase/auth";
-import { doc, getDoc, collection, query, where, getDocs, updateDoc, arrayUnion, arrayRemove, orderBy, addDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, updateDoc, arrayUnion, arrayRemove, orderBy, addDoc, serverTimestamp, limit } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { compressImage } from "../utils/compression";
 import { PostItem } from "../components/post-item";
 import { RawPost } from "../utils/edgeRanker";
 import { ProviderView } from "../components/profile-modules/provider-view";
@@ -283,7 +284,8 @@ const NewMemberView: FC<{
           // 1. Lấy danh sách bài đăng của chính shop
           const ownPostsQ = query(
             collection(db, "posts"), 
-            where("authorId", "==", user.id)
+            where("authorId", "==", user.id),
+            limit(30)
           );
           const ownSnapshot = await getDocs(ownPostsQ);
           const ownPosts = ownSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as RawPost[];
@@ -299,38 +301,19 @@ const NewMemberView: FC<{
           });
           setPosts(ownPosts);
 
-          // 2. Lấy danh sách ID sản phẩm thuộc về shop này
-          const shopProductIds = new Set<string>();
-          if (user.phone) {
-            const q1 = query(collection(db, "services"), where("providerId", "==", user.phone));
-            const q2 = query(collection(db, "services"), where("ownerPhone", "==", user.phone));
-            const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
-            snap1.forEach(doc => shopProductIds.add(doc.id));
-            snap2.forEach(doc => shopProductIds.add(doc.id));
-          }
-          const q3 = query(collection(db, "services"), where("shopId", "==", user.id));
-          const snap3 = await getDocs(q3);
-          snap3.forEach(doc => shopProductIds.add(doc.id));
-
-          // 3. Lấy toàn bộ bài viết trong hệ thống để lọc bài viết gắn link và bài chia sẻ
-          const allPostsQ = query(collection(db, "posts"));
-          const allSnapshot = await getDocs(allPostsQ);
-          const allPosts = allSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as RawPost[];
-
-          // Lọc bài viết gắn link: bài viết của bất kỳ ai có gắn sản phẩm của shop, HOẶC bài viết do chính shop đăng có gắn sản phẩm
-          const shopLinked = allPosts.filter(post => {
-            if (!post.attachedProduct) return false;
-            
-            const isProductOfThisShop = shopProductIds.has(post.attachedProduct.id);
-            const isAuthoredByThisShop = post.authorId === user.id;
-            
-            if (!isProductOfThisShop && !isAuthoredByThisShop) return false;
-            if (post.sharedFrom) return false;
-            
-            // Chỉ hiển thị bài viết được duyệt (hoặc đang chờ duyệt nếu là chính shop xem)
-            if (post.status !== "approved" && post.authorId !== currentUserId) return false;
-            return true;
-          });
+          // 2. Lấy bài viết gắn link (dựa vào trường attachedProductShopId)
+          const linkedPostsQ = query(
+            collection(db, "posts"),
+            where("attachedProductShopId", "==", user.id),
+            limit(30)
+          );
+          const linkedSnapshot = await getDocs(linkedPostsQ);
+          let shopLinked = linkedSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as RawPost[];
+          
+          // Lọc bỏ bài chưa duyệt nếu không phải chủ shop
+          shopLinked = shopLinked.filter(post => post.status === "approved" || post.authorId === currentUserId);
+          
+          // Sắp xếp
           shopLinked.sort((a, b) => {
             const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
             const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
@@ -338,20 +321,28 @@ const NewMemberView: FC<{
           });
           setLinkedPosts(shopLinked);
 
-          // Lọc bài viết chia sẻ: bài viết do chính shop chia sẻ, HOẶC bài viết của bất kỳ ai chia sẻ lại bài viết gốc của shop
-          const ownPostIds = new Set(ownPosts.map(p => p.id));
-          const shopShared = allPosts.filter(post => {
-            if (!post.sharedFrom) return false;
-            
-            const isSharedByThisShop = post.authorId === user.id;
-            const isSharingThisShopsPost = ownPostIds.has(post.sharedFrom);
-            
-            if (!isSharedByThisShop && !isSharingThisShopsPost) return false;
-            
-            // Chỉ hiển thị bài viết được duyệt (hoặc đang chờ duyệt nếu là chính shop xem)
-            if (post.status !== "approved" && post.authorId !== currentUserId) return false;
-            return true;
-          });
+          // 3. Lấy bài viết chia sẻ
+          // A: Bài do chính shop share
+          const ownShared = ownPosts.filter(p => !!p.sharedFrom);
+          
+          // B: Bài của shop bị người khác share (dựa vào originalAuthorId)
+          const othersSharedQ = query(
+            collection(db, "posts"),
+            where("originalAuthorId", "==", user.id),
+            limit(30)
+          );
+          const othersSharedSnap = await getDocs(othersSharedQ);
+          let othersShared = othersSharedSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as RawPost[];
+          
+          // Lọc bỏ bài chưa duyệt nếu không phải tác giả
+          othersShared = othersShared.filter(post => post.status === "approved" || post.authorId === currentUserId);
+
+          // Trộn và deduplicate
+          const sharedMap = new Map<string, RawPost>();
+          ownShared.forEach(p => sharedMap.set(p.id, p));
+          othersShared.forEach(p => sharedMap.set(p.id, p));
+          
+          let shopShared = Array.from(sharedMap.values());
           shopShared.sort((a, b) => {
             const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
             const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
@@ -363,7 +354,8 @@ const NewMemberView: FC<{
           // Luồng tiêu chuẩn cho User bình thường: Chỉ hiển thị bài viết, bài gắn link, bài chia sẻ của chính họ
           const q = query(
             collection(db, "posts"), 
-            where("authorId", "==", user.id)
+            where("authorId", "==", user.id),
+            limit(30)
           );
           const snapshot = await getDocs(q);
           const fetchedPosts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as RawPost[];
@@ -946,7 +938,8 @@ const ProfilePage: FC = () => {
     try {
       const filename = `${field}s/${currentUser.uid}_${Date.now()}.jpg`;
       const storageRef = ref(storage, filename);
-      await uploadBytes(storageRef, file);
+      const compressedFile = await compressImage(file);
+      await uploadBytes(storageRef, compressedFile);
       const url = await getDownloadURL(storageRef);
       
       const docRef = doc(db, userData.role === "provider" ? "shops" : "users", currentUser.uid);

@@ -9,6 +9,7 @@ import { collection, addDoc, serverTimestamp, query, where, getDocs, getDoc, doc
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { AuthOverlay } from "./auth";
+import { compressImage } from "../utils/compression";
 
 const CreatePostPage: FC = () => {
   const navigate = useNavigate();
@@ -76,8 +77,8 @@ const CreatePostPage: FC = () => {
   const onVideoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      if (file.size > 50 * 1024 * 1024) {
-        openSnackbar({ text: "Dung lượng video vượt quá 50MB, vui lòng chọn video nhỏ hơn!", type: "error" });
+      if (file.size > 20 * 1024 * 1024) {
+        openSnackbar({ text: "Dung lượng video vượt quá 20MB, vui lòng chọn video nhỏ hơn!", type: "error" });
         return;
       }
       const url = URL.createObjectURL(file);
@@ -175,8 +176,9 @@ const CreatePostPage: FC = () => {
         const storageRef = ref(storage, `posts/${currentUser.uid}/${filename}`);
         
         try {
+          const compressedFile = await compressImage(img.file);
           // Timeout sau 10 giây nếu Firebase Storage bị treo (do chưa bật Storage trên Console)
-          const uploadPromise = uploadBytes(storageRef, img.file).then(() => getDownloadURL(storageRef));
+          const uploadPromise = uploadBytes(storageRef, compressedFile).then(() => getDownloadURL(storageRef));
           const timeoutPromise = new Promise<string>((_, reject) => 
             setTimeout(() => reject(new Error("Storage timeout")), 10000)
           );
@@ -212,7 +214,8 @@ const CreatePostPage: FC = () => {
             name: attachedProduct.name || attachedProduct.title || "",
             price: attachedProduct.price || 0,
             image: attachedProduct.image || attachedProduct.images?.[0] || ""
-          } : null
+          } : null,
+          attachedProductShopId: attachedProduct ? (attachedProduct.shopId || attachedProduct.providerId || attachedProduct.ownerPhone || "") : null
         });
 
         // 👉 Cộng điểm uy tín (+10) cho người đăng bài viết mới

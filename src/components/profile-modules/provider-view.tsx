@@ -8,6 +8,7 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
 import { openShareSheet } from "zmp-sdk/apis";
 import { getValidAvatar } from "../../utils/avatar";
+import { compressImage } from "../../utils/compression";
 
 const { Item } = List;
 const { TextArea } = Input;
@@ -144,7 +145,8 @@ export const ProviderView: FC<ProviderProps> = ({ userData, setUserData, onBackT
     try {
       const filename = `licenses/${Date.now()}_${file.name}`;
       const storageRef = ref(storage, filename);
-      await uploadBytes(storageRef, file);
+      const compressedFile = await compressImage(file);
+      await uploadBytes(storageRef, compressedFile);
       const url = await getDownloadURL(storageRef);
       setLicenseImage(url);
       openSnackbar({ text: "Tải ảnh lên thành công!", type: "success" });
@@ -845,14 +847,11 @@ const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
     if (!showVipModal || !userData.id) return;
     const q1 = query(
       collection(db, "vip_points_requests"), 
-      where("shopId", "==", userData.id), 
-      orderBy("createdAt", "desc")
+      where("shopId", "==", userData.id)
     );
     const q2 = query(
       collection(db, "point_transactions"),
-      where("userId", "==", userData.id),
-      where("walletType", "==", "rank"),
-      orderBy("createdAt", "desc")
+      where("userId", "==", userData.id)
     );
     
     let list1: any[] = [];
@@ -876,7 +875,7 @@ const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
       // Lọc các giao dịch có lý do là quy đổi điểm sang VIP
       list2 = snap.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as any))
-        .filter(item => item.reason && item.reason.includes("Được quy đổi từ"))
+        .filter(item => item.walletType === "rank" && item.reason && item.reason.includes("Được quy đổi từ"))
         .map(item => ({
           ...item,
           status: "approved",
@@ -900,7 +899,8 @@ const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
       const filename = `vip_receipts/${userData.id}_${Date.now()}_${file.name}`;
       const storageRef = ref(storage, filename);
-      await uploadBytes(storageRef, file);
+      const compressedFile = await compressImage(file);
+      await uploadBytes(storageRef, compressedFile);
       const url = await getDownloadURL(storageRef);
       setReceiptUrl(url);
       openSnackbar({ text: "Tải biên lai lên thành công!", type: "success" });
@@ -1307,7 +1307,8 @@ useEffect(() => {
       try {
           const filename = `shop_avatars/${userData.id || 'guest'}_${Date.now()}_${file.name}`;
           const storageRef = ref(storage, filename);
-          await uploadBytes(storageRef, file);
+          const compressedFile = await compressImage(file);
+          await uploadBytes(storageRef, compressedFile);
           const url = await getDownloadURL(storageRef);
           setEditAvatar(url);
           openSnackbar({ text: "Tải ảnh đại diện thành công!", type: "success" });
@@ -1326,7 +1327,8 @@ useEffect(() => {
       try {
           const filename = `shop_covers/${userData.id || 'guest'}_${Date.now()}_${file.name}`;
           const storageRef = ref(storage, filename);
-          await uploadBytes(storageRef, file);
+          const compressedFile = await compressImage(file);
+          await uploadBytes(storageRef, compressedFile);
           const url = await getDownloadURL(storageRef);
           setEditCover(url);
           openSnackbar({ text: "Tải ảnh bìa thành công!", type: "success" });
@@ -2382,7 +2384,7 @@ useEffect(() => {
                           return (
                               <Box key={idx} className="pb-3 border-b border-gray-100 last:border-0 flex justify-between items-center">
                                   <Box className="flex-1 pr-2">
-                                      <Text size="small" className="font-semibold text-gray-800">{item.description || "Giao dịch điểm"}</Text>
+                                      <Text size="small" className="font-semibold text-gray-800">{item.description || item.reason || "Giao dịch điểm"}</Text>
                                       <Text size="xxSmall" className="text-gray-400 mt-0.5 block">{formatDate(item.createdAt)}</Text>
                                   </Box>
                                   <Text 

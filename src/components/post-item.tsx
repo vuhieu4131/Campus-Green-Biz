@@ -1277,7 +1277,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
                 authorAvatar: profileAvatar,
                 content: `Đã chia sẻ bài viết của ${data.authorName}`,
                 sharedFrom: data.id,
-                originalAuthorId: data.authorId || "",
+                originalAuthorId: data.originalAuthorId || data.originalPost?.authorId || data.authorId || "",
                 originalPost: {
                   id: data.id,
                   authorId: data.authorId || "",

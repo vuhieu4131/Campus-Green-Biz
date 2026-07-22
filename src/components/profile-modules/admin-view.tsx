@@ -8,6 +8,7 @@ import { getDefaultAvatar, getValidAvatar } from "../../utils/avatar";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 const { Option } = Select;
 import { openShareSheet } from "zmp-sdk/apis";
+import { compressImage } from "../../utils/compression";
 // Hàm format ngày giờ
 const formatDate = (timestamp) => {
   if (!timestamp) return "";
@@ -92,7 +93,8 @@ export const AdminView: FC<AdminProps> = ({ userData, onLogout }) => {
     try {
       const filename = `banners/${Date.now()}_${file.name}`;
       const storageRef = ref(storage, filename);
-      await uploadBytes(storageRef, file);
+      const compressedFile = await compressImage(file);
+      await uploadBytes(storageRef, compressedFile);
       const url = await getDownloadURL(storageRef);
       setBannerInput(url);
       openSnackbar({ text: "Tải ảnh lên thành công!", type: "success" });
@@ -534,7 +536,8 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
     try {
       const filename = `admin_qr/${Date.now()}_${file.name}`;
       const storageRef = ref(storage, filename);
-      await uploadBytes(storageRef, file);
+      const compressedFile = await compressImage(file);
+      await uploadBytes(storageRef, compressedFile);
       const url = await getDownloadURL(storageRef);
       setAdminBankQrLink(url);
       openSnackbar({ text: "Tải ảnh mã QR thành công!", type: "success" });

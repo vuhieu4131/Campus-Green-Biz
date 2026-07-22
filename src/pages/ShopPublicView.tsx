@@ -24,7 +24,7 @@ const ShopPublicView: FC = () => {
   });
   const [services, setServices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("services");
+  const [activeTab, setActiveTab] = useState(stateData.tab || "services");
   // 👇 STATE QUẢN LÝ ẨN/HIỆN GIÁ TIỀN 👇
   const [showPrice, setShowPrice] = useState(false);
   const [currentUserPhone, setCurrentUserPhone] = useState<string | null>(null);
