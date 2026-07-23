@@ -3,7 +3,8 @@ import { Page, Header, Box, Text, Avatar, Button, Icon, Tabs, useSnackbar, Spinn
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { collection, query, where, getDocs, doc, getDoc, onSnapshot, updateDoc, serverTimestamp, addDoc } from "firebase/firestore";
 import { getValidAvatar } from "../utils/avatar";
-import { db, auth } from "../firebase";
+import { db, auth, storage } from "../firebase";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { onAuthStateChanged } from "firebase/auth";
 import { openPhone, openChat } from "zmp-sdk/apis";
 
@@ -25,6 +26,12 @@ const ShopPublicView: FC = () => {
   const [services, setServices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(stateData.tab || "services");
+  
+  // States cho Thông tin chuyển khoản
+  const [shopBankInfoText, setShopBankInfoText] = useState("");
+  const [shopBankQrLink, setShopBankQrLink] = useState("");
+  const [isUploadingQr, setIsUploadingQr] = useState(false);
+  const [savingPayment, setSavingPayment] = useState(false);
   // 👇 STATE QUẢN LÝ ẨN/HIỆN GIÁ TIỀN & ĐIỂM 👇
   const [showPrice, setShowPrice] = useState(false);
   const [adminPlatformFeeRate, setAdminPlatformFeeRate] = useState(15);
@@ -280,6 +287,8 @@ const ShopPublicView: FC = () => {
 
         // Cập nhật State thông tin Shop để hiển thị lên UI
         if (currentShopData) {
+          setShopBankInfoText(currentShopData.bankInfoText || "");
+          setShopBankQrLink(currentShopData.bankQrLink || "");
           setShop(prev => ({
             ...prev,
             id: actualShopId,
@@ -426,6 +435,43 @@ const ShopPublicView: FC = () => {
     }
   };
 
+  const handleUploadQrImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingQr(true);
+    try {
+      const storageRef = ref(storage, `bank_qrs/${Date.now()}_${file.name}`);
+      await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(storageRef);
+      setShopBankQrLink(downloadURL);
+      openSnackbar({ text: "Tải ảnh QR thành công!", type: "success" });
+    } catch (error) {
+      console.error("Lỗi tải ảnh QR:", error);
+      openSnackbar({ text: "Lỗi khi tải ảnh. Vui lòng thử lại.", type: "error" });
+    } finally {
+      setIsUploadingQr(false);
+    }
+  };
+
+  const handleSavePaymentInfo = async () => {
+    if (!shop.id) return;
+    setSavingPayment(true);
+    try {
+      const shopRef = doc(db, "shops", shop.id);
+      await updateDoc(shopRef, {
+        bankInfoText: shopBankInfoText,
+        bankQrLink: shopBankQrLink,
+        updatedAt: serverTimestamp()
+      });
+      openSnackbar({ text: "Đã lưu thông tin thanh toán thành công!", type: "success" });
+    } catch (error) {
+      console.error("Lỗi khi lưu thông tin thanh toán:", error);
+      openSnackbar({ text: "Lỗi lưu thông tin. Vui lòng thử lại.", type: "error" });
+    } finally {
+      setSavingPayment(false);
+    }
+  };
+
   // 5. RENDER GIAO DIỆN
   return (
     <Page className="bg-gray-50 pb-10">
@@ -481,6 +527,7 @@ const ShopPublicView: FC = () => {
           <Tabs activeKey={activeTab} onChange={setActiveTab}>
               <Tabs.Tab key="services" label="Dịch vụ & Sản phẩm" />
               <Tabs.Tab key="info" label="Thông tin" />
+              {isOwner && <Tabs.Tab key="payment" label="Thông tin chuyển khoản" />}
           </Tabs>
       </Box>
 
@@ -694,7 +741,7 @@ const ShopPublicView: FC = () => {
                     <Text size="small" className="text-gray-400 italic">Cửa hàng chưa có bài đăng nào.</Text>
                 </Box>
               )
-          ) : (
+          ) : activeTab === "info" ? (
               // TAB 2: THÔNG TIN CỬA HÀNG VÀ CƠ SỞ
               <Box className="flex flex-col gap-3 animate-fade-in">
                   <Box className="p-4 bg-indigo-900 rounded-2xl text-white flex items-center justify-between shadow-lg shadow-indigo-100 mb-2">
@@ -749,7 +796,74 @@ const ShopPublicView: FC = () => {
                       </Box>
                   </Box>
               </Box>
-          )}
+          ) : activeTab === "payment" && isOwner ? (
+              // TAB 3: THÔNG TIN CHUYỂN KHOẢN (CHỈ CHỦ SHOP MỚI THẤY & SỬA ĐƯỢC)
+              <Box className="flex flex-col gap-4">
+                  <Box className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                      <Box flex alignItems="center" className="mb-3">
+                          <Icon icon="zi-shield-solid" className="text-red-500 mr-2" />
+                          <Text className="font-bold text-gray-800">Cấu hình thông tin nhận tiền</Text>
+                      </Box>
+                      
+                      <Box className="mb-4">
+                          <Text size="small" className="font-bold text-gray-700 mb-1">1. Thông tin ngân hàng (Dạng chữ)</Text>
+                          <Text size="xSmall" className="text-gray-400 italic mb-2">* Nội dung này sẽ hiển thị cho khách hàng copy khi họ chuyển khoản.</Text>
+                          <textarea
+                              className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:border-green-500"
+                              rows={4}
+                              placeholder="Ví dụ:&#10;Ngân hàng ABC&#10;Số tài khoản: 123456789&#10;Chủ tài khoản: NGUYEN VAN A"
+                              value={shopBankInfoText}
+                              onChange={(e) => setShopBankInfoText(e.target.value)}
+                          />
+                      </Box>
+
+                      <Box className="mb-4">
+                          <Text size="small" className="font-bold text-gray-700 mb-1">2. Hình ảnh mã QR Ngân hàng (Tuỳ chọn)</Text>
+                          <Text size="xSmall" className="text-gray-400 italic mb-2">* Tải lên hình ảnh mã QR để hiển thị khi thanh toán</Text>
+                          
+                          <Box className="border-2 border-dashed border-gray-300 rounded-xl p-4 flex flex-col items-center justify-center relative">
+                              {shopBankQrLink ? (
+                                  <Box className="w-full flex flex-col items-center">
+                                      <img src={shopBankQrLink} alt="QR Code" className="max-h-48 object-contain rounded-lg mb-3 shadow-sm" />
+                                      <Text size="small" className="text-green-600 font-medium bg-green-50 px-3 py-1 rounded-full flex items-center">
+                                          <Icon icon="zi-check-circle-solid" size={16} className="mr-1" />
+                                          Đã tải ảnh lên. Nhấp để thay đổi
+                                      </Text>
+                                  </Box>
+                              ) : (
+                                  <Box className="py-6 flex flex-col items-center">
+                                      <Icon icon="zi-upload" className="text-gray-400 text-3xl mb-2" />
+                                      <Text size="small" className="text-gray-500">Nhấp để tải ảnh QR lên</Text>
+                                  </Box>
+                              )}
+                              
+                              <input 
+                                  type="file" 
+                                  accept="image/*" 
+                                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                  onChange={handleUploadQrImage}
+                                  disabled={isUploadingQr}
+                              />
+                              
+                              {isUploadingQr && (
+                                  <Box className="absolute inset-0 bg-white/80 flex items-center justify-center rounded-xl z-10">
+                                      <Spinner />
+                                  </Box>
+                              )}
+                          </Box>
+                      </Box>
+                      
+                      <Button 
+                          fullWidth 
+                          className="bg-green-600 hover:bg-green-700 mt-2" 
+                          onClick={handleSavePaymentInfo}
+                          loading={savingPayment}
+                      >
+                          Lưu thông tin chuyển khoản
+                      </Button>
+                  </Box>
+              </Box>
+          ) : null}
       </Box>
 
 

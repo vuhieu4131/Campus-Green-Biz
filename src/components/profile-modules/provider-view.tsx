@@ -222,6 +222,7 @@ export const ProviderView: FC<ProviderProps> = ({ userData, setUserData, onBackT
   const [showOrderAccount, setShowOrderAccount] = useState(false);
   const [showCancelInput, setShowCancelInput] = useState(false);
   const [cancelReasonText, setCancelReasonText] = useState("");
+  const [showReceiveMoneyModal, setShowReceiveMoneyModal] = useState(false);
 
   // State Thông tin Shop
   const [showShopInfoModal, setShowShopInfoModal] = useState(false);
@@ -2848,6 +2849,11 @@ useEffect(() => {
                                                   <Text size="xxxxSmall" className="text-gray-500 mr-1.5">Tổng thu:</Text>
                                                   <Text bold size="small" className="text-red-600">{total.toLocaleString()}đ</Text>
                                               </Box>
+                                              {(order.status === 'completed' || order.status === 'cancelled') && (
+                                                  <Box className={`mt-1.5 px-2 py-0.5 rounded text-[10px] font-bold inline-block ${order.paymentMethod?.includes('Chuyển khoản') ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                                                      {order.paymentMethod?.includes('Chuyển khoản') ? '💳 Chuyển khoản' : '💵 Tiền mặt'}
+                                                  </Box>
+                                              )}
                                           </Box>
                                           {order.status === 'pending' ? (
                                               <Button 
@@ -2862,17 +2868,31 @@ useEffect(() => {
                                                   <span className="text-[11px]">Duyệt nhanh</span>
                                               </Button>
                                           ) : (order.status === 'confirmed' || order.status === 'processing' || order.status === 'shipping') ? (
-                                              <Button 
-                                                  size="small" 
-                                                  onClick={async (e) => { 
-                                                      e.stopPropagation(); 
-                                                      await handleUpdateOrderStatus(order.id, "completed"); 
-                                                  }}
-                                                  className="bg-blue-600 text-white flex items-center space-x-1 h-7 px-3 rounded-lg border-none"
-                                              >
-                                                  <CustomIcon icon="zi-check" size={12} />
-                                                  <span className="text-[11px]">Giao xong</span>
-                                              </Button>
+                                              <Box className="flex items-center space-x-2">
+                                                  <Button 
+                                                      size="small" 
+                                                      onClick={async (e) => { 
+                                                          e.stopPropagation(); 
+                                                          setSelectedOrderDetail(order);
+                                                          setShowReceiveMoneyModal(true);
+                                                      }}
+                                                      className="text-white flex items-center h-7 px-3 rounded-lg border-none"
+                                                      style={{ backgroundColor: '#2563eb' }}
+                                                  >
+                                                      <span className="text-[11px] font-bold">Chuyển khoản</span>
+                                                  </Button>
+                                                  <Button 
+                                                      size="small" 
+                                                      onClick={async (e) => { 
+                                                          e.stopPropagation(); 
+                                                          await handleUpdateOrderStatus(order.id, "completed"); 
+                                                      }}
+                                                      className="text-white flex items-center h-7 px-3 rounded-lg border-none"
+                                                      style={{ backgroundColor: '#16a34a' }}
+                                                  >
+                                                      <span className="text-[11px] font-bold">Tiền mặt</span>
+                                                  </Button>
+                                              </Box>
                                           ) : null}
                                       </Box>
                                   </Box>
@@ -2891,6 +2911,7 @@ useEffect(() => {
       <Modal 
         visible={!!selectedOrderDetail} 
         title="Chi tiết đơn hàng" 
+        zIndex={9999}
         onClose={() => {
           setSelectedOrderDetail(null);
           setShowOrderAccount(false);
@@ -3128,26 +3149,36 @@ useEffect(() => {
                   )}
 
                   {(selectedOrderDetail.status === 'confirmed' || selectedOrderDetail.status === 'shipping') && (
-                    <>
-                      <Button 
-                        className="bg-green-600 text-white flex-1 rounded-xl text-sm font-bold"
-                        onClick={async () => {
-                          try {
-                            await handleUpdateOrderStatus(selectedOrderDetail.id, "completed");
-                            setSelectedOrderDetail(null);
-                          } catch (e) {}
-                        }}
-                      >
-                        Xác nhận đã giao hàng
-                      </Button>
+                    <Box className="flex flex-col gap-2 w-full mt-2">
+                      <Box className="flex gap-2 w-full">
+                        <Button 
+                          className="text-white flex-1 rounded-xl text-sm font-bold"
+                          style={{ backgroundColor: '#2563eb' }}
+                          onClick={() => setShowReceiveMoneyModal(true)}
+                        >
+                          Chuyển khoản
+                        </Button>
+                        <Button 
+                          className="text-white flex-1 rounded-xl text-sm font-bold"
+                          style={{ backgroundColor: '#16a34a' }}
+                          onClick={async () => {
+                            try {
+                              await handleUpdateOrderStatus(selectedOrderDetail.id, "completed");
+                              setSelectedOrderDetail(null);
+                            } catch (e) {}
+                          }}
+                        >
+                          Tiền mặt
+                        </Button>
+                      </Box>
                       <Button 
                         variant="secondary"
-                        className="border border-red-200 text-red-600 flex-1 rounded-xl text-sm font-bold bg-white"
+                        className="border border-red-200 text-red-600 w-full rounded-xl text-sm font-bold bg-white"
                         onClick={() => setShowCancelInput(true)}
                       >
                         Hủy đơn
                       </Button>
-                    </>
+                    </Box>
                   )}
 
                   {(selectedOrderDetail.status === 'completed' || selectedOrderDetail.status === 'cancelled') && (
@@ -3167,6 +3198,61 @@ useEffect(() => {
         })()}
       </Modal>
 
+      {/* MODAL NHẬN TIỀN (CHUYỂN KHOẢN) */}
+      <Modal
+        visible={showReceiveMoneyModal}
+        title="Thông tin nhận tiền"
+        onClose={() => setShowReceiveMoneyModal(false)}
+      >
+        <Box className="p-4 flex flex-col items-center">
+          {userData?.bankQrLink ? (
+            <img src={userData.bankQrLink} alt="Mã QR Nhận tiền" className="max-w-full h-48 object-contain mb-4 rounded-xl border border-gray-200 shadow-sm" />
+          ) : (
+            <Box className="w-48 h-48 bg-gray-100 flex items-center justify-center mb-4 rounded-xl border border-gray-200 text-center p-2 text-sm text-gray-500">
+              Shop chưa tải lên QR Code
+            </Box>
+          )}
+          {userData?.bankInfoText && (
+            <Box className="bg-gray-50 p-3 rounded-lg w-full mb-4 border border-gray-200">
+              <Text className="text-gray-700 whitespace-pre-wrap text-center text-sm">{userData.bankInfoText}</Text>
+            </Box>
+          )}
+          <Text className="text-gray-500 text-center text-sm mb-4">
+            Vui lòng đưa mã QR này cho khách hàng quét để thanh toán. Hoặc đọc thông tin tài khoản ở trên.
+          </Text>
+          <Box className="flex gap-2 w-full">
+            <Button
+              variant="secondary"
+              className="flex-1 rounded-xl bg-gray-200 text-gray-700 font-bold"
+              onClick={() => setShowReceiveMoneyModal(false)}
+            >
+              Đóng
+            </Button>
+            <Button
+              className="bg-green-600 text-white flex-1 rounded-xl font-bold"
+              onClick={async () => {
+                if (!selectedOrderDetail) return;
+                try {
+                  // Cập nhật trạng thái thành completed và phương thức thanh toán là chuyển khoản
+                  await updateDoc(doc(db, "orders", selectedOrderDetail.id), {
+                    status: "completed",
+                    paymentMethod: "Chuyển khoản (QR)",
+                    updatedAt: serverTimestamp()
+                  });
+                  openSnackbar({ text: "Đã thu tiền và hoàn tất đơn hàng!", type: "success" });
+                  setShowReceiveMoneyModal(false);
+                  setSelectedOrderDetail(null);
+                } catch (e) {
+                  openSnackbar({ text: "Lỗi hoàn tất đơn hàng", type: "error" });
+                }
+              }}
+            >
+              Đã thu
+            </Button>
+          </Box>
+        </Box>
+      </Modal>
+
       {/* MODAL LỊCH SỬ ĐÃ PHỤC VỤ (CÓ CHI TIẾT PHÍ NỀN TẢNG) */}
       <Modal visible={showCompletedModal} title="Đơn đã phục vụ (Tháng này)" onClose={() => setShowCompletedModal(false)} actions={[{ text: "Đóng", onClick: () => setShowCompletedModal(false) }]}>
           <Box p={4} className="bg-gray-50 hide-scroll" style={{ maxHeight: '75vh', overflowY: 'auto' }}>
@@ -3178,7 +3264,7 @@ useEffect(() => {
                       return (
                       <Box key={idx} className="bg-white p-3 rounded-xl mb-3 border border-gray-200 shadow-md animate-fade-in-up">
                           <Box flex justifyContent="space-between" className="border-b border-gray-100 pb-2 mb-2">
-                              <Text size="small" bold className="text-blue-600">#{order.orderCode || order.id.slice(0,6).toUpperCase()}</Text>
+                              <Text size="small" bold className="text-blue-600 cursor-pointer active:opacity-50" onClick={() => setSelectedOrderDetail(order)}>#{order.orderCode || order.id.slice(0,6).toUpperCase()}</Text>
                               <Text size="xSmall" className="text-gray-500">{order.createdAt?.toDate ? order.createdAt.toDate().toLocaleDateString('vi-VN') : ""}</Text>
                           </Box>
                           
@@ -3196,14 +3282,9 @@ useEffect(() => {
                                   <Text size="xxxxSmall" className="text-gray-500 font-semibold mb-0.5">Thu khách:</Text>
                                   <Text size="normal" bold className="text-green-600">{total.toLocaleString()}đ</Text>
                               </Box>
-                              <Button 
-                                  size="small" 
-                                  onClick={() => handleShareOrder(order)}
-                                  className="bg-[#14502e] text-white flex items-center space-x-1 h-7 px-3 rounded-lg"
-                              >
-                                  <CustomIcon icon="zi-share" size={12} />
-                                  <span className="text-[11px]">Chia sẻ Zalo</span>
-                              </Button>
+                              <Box className={`px-2 py-1 rounded text-[11px] font-bold ${order.paymentMethod?.includes('Chuyển khoản') ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                                  {order.paymentMethod?.includes('Chuyển khoản') ? '💳 Chuyển khoản' : '💵 Tiền mặt'}
+                              </Box>
                           </Box>
                       </Box>
                       )
@@ -3438,7 +3519,7 @@ useEffect(() => {
                                                           return (
                                                               <Box key={order.id} flex justifyContent="space-between" className="bg-gray-50 p-2 rounded">
                                                                   <Box>
-                                                                      <Text size="xxxxSmall" bold className="text-gray-700">#{order.orderCode || order.id?.slice(0,6).toUpperCase() || "UNK"}</Text>
+                                                                      <Text size="xxxxSmall" bold className="text-gray-700 cursor-pointer active:opacity-50" onClick={() => setSelectedOrderDetail(order)}>#{order.orderCode || order.id?.slice(0,6).toUpperCase() || "UNK"}</Text>
                                                                       <Text size="xxxxSmall" className="text-gray-500 line-clamp-1">{order.productName}</Text>
                                                                   </Box>
                                                                   <Text size="xxxxSmall" className="text-green-600 font-medium">{fee.toLocaleString()}đ</Text>
@@ -3466,7 +3547,7 @@ useEffect(() => {
                                       >
                                           <Box flex justifyContent="space-between" alignItems="center" className="border-b border-gray-100 pb-2 mb-2">
                                               <Box flex alignItems="center">
-                                                  <Text size="small" bold className="text-gray-800">#{order.orderCode || order.id?.slice(0,6).toUpperCase() || "UNK"}</Text>
+                                                  <Text size="small" bold className="text-gray-800 cursor-pointer active:opacity-50" onClick={() => setSelectedOrderDetail(order)}>#{order.orderCode || order.id?.slice(0,6).toUpperCase() || "UNK"}</Text>
                                                   
                                                   {/* 👉 GẮN CỜ "ĐANG CHỜ DUYỆT" */}
                                                   {isReported && (
@@ -3489,14 +3570,9 @@ useEffect(() => {
                                                       {fee.toLocaleString()}đ
                                                   </Text>
                                               </Box>
-                                              <Button 
-                                                  size="small" 
-                                                  onClick={() => handleShareOrder(order)}
-                                                  className="bg-[#14502e] text-white flex items-center space-x-1 h-7 px-3 rounded-lg border-none"
-                                              >
-                                                  <CustomIcon icon="zi-share" size={12} />
-                                                  <span className="text-[11px]">Chia sẻ Zalo</span>
-                                              </Button>
+                                              <Box className={`px-2 py-1 rounded text-[11px] font-bold ${order.paymentMethod?.includes('Chuyển khoản') ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                                                  {order.paymentMethod?.includes('Chuyển khoản') ? '💳 Chuyển khoản' : '💵 Tiền mặt'}
+                                              </Box>
                                           </Box>
                                       </Box>
                                   )
