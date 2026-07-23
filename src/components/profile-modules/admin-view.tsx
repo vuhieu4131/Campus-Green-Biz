@@ -1684,9 +1684,11 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                             <Text size="xxSmall" className="text-gray">{displaySubtitle}</Text>
                             <Text size="xxSmall" className="text-gray">{formatDate(p.createdAt)}</Text>
                             {(() => {
-                              const adminRate = Number(rewardPointRate) || 10;
-                              const pRate = p.rewardRate ? Number(p.rewardRate) : adminRate;
-                              const isHighRate = pRate > adminRate;
+                              const adminPlatformFeeRate = Number(platformFeeRate) || 10;
+                              const adminCustomerShareRate = Number(rewardPointRate) || 40;
+                              const pRate = p.rewardRate ? Number(p.rewardRate) : adminPlatformFeeRate;
+                              const cRate = p.customerShareRate ? Number(p.customerShareRate) : adminCustomerShareRate;
+                              const isHighRate = pRate > adminPlatformFeeRate;
                               const parsePriceStr = (val: any) => {
                                   if (!val) return 0;
                                   if (typeof val === 'number') return val;
@@ -1694,7 +1696,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                   return isNaN(parsed) ? 0 : parsed;
                               };
                               const basePrice = parsePriceStr(p.minPrice !== undefined ? p.minPrice : p.price);
-                              const earnedPoints = Math.floor((basePrice * (pRate / 100)) / 1000);
+                              const earnedPoints = Math.floor((basePrice * (pRate / 100) * (cRate / 100)) / 500);
                               
                               if (earnedPoints > 0) {
                                 return (
@@ -2674,14 +2676,14 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
   
               {/* 👉 ĐÃ THÊM: Ô CÀI ĐẶT TỶ LỆ TÍCH ĐIỂM */}
               <Box className="bg-white p-4 rounded-xl border border-gray-200 shadow-md mb-4">
-                  <Text size="small" className="mb-2 text-gray-600">Tỷ lệ tích điểm tối thiểu (%)</Text>
+                  <Text size="small" className="mb-2 text-gray-600">Hệ số chia sẻ điểm cho khách (%)</Text>
                   <Input 
                       type="number" 
                       value={rewardPointRate} 
                       onChange={(e) => setRewardPointRate(e.target.value)} 
-                      placeholder="Nhập % (VD: 10)"
+                      placeholder="Nhập % (VD: 40)"
                   />
-                  <Text size="xxSmall" className="text-gray-400 mt-2 italic">* Tỷ lệ tối thiểu bắt buộc Shop phải tặng khách (1 điểm = 1000đ). VD: Đơn 100k, tỷ lệ 10% = 10k = 10 điểm.</Text>
+                  <Text size="xxSmall" className="text-gray-400 mt-2 italic">* Điểm khách nhận = (Giá trị x Tỷ lệ trích trả nền tảng x Hệ số chia sẻ) / 500. VD: Shop nhập tỷ lệ trả App 20%, hệ số chia sẻ 40%, Giá 100k -{">"} Khách nhận 16 điểm.</Text>
               </Box>
   
               <Button fullWidth loading={savingSettings} onClick={handleSaveSettings}>Lưu thay đổi</Button>

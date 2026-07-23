@@ -5,7 +5,7 @@ import { Page, Box, Text, Icon, Avatar, Button, useSnackbar, useNavigate } from 
 import { getDefaultAvatar } from "../utils/avatar";
 import { chooseImage } from "zmp-sdk";
 import { auth, db, storage } from "../firebase";
-import { collection, addDoc, serverTimestamp, query, where, getDocs, getDoc, doc, updateDoc, increment } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, where, getDocs, getDoc, doc, updateDoc, increment, orderBy, limit } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { AuthOverlay } from "./auth";
@@ -37,6 +37,18 @@ const CreatePostPage: FC = () => {
   const [showProductSheet, setShowProductSheet] = useState(false);
   const [allProducts, setAllProducts] = useState<any[]>([]);
   const [searchProductQuery, setSearchProductQuery] = useState("");
+  const [debouncedSearchProductQuery, setDebouncedSearchProductQuery] = useState("");
+  const [categories, setCategories] = useState<any[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [adminPlatformFeeRate, setAdminPlatformFeeRate] = useState(15);
+  const [adminCustomerShareRate, setAdminCustomerShareRate] = useState(10);
+  React.useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchProductQuery(searchProductQuery);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [searchProductQuery]);
 
   const [showEmojiSheet, setShowEmojiSheet] = useState(false);
   const emojis = ["😀", "😃", "😄", "😁", "😆", "😅", "😂", "🤣", "😊", "😇", "🙂", "🙃", "😉", "😌", "😍", "🥰", "😘", "😋", "😛", "😝", "😜", "🤪", "😎", "🤩", "🥳", "😏", "😒", "😔", "😢", "😭", "😤", "😠", "😡", "🤯", "😳", "🥵", "🥶", "😱", "😴", "😈", "💩", "👻", "👍", "👎", "👏", "🙌", "🙏", "❤️", "🔥", "✨", "🎉", "🌟", "☘️", "🌿"];
@@ -46,20 +58,70 @@ const CreatePostPage: FC = () => {
   const [customLocationInput, setCustomLocationInput] = useState("");
   const campusLocations = ["Thư viện trung tâm", "Căng tin Khu B", "Ký túc xá khu A", "Nhà thi đấu thể thao", "Hội trường lớn", "Sân bóng cỏ nhân tạo", "Vườn hoa Green Campus"];
 
+  // Fetch categories once
+  React.useEffect(() => {
+    if (showProductSheet && categories.length === 0) {
+      const fetchCategories = async () => {
+        try {
+          const q = query(collection(db, "categories"), orderBy("createdAt", "asc"));
+          const snap = await getDocs(q);
+          const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          setCategories(list);
+        } catch (e) {
+          console.error("Lỗi tải danh mục:", e);
+        }
+      };
+      fetchCategories();
+    }
+  }, [showProductSheet]);
+
+  // Fetch products with filters and limits
   React.useEffect(() => {
     if (showProductSheet) {
       const fetchProducts = async () => {
+        setLoadingProducts(true);
         try {
-          const snap = await getDocs(collection(db, "services"));
-          const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          try {
+            const configSnap = await getDoc(doc(db, "system_config", "admin_settings"));
+            if (configSnap.exists()) {
+                const data = configSnap.data();
+                if (data.platformFeeRate !== undefined) setAdminPlatformFeeRate(Number(data.platformFeeRate));
+                if (data.rewardPointRate !== undefined) setAdminCustomerShareRate(Number(data.rewardPointRate));
+            }
+          } catch (e) {
+            console.warn("Could not load admin config", e);
+          }
+          const servicesRef = collection(db, "services");
+          let q;
+          
+          if (debouncedSearchProductQuery) {
+             // For search, we fetch a larger chunk to filter locally since Firestore string search is limited
+             q = selectedCategory 
+               ? query(servicesRef, where("category", "==", selectedCategory), limit(100))
+               : query(servicesRef, limit(100));
+          } else {
+             q = selectedCategory 
+               ? query(servicesRef, where("category", "==", selectedCategory), limit(20))
+               : query(servicesRef, limit(20));
+          }
+          
+          const snap = await getDocs(q);
+          let list = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+          
+          if (debouncedSearchProductQuery) {
+            list = list.filter((p: any) => String(p.title || p.name || "").toLowerCase().includes(debouncedSearchProductQuery.toLowerCase()));
+          }
+          
           setAllProducts(list);
         } catch (e) {
           console.error("Lỗi tải sản phẩm:", e);
+        } finally {
+          setLoadingProducts(false);
         }
       };
       fetchProducts();
     }
-  }, [showProductSheet]);
+  }, [showProductSheet, selectedCategory, debouncedSearchProductQuery]);
 
   const handleSelectLocation = (loc: string) => {
     setLocation(loc);
@@ -213,6 +275,11 @@ const CreatePostPage: FC = () => {
             id: attachedProduct.id,
             name: attachedProduct.name || attachedProduct.title || "",
             price: attachedProduct.price || 0,
+            minPrice: attachedProduct.minPrice || attachedProduct.price || 0,
+            hasPriceVariants: attachedProduct.hasPriceVariants || false,
+            points: attachedProduct.points || 0,
+            rewardRate: attachedProduct.rewardRate || 0,
+            customerShareRate: attachedProduct.customerShareRate || 0,
             image: attachedProduct.image || attachedProduct.images?.[0] || ""
           } : null,
           attachedProductShopId: attachedProduct ? (attachedProduct.shopId || attachedProduct.providerId || attachedProduct.ownerPhone || "") : null
@@ -426,10 +493,52 @@ const CreatePostPage: FC = () => {
                 <Text className="font-semibold text-gray-800 text-[13px] truncate">
                   {attachedProduct.name || attachedProduct.title}
                 </Text>
-                <Text className="text-red-600 text-xs font-bold mt-0.5">
-                  {Number(attachedProduct.price || 0).toLocaleString('vi-VN')}đ
-                </Text>
+                {(() => {
+                  const parsePriceStr = (val: any) => {
+                      if (!val) return 0;
+                      if (typeof val === 'number') return val;
+                      const parsed = Number(val.toString().replace(/[^0-9]/g, ''));
+                      return isNaN(parsed) ? 0 : parsed;
+                  };
+                  const basePrice = parsePriceStr(attachedProduct.minPrice !== undefined ? attachedProduct.minPrice : attachedProduct.price);
+                  return (
+                    <Text className="text-red-600 text-xs font-bold mt-0.5">
+                      {Number(basePrice || 0).toLocaleString('vi-VN')}đ
+                    </Text>
+                  )
+                })()}
               </Box>
+              {(() => {
+                let pointsToDisplay = Number(attachedProduct.points) || 0;
+                
+                if (attachedProduct.hasPriceVariants || pointsToDisplay === 0) {
+                    const parsePriceStr = (val: any) => {
+                        if (!val) return 0;
+                        if (typeof val === 'number') return val;
+                        const parsed = Number(val.toString().replace(/[^0-9]/g, ''));
+                        return isNaN(parsed) ? 0 : parsed;
+                    };
+                    const basePrice = parsePriceStr(attachedProduct.minPrice !== undefined ? attachedProduct.minPrice : attachedProduct.price);
+                    const appFeeRate = attachedProduct.rewardRate ? Number(attachedProduct.rewardRate) : adminPlatformFeeRate;
+                    const customerShareRate = attachedProduct.customerShareRate ? Number(attachedProduct.customerShareRate) : adminCustomerShareRate;
+                    
+                    pointsToDisplay = Math.floor((basePrice * (appFeeRate / 100) * (customerShareRate / 100)) / 500);
+                }
+
+                if (pointsToDisplay > 0) {
+                    const appFeeRate = attachedProduct.rewardRate ? Number(attachedProduct.rewardRate) : adminPlatformFeeRate;
+                    const isHighRate = appFeeRate > adminPlatformFeeRate;
+                    return (
+                      <Box className="shrink-0 flex flex-col items-end mr-1">
+                        <Box className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center space-x-1 ${isHighRate ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white' : 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white'}`}>
+                          <Icon icon="zi-star-solid" size={10} />
+                          <span>+{pointsToDisplay} điểm {isHighRate ? '🔥' : ''}</span>
+                        </Box>
+                      </Box>
+                    );
+                }
+                return null;
+              })()}
             </Box>
             <Box 
               className="bg-gray-200/60 hover:bg-gray-200 active:scale-95 text-gray-600 p-1.5 rounded-full cursor-pointer ml-3 transition"
@@ -542,7 +651,7 @@ const CreatePostPage: FC = () => {
             <Icon icon="zi-close" className="absolute right-4 top-4 text-xl cursor-pointer" onClick={() => setShowProductSheet(false)} />
           </Box>
           
-          <Box className="p-3 shrink-0">
+          <Box className="p-3 shrink-0 flex flex-col space-y-3">
             <Box className="flex items-center space-x-2 bg-gray-100 px-3 py-1.5 rounded-full border border-gray-200/30">
               <Icon icon="zi-search" className="text-gray-400 text-lg" />
               <input 
@@ -553,15 +662,41 @@ const CreatePostPage: FC = () => {
                 className="bg-transparent border-none outline-none text-sm w-full placeholder:text-gray-400"
               />
             </Box>
+            
+            {categories.length > 0 && (
+              <Box className="overflow-x-auto hide-scrollbar pb-1">
+                <Box className="flex items-center space-x-2 w-max">
+                  <Box
+                    className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition cursor-pointer ${!selectedCategory ? 'bg-[#14502e] text-white shadow-sm' : 'bg-gray-100 text-gray-600 active:bg-gray-200'}`}
+                    onClick={() => setSelectedCategory(null)}
+                  >
+                    Tất cả
+                  </Box>
+                  {categories.map(cat => (
+                    <Box
+                      key={cat.id}
+                      className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition cursor-pointer ${selectedCategory === cat.name ? 'bg-[#14502e] text-white shadow-sm' : 'bg-gray-100 text-gray-600 active:bg-gray-200'}`}
+                      onClick={() => setSelectedCategory(cat.name)}
+                    >
+                      {cat.name}
+                    </Box>
+                  ))}
+                </Box>
+              </Box>
+            )}
           </Box>
 
           <Box className="flex-1 overflow-y-auto px-4 pb-6">
-            {allProducts.filter(p => String(p.title || p.name || "").toLowerCase().includes(searchProductQuery.toLowerCase())).length === 0 ? (
+            {loadingProducts ? (
+              <Box className="flex justify-center items-center py-10">
+                <Text className="text-gray-400 text-sm">Đang tải sản phẩm...</Text>
+              </Box>
+            ) : allProducts.length === 0 ? (
               <Box className="flex justify-center items-center py-10">
                 <Text className="text-gray-400 text-sm">Không tìm thấy sản phẩm nào</Text>
               </Box>
             ) : (
-              allProducts.filter(p => String(p.title || p.name || "").toLowerCase().includes(searchProductQuery.toLowerCase())).map((p: any) => {
+              allProducts.map((p: any) => {
                 const img = p.image || p.images?.[0] || "";
                 return (
                   <Box 
@@ -575,8 +710,50 @@ const CreatePostPage: FC = () => {
                     <img src={img} alt={p.name || p.title} className="w-12 h-12 object-cover rounded-lg border border-gray-200" />
                     <Box className="flex-1 min-w-0">
                       <Text className="font-semibold text-gray-800 text-sm truncate">{p.name || p.title}</Text>
-                      <Text className="text-red-600 text-xs font-bold mt-0.5">{Number(p.price || 0).toLocaleString('vi-VN')}đ</Text>
+                      {(() => {
+                        const parsePriceStr = (val: any) => {
+                            if (!val) return 0;
+                            if (typeof val === 'number') return val;
+                            const parsed = Number(val.toString().replace(/[^0-9]/g, ''));
+                            return isNaN(parsed) ? 0 : parsed;
+                        };
+                        const basePrice = parsePriceStr(p.minPrice !== undefined ? p.minPrice : p.price);
+                        return (
+                            <Text className="text-red-600 text-xs font-bold mt-0.5">{Number(basePrice || 0).toLocaleString('vi-VN')}đ</Text>
+                        )
+                      })()}
                     </Box>
+                    {(() => {
+                      let pointsToDisplay = Number(p.points) || 0;
+                      
+                      if (p.hasPriceVariants || pointsToDisplay === 0) {
+                          const parsePriceStr = (val: any) => {
+                              if (!val) return 0;
+                              if (typeof val === 'number') return val;
+                              const parsed = Number(val.toString().replace(/[^0-9]/g, ''));
+                              return isNaN(parsed) ? 0 : parsed;
+                          };
+                          const basePrice = parsePriceStr(p.minPrice !== undefined ? p.minPrice : p.price);
+                          const appFeeRate = p.rewardRate ? Number(p.rewardRate) : adminPlatformFeeRate;
+                          const customerShareRate = p.customerShareRate ? Number(p.customerShareRate) : adminCustomerShareRate;
+                          
+                          pointsToDisplay = Math.floor((basePrice * (appFeeRate / 100) * (customerShareRate / 100)) / 500);
+                      }
+
+                      if (pointsToDisplay > 0) {
+                          const appFeeRate = p.rewardRate ? Number(p.rewardRate) : adminPlatformFeeRate;
+                          const isHighRate = appFeeRate > adminPlatformFeeRate;
+                          return (
+                            <Box className="shrink-0 flex flex-col items-end ml-2">
+                              <Box className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center space-x-1 ${isHighRate ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white' : 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white'}`}>
+                                <Icon icon="zi-star-solid" size={10} />
+                                <span>+{pointsToDisplay} điểm {isHighRate ? '🔥' : ''}</span>
+                              </Box>
+                            </Box>
+                          );
+                      }
+                      return null;
+                    })()}
                   </Box>
                 );
               })

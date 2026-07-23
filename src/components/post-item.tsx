@@ -211,6 +211,25 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
   const [editContent, setEditContent] = useState("");
   const [editPrivacy, setEditPrivacy] = useState("Công khai");
 
+  const [adminPlatformFeeRate, setAdminPlatformFeeRate] = useState(15);
+  const [adminCustomerShareRate, setAdminCustomerShareRate] = useState(10);
+
+  React.useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const configSnap = await getDoc(doc(db, "system_config", "admin_settings"));
+        if (configSnap.exists()) {
+          const cfg = configSnap.data();
+          if (cfg.platformFeeRate !== undefined) setAdminPlatformFeeRate(Number(cfg.platformFeeRate));
+          if (cfg.rewardPointRate !== undefined) setAdminCustomerShareRate(Number(cfg.rewardPointRate));
+        }
+      } catch (e) {
+        console.warn("Could not load admin config", e);
+      }
+    };
+    fetchConfig();
+  }, []);
+
   // For long-press comment context menu
   const [activeCommentMenu, setActiveCommentMenu] = useState<any>(null);
   let pressTimer: any;
@@ -946,14 +965,56 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
                     </Text>
                   </Box>
                   <Box className="flex items-center justify-between mt-1">
-                    <Text className="text-red-600 text-[11px] font-bold">
-                      {Number(data.originalPost.attachedProduct.price || 0).toLocaleString('vi-VN')}đ
-                    </Text>
+                    {(() => {
+                      const parsePriceStr = (val: any) => {
+                          if (!val) return 0;
+                          if (typeof val === 'number') return val;
+                          const parsed = Number(val.toString().replace(/[^0-9]/g, ''));
+                          return isNaN(parsed) ? 0 : parsed;
+                      };
+                      const basePrice = parsePriceStr(data.originalPost.attachedProduct.minPrice !== undefined ? data.originalPost.attachedProduct.minPrice : data.originalPost.attachedProduct.price);
+                      return (
+                        <Text className="text-red-600 text-[11px] font-bold">
+                          {Number(basePrice || 0).toLocaleString('vi-VN')}đ
+                        </Text>
+                      );
+                    })()}
                     <Box className="bg-[#14502e] text-white px-2 py-1 rounded-full text-[9px] font-semibold flex items-center space-x-0.5 shrink-0 shadow-sm active:opacity-90">
                       <span>Xem sản phẩm</span>
                       <svg className="w-2.5 h-2.5 fill-current" viewBox="0 0 24 24"><path d="M5 13h11.86l-5.43 5.43 1.42 1.42L21.14 12l-8.29-8.29-1.42 1.42 5.43 5.43H5v2z"/></svg>
                     </Box>
                   </Box>
+                  {(() => {
+                    let pointsToDisplay = Number(data.originalPost.attachedProduct.points) || 0;
+                    
+                    if (data.originalPost.attachedProduct.hasPriceVariants || pointsToDisplay === 0) {
+                        const parsePriceStr = (val: any) => {
+                            if (!val) return 0;
+                            if (typeof val === 'number') return val;
+                            const parsed = Number(val.toString().replace(/[^0-9]/g, ''));
+                            return isNaN(parsed) ? 0 : parsed;
+                        };
+                        const basePrice = parsePriceStr(data.originalPost.attachedProduct.minPrice !== undefined ? data.originalPost.attachedProduct.minPrice : data.originalPost.attachedProduct.price);
+                        const appFeeRate = data.originalPost.attachedProduct.rewardRate ? Number(data.originalPost.attachedProduct.rewardRate) : adminPlatformFeeRate;
+                        const customerShareRate = data.originalPost.attachedProduct.customerShareRate ? Number(data.originalPost.attachedProduct.customerShareRate) : adminCustomerShareRate;
+                        
+                        pointsToDisplay = Math.floor((basePrice * (appFeeRate / 100) * (customerShareRate / 100)) / 500);
+                    }
+
+                    if (pointsToDisplay > 0) {
+                        const appFeeRate = data.originalPost.attachedProduct.rewardRate ? Number(data.originalPost.attachedProduct.rewardRate) : adminPlatformFeeRate;
+                        const isHighRate = appFeeRate > adminPlatformFeeRate;
+                        return (
+                          <Box className="mt-1">
+                            <Box className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold items-center space-x-1 ${isHighRate ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white' : 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white'}`}>
+                              <Icon icon="zi-star-solid" size={10} />
+                              <span>+{pointsToDisplay} điểm {isHighRate ? '🔥' : ''}</span>
+                            </Box>
+                          </Box>
+                        );
+                    }
+                    return null;
+                  })()}
                 </Box>
               </Box>
             )}
@@ -1046,14 +1107,56 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
                   </Text>
                 </Box>
                 <Box className="flex items-center justify-between mt-2">
-                  <Text className="text-red-600 text-sm font-bold">
-                    {Number(data.attachedProduct.price || 0).toLocaleString('vi-VN')}đ
-                  </Text>
+                  {(() => {
+                    const parsePriceStr = (val: any) => {
+                        if (!val) return 0;
+                        if (typeof val === 'number') return val;
+                        const parsed = Number(val.toString().replace(/[^0-9]/g, ''));
+                        return isNaN(parsed) ? 0 : parsed;
+                    };
+                    const basePrice = parsePriceStr(data.attachedProduct.minPrice !== undefined ? data.attachedProduct.minPrice : data.attachedProduct.price);
+                    return (
+                      <Text className="text-red-600 text-sm font-bold">
+                        {Number(basePrice || 0).toLocaleString('vi-VN')}đ
+                      </Text>
+                    );
+                  })()}
                   <Box className="bg-[#14502e] text-white px-3 py-1.5 rounded-full text-[11px] font-semibold flex items-center space-x-1 shrink-0 shadow-sm active:opacity-90">
                     <span>Xem sản phẩm</span>
                     <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M5 13h11.86l-5.43 5.43 1.42 1.42L21.14 12l-8.29-8.29-1.42 1.42 5.43 5.43H5v2z"/></svg>
                   </Box>
                 </Box>
+                {(() => {
+                  let pointsToDisplay = Number(data.attachedProduct.points) || 0;
+                  
+                  if (data.attachedProduct.hasPriceVariants || pointsToDisplay === 0) {
+                      const parsePriceStr = (val: any) => {
+                          if (!val) return 0;
+                          if (typeof val === 'number') return val;
+                          const parsed = Number(val.toString().replace(/[^0-9]/g, ''));
+                          return isNaN(parsed) ? 0 : parsed;
+                      };
+                      const basePrice = parsePriceStr(data.attachedProduct.minPrice !== undefined ? data.attachedProduct.minPrice : data.attachedProduct.price);
+                      const appFeeRate = data.attachedProduct.rewardRate ? Number(data.attachedProduct.rewardRate) : adminPlatformFeeRate;
+                      const customerShareRate = data.attachedProduct.customerShareRate ? Number(data.attachedProduct.customerShareRate) : adminCustomerShareRate;
+                      
+                      pointsToDisplay = Math.floor((basePrice * (appFeeRate / 100) * (customerShareRate / 100)) / 500);
+                  }
+
+                  if (pointsToDisplay > 0) {
+                      const appFeeRate = data.attachedProduct.rewardRate ? Number(data.attachedProduct.rewardRate) : adminPlatformFeeRate;
+                      const isHighRate = appFeeRate > adminPlatformFeeRate;
+                      return (
+                        <Box className="mt-2">
+                          <Box className={`inline-flex px-2 py-1 rounded-full text-[10px] font-bold items-center space-x-1 ${isHighRate ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white' : 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white'}`}>
+                            <Icon icon="zi-star-solid" size={12} />
+                            <span>+{pointsToDisplay} điểm {isHighRate ? '🔥' : ''}</span>
+                          </Box>
+                        </Box>
+                      );
+                  }
+                  return null;
+                })()}
               </Box>
             </Box>
           )}

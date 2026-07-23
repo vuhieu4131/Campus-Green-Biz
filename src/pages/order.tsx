@@ -149,6 +149,7 @@ const OrderPage: FC = () => {
   
   // 👉 THUẬT TOÁN MỚI: TÍNH ĐIỂM DỰA TRÊN TỶ LỆ RIÊNG CỦA TỪNG BÀI ĐĂNG (SẢN PHẨM/DỊCH VỤ)
   let finalEarnedPoints = 0;
+  let totalPlatformFee = 0; // 👉 THÊM: Tính tổng Phí nền tảng
   const voucherDiscount = appliedVoucher?.discountAmount || 0;
 
   if (isFromCart) {
@@ -156,6 +157,7 @@ const OrderPage: FC = () => {
       finalEarnedPoints = cartGroup.items.reduce((sum: number, i: any) => {
           const itemPrice = Number(i.cartItem.product.price || 0) * i.cartItem.quantity;
           const itemPoints = Number(i.cartItem.product.points || 0) * i.cartItem.quantity;
+          const itemRewardRate = Number(i.cartItem.product.rewardRate || 10); // Lấy tỷ lệ trả App của món này
 
           // a. Tính TỶ LỆ TÍCH ĐIỂM của riêng món này (VD: 10 điểm / 100k = 10%)
           const itemRate = itemPrice > 0 ? (itemPoints / itemPrice) : 0;
@@ -166,6 +168,9 @@ const OrderPage: FC = () => {
           // c. Số tiền khách THỰC TRẢ cho riêng món này
           const itemFinalPrice = Math.max(0, itemPrice - itemDiscount);
 
+          // 👉 Tính luôn phí nền tảng cho món này
+          totalPlatformFee += itemFinalPrice * (itemRewardRate / 100);
+
           // d. Điểm thu về = Tiền thực trả x Tỷ lệ riêng của Bài đăng đó
           return sum + (itemFinalPrice * itemRate);
       }, 0);
@@ -173,16 +178,21 @@ const OrderPage: FC = () => {
       // 2. Luồng Mua ngay / Đặt lịch (Chỉ có 1 Bài đăng gốc)
       const mainItemPrice = basePrice;
       const mainItemPoints = Number(product?.points || 0);
+      const itemRewardRate = Number(product?.rewardRate || 10);
       
       // a. Tính TỶ LỆ TÍCH ĐIỂM của Bài đăng gốc
       const itemRate = mainItemPrice > 0 ? (mainItemPoints / mainItemPrice) : 0;
       
       // b. Vì chỉ có 1 bài đăng (và các phụ phí đi kèm), ta nhân trực tiếp tỷ lệ này với tổng tiền khách thực trả
       finalEarnedPoints = finalTotalAmount * itemRate;
+
+      // 👉 Tính phí nền tảng cho bài đăng này (tính trên tiền thực trả)
+      totalPlatformFee = finalTotalAmount * (itemRewardRate / 100);
   }
 
-  // Làm tròn xuống số nguyên để không bị lẻ điểm (VD: 9.8 điểm -> 9 điểm)
+  // Làm tròn xuống
   finalEarnedPoints = Math.floor(finalEarnedPoints);
+  totalPlatformFee = Math.floor(totalPlatformFee);
   // 👉 BƯỚC 1: HÀM KIỂM TRA TÍNH HỢP LỆ CỦA VOUCHER VỚI ĐƠN HÀNG HIỆN TẠI
   const checkVoucherEligibility = (v: any) => {
     // 1. Kiểm tra giá trị đơn tối thiểu
@@ -261,18 +271,6 @@ const handleSelectVoucher = (voucher: any) => {
   setShowVoucherModal(false);
   openSnackbar({ text: `Áp dụng thành công! Giảm ${voucher.discountAmount.toLocaleString()}đ`, type: "success", position: "top" });
 };
-  // Lấy điểm cố định từ dữ liệu Firebase truyền sang
-  let earnedPoints = 0;
-  if (isFromCart) {
-      // Nếu mua từ giỏ hàng: Cộng dồn điểm của từng món * số lượng
-      earnedPoints = cartGroup.items.reduce((sum: number, i: any) => {
-          const pts = Number(i.cartItem.product.points || 0);
-          return sum + (pts * i.cartItem.quantity);
-      }, 0);
-  } else {
-      // Nếu Mua ngay/Đặt lịch ngay: Lấy trực tiếp điểm của món đó
-      earnedPoints = Number(product?.points || 0);
-  }
 
   const handleConfirmOrder = async (paymentMethod: string) => {
     if (isProductFlow) {
@@ -326,7 +324,8 @@ const handleSelectVoucher = (voucher: any) => {
         voucherCode: appliedVoucher?.code || null,
         totalAmount: finalTotalAmount,
         paymentMethod,
-        earnedPoints: earnedPoints,
+        earnedPoints: finalEarnedPoints, // Đã cập nhật thuật toán tính điểm chia theo tỷ lệ
+        platformFee: totalPlatformFee,   // Đã cập nhật phí nền tảng
         status: "pending",
         orderCode: generateOrderCode(),
         createdAt: serverTimestamp()

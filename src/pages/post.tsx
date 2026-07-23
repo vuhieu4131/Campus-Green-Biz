@@ -92,9 +92,10 @@ const PostPage: React.FunctionComponent = () => {
           // 👉 BƯỚC 3: Lấy Tỷ lệ tích điểm và Tỷ lệ chi phí từ Cấu hình Admin
           const configSnap = await getDoc(doc(db, "system_config", "admin_settings"));
           if (configSnap.exists()) {
+              let currentAdminRate = minRewardRate;
               if (configSnap.data().rewardPointRate !== undefined) {
-                  const adminRate = Number(configSnap.data().rewardPointRate);
-                  setMinRewardRate(adminRate);
+                  currentAdminRate = Number(configSnap.data().rewardPointRate);
+                  setMinRewardRate(currentAdminRate);
               }
               if (configSnap.data().platformFeeRate !== undefined) {
                   const pFeeRate = Number(configSnap.data().platformFeeRate);
@@ -105,7 +106,7 @@ const PostPage: React.FunctionComponent = () => {
                     setForm(prev => ({
                         ...prev,
                         rewardRate: prev.rewardRate || pFeeRate.toString(),
-                        points: prev.price ? Math.floor((Number(prev.price) * pFeeRate / 100) / 1000).toString() : prev.points
+                        points: prev.price ? Math.floor((Number(prev.price) * (pFeeRate / 100) * (currentAdminRate / 100)) / 500).toString() : prev.points
                     }));
                   }
               }
@@ -180,10 +181,10 @@ const PostPage: React.FunctionComponent = () => {
         const newRate = field === "rewardRate" ? value : form.rewardRate;
         
         const numericPrice = Number(newPrice) || 0;
-        const activeRate = Number(newRate) || minRewardRate;
+        const activeRate = Number(newRate) || defaultPlatformFeeRate;
         
-        // Công thức: (Giá * Tỷ lệ % / 100) / 1000đ = Số điểm
-        const autoPoints = Math.floor((numericPrice * activeRate / 100) / 1000).toString();
+        // Công thức mới: (Giá * %Trả_App * %Chia_Sẻ) / 500
+        const autoPoints = Math.floor((numericPrice * (activeRate / 100) * (minRewardRate / 100)) / 500).toString();
         
         setForm({ ...form, [field]: value, points: autoPoints });
     } else {
@@ -311,6 +312,16 @@ const handleRemoveVideo = () => {
     }
     
     // 👉 BƯỚC 5: CHỐT CHẶN - Kiểm tra điểm Shop nhập vào có đạt yêu cầu không
+    const enteredRewardRate = Number(form.rewardRate) || 0;
+    if (enteredRewardRate < defaultPlatformFeeRate) {
+        openSnackbar({ 
+            text: `Hệ thống yêu cầu tỷ lệ chi phí App tối thiểu là ${defaultPlatformFeeRate}%. Bạn không thể đặt tỷ lệ thấp hơn!`, 
+            type: "error", 
+            position: "top" 
+        });
+        return;
+    }
+
     const numericPrice = Number(form.price) || 0;
     const numericOriginalPrice = Number(form.originalPrice) || 0; // 👉 BỔ SUNG
 
@@ -325,11 +336,11 @@ const handleRemoveVideo = () => {
         : 0;
     // ...
     const enteredPoints = Number(form.points) || 0;
-    const requiredMinPointsSubmit = Math.floor((basePriceForPoints * minRewardRate / 100) / 1000);
+    const requiredMinPointsSubmit = Math.floor((basePriceForPoints * (defaultPlatformFeeRate / 100) * (minRewardRate / 100)) / 500);
 
     if (!hasPriceVariants && enteredPoints < requiredMinPointsSubmit) {
         openSnackbar({ 
-            text: `Tỷ lệ tích điểm quy định là ${minRewardRate}%. Bạn phải tặng khách ít nhất ${requiredMinPointsSubmit} điểm!`, 
+            text: `Hệ số chia sẻ điểm là ${minRewardRate}%. Bạn phải tặng khách ít nhất ${requiredMinPointsSubmit} điểm!`, 
             type: "error", 
             position: "top" 
         });
@@ -374,8 +385,8 @@ const handleRemoveVideo = () => {
       }
 
       const validAttributes = hasVariants ? attributes.filter(a => a.name.trim() && a.values.trim()) : [];
-      const validPriceVariants = hasPriceVariants ? priceVariants.filter(v => v.label.trim() && v.price.trim()).map(v => ({
-          label: v.label.trim(),
+      const validPriceVariants = hasPriceVariants ? priceVariants.filter(v => String(v.label).trim() && String(v.price).trim()).map(v => ({
+          label: String(v.label).trim(),
           price: Number(v.price),
           originalPrice: v.originalPrice ? Number(v.originalPrice) : 0
       })) : [];
@@ -414,7 +425,8 @@ const handleRemoveVideo = () => {
         minPrice: minPrice,
         maxPrice: maxPrice,
         isVip: isVip,
-        rewardRate: Number(form.rewardRate) || minRewardRate, // BỔ SUNG: Lưu Tỷ lệ chi phí App
+        rewardRate: Number(form.rewardRate) || defaultPlatformFeeRate, // BỔ SUNG: Lưu Tỷ lệ chi phí App
+        customerShareRate: minRewardRate, // BỔ SUNG: Lưu hệ số chia điểm tại thời điểm đăng
       };
 
       // Khấu trừ điểm VIP của shop
@@ -467,7 +479,7 @@ const handleRemoveVideo = () => {
       basePriceForUI = Math.min(...priceVariants.map(v => Number(v.price) || 0));
   }
   const enteredPoints = Number(form.points) || 0;
-  const requiredMinPoints = Math.floor((basePriceForUI * minRewardRate / 100) / 1000);
+  const requiredMinPoints = Math.floor((basePriceForUI * (defaultPlatformFeeRate / 100) * (minRewardRate / 100)) / 500);
   
   // Hợp lệ khi: Có nhiều mức giá (ẩn ô điểm thưởng), HOẶC Chưa nhập giá (0đ), HOẶC điểm nhập vào lớn/bằng điểm tối thiểu
   const isPointsValid = hasPriceVariants || basePriceForUI === 0 || enteredPoints >= requiredMinPoints;
@@ -686,7 +698,32 @@ const handleRemoveVideo = () => {
                 {/* 5. Khung nhập Mức giá */}
                 {hasPriceVariants && (
                     <Box className="mt-3 pl-3 border-l-2 border-purple-300">
-                        {priceVariants.map((variant, idx) => (
+                        {/* TỶ LỆ CHI PHÍ APP CHUNG CHO CÁC BIẾN THỂ */}
+                        <Box mb={3}>
+                            <Input 
+                                type="number" 
+                                label="Tỷ lệ chi phí App (%) chung" 
+                                placeholder={`${defaultPlatformFeeRate}`} 
+                                value={form.rewardRate} 
+                                onChange={(e) => handleChange("rewardRate", e.target.value)} 
+                                onBlur={(e) => {
+                                    if (Number(e.target.value) < defaultPlatformFeeRate && e.target.value !== "") {
+                                        handleChange("rewardRate", defaultPlatformFeeRate.toString());
+                                        openSnackbar({ text: `Tỷ lệ chi phí App tối thiểu là ${defaultPlatformFeeRate}%`, type: "warning", position: "top" });
+                                    }
+                                }}
+                            />
+                            <Text size="xxxxSmall" className="text-gray-400 mt-1 italic">
+                                * Hệ thống yêu cầu tỷ lệ tối thiểu {defaultPlatformFeeRate}% (Tương đương ít nhất {requiredMinPoints} điểm). Tăng tỷ lệ đồng nghĩa việc khách nhận nhiều điểm hơn.
+                            </Text>
+                        </Box>
+
+                        {priceVariants.map((variant, idx) => {
+                            const vPrice = Number(variant.price) || 0;
+                            const vRate = Number(form.rewardRate) || defaultPlatformFeeRate;
+                            const vPoints = vPrice > 0 ? Math.floor((vPrice * (vRate / 100) * (minRewardRate / 100)) / 500) : 0;
+                            
+                            return (
                             <Box key={idx} mb={3} className="p-3 bg-white rounded-lg border border-gray-200 relative shadow-sm">
                                 <Box flex flexDirection="column" style={{ gap: 8 }}>
                                     <Box>
@@ -695,12 +732,21 @@ const handleRemoveVideo = () => {
                                     </Box>
                                     <Box flex style={{ gap: 8 }}>
                                         <Box className="flex-1">
-                                            <Text size="xxxxSmall" className="text-gray-500 mb-1">Giá bán mới (đ)</Text>
-                                            <Input type="number" placeholder="Bắt buộc" value={variant.price} onChange={(e) => handlePriceVariantChange(idx, "price", e.target.value)} />
-                                        </Box>
-                                        <Box className="flex-1">
                                             <Text size="xxxxSmall" className="text-gray-500 mb-1">Giá gốc (Tùy chọn)</Text>
                                             <Input type="number" placeholder="Không bắt buộc" value={variant.originalPrice} onChange={(e) => handlePriceVariantChange(idx, "originalPrice", e.target.value)} />
+                                        </Box>
+                                        <Box className="flex-1 relative">
+                                            <Text size="xxxxSmall" className="text-gray-500 mb-1">Giá bán mới (đ)</Text>
+                                            <Input type="number" placeholder="Bắt buộc" value={variant.price} onChange={(e) => handlePriceVariantChange(idx, "price", e.target.value)} />
+                                            {Number(variant.originalPrice) > Number(variant.price) && Number(variant.price) > 0 && (
+                                                <Box className="absolute -top-2 -right-2 bg-red-500 text-white px-2 py-0.5 rounded-full text-[10px] font-bold shadow-sm z-10 animate-pulse border border-white">
+                                                    Giảm {Math.round(((Number(variant.originalPrice) - Number(variant.price)) / Number(variant.originalPrice)) * 100)}%
+                                                </Box>
+                                            )}
+                                        </Box>
+                                        <Box className="flex-[0.8]">
+                                            <Text size="xxxxSmall" className="text-gray-500 mb-1">Điểm thưởng</Text>
+                                            <Input disabled type="number" placeholder="0" value={vPoints > 0 ? vPoints : ""} className="bg-gray-100 text-center" />
                                         </Box>
                                     </Box>
                                 </Box>
@@ -710,7 +756,7 @@ const handleRemoveVideo = () => {
                                     </Box>
                                 )}
                             </Box>
-                        ))}
+                        )})}
                         <Button size="small" variant="secondary" className="bg-white text-purple-600 border-purple-200" onClick={addPriceVariant} prefixIcon={<Icon icon="zi-plus"/>}>
                             Thêm mức giá khác
                         </Button>
@@ -745,7 +791,19 @@ const handleRemoveVideo = () => {
           )}
           {!hasPriceVariants && (
             <Box style={{ flex: 1 }}>
-              <Input type="number" label="Tỷ lệ chi phí App (%)" placeholder={`${defaultPlatformFeeRate}`} value={form.rewardRate} onChange={(e) => handleChange("rewardRate", e.target.value)} />
+              <Input 
+                type="number" 
+                label="Tỷ lệ chi phí App (%)" 
+                placeholder={`${defaultPlatformFeeRate}`} 
+                value={form.rewardRate} 
+                onChange={(e) => handleChange("rewardRate", e.target.value)} 
+                onBlur={(e) => {
+                    if (Number(e.target.value) < defaultPlatformFeeRate && e.target.value !== "") {
+                        handleChange("rewardRate", defaultPlatformFeeRate.toString());
+                        openSnackbar({ text: `Tỷ lệ chi phí App tối thiểu là ${defaultPlatformFeeRate}%`, type: "warning", position: "top" });
+                    }
+                }}
+              />
             </Box>
           )}
           {!hasPriceVariants && (
@@ -758,11 +816,11 @@ const handleRemoveVideo = () => {
         {!hasPriceVariants && (
           basePriceForUI > 0 && !isPointsValid ? (
               <Text size="xxxxSmall" className="text-red-500 italic mb-4 ml-1 font-medium">
-                  ⚠️ Hệ thống yêu cầu tỷ lệ tối thiểu là {minRewardRate}% (Tương đương ít nhất {requiredMinPoints} điểm). Vui lòng nhập mức tỷ lệ chi phí cao hơn!
+                  ⚠️ Hệ thống yêu cầu tỷ lệ tối thiểu là {defaultPlatformFeeRate}% (Tương đương ít nhất {requiredMinPoints} điểm). Vui lòng nhập mức tỷ lệ chi phí cao hơn!
               </Text>
           ) : (
               <Text size="xxxxSmall" className="text-gray-400 italic mb-4 ml-1">
-                  * Hệ thống yêu cầu tỷ lệ tối thiểu {minRewardRate}% (Tương đương {requiredMinPoints} điểm). Tăng tỷ lệ chi phí App đồng nghĩa với việc khách nhận được nhiều điểm hơn, giúp thu hút khách tốt hơn.
+                  * Hệ thống yêu cầu tỷ lệ tối thiểu {defaultPlatformFeeRate}% (Tương đương {requiredMinPoints} điểm). Tăng tỷ lệ chi phí App đồng nghĩa với việc khách nhận được nhiều điểm hơn, giúp thu hút khách tốt hơn.
               </Text>
           )
         )}

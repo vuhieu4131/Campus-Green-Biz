@@ -31,7 +31,8 @@ const ProductDetailPage: FC = () => {
 
   const setCart = useSetRecoilState(cartState);
 
-  const [rewardPointRate, setRewardPointRate] = useState(10);
+  const [rewardPointRate, setRewardPointRate] = useState(40);
+  const [platformFeeRate, setPlatformFeeRate] = useState(10);
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -41,6 +42,7 @@ const ProductDetailPage: FC = () => {
           const data = configSnap.data();
           if (data.showPrice !== undefined) setShowPrice(data.showPrice);
           if (data.rewardPointRate !== undefined) setRewardPointRate(Number(data.rewardPointRate));
+          if (data.platformFeeRate !== undefined) setPlatformFeeRate(Number(data.platformFeeRate));
         }
       } catch (e) {
         console.error("Lỗi khi tải cấu hình hiển thị giá:", e);
@@ -182,8 +184,9 @@ const ProductDetailPage: FC = () => {
         if (selectedPriceVariant.originalPrice) {
           productToAdd.originalPrice = selectedPriceVariant.originalPrice;
         }
-        const effectiveRewardRate = product.rewardRate ? Number(product.rewardRate) : rewardPointRate;
-        productToAdd.points = Math.floor((selectedPriceVariant.price * effectiveRewardRate / 100) / 1000).toString();
+        const effectiveRewardRate = product.rewardRate ? Number(product.rewardRate) : platformFeeRate;
+        const effectiveCustomerShareRate = product.customerShareRate ? Number(product.customerShareRate) : rewardPointRate;
+        productToAdd.points = Math.floor((selectedPriceVariant.price * (effectiveRewardRate / 100) * (effectiveCustomerShareRate / 100)) / 500).toString();
       }
 
       const index = newCart.findIndex(i => i.product.id === product.id && JSON.stringify(i.options) === JSON.stringify(finalOptions));
@@ -238,8 +241,9 @@ const ProductDetailPage: FC = () => {
         if (selectedPriceVariant.originalPrice) {
           productToAdd.originalPrice = selectedPriceVariant.originalPrice;
         }
-        const effectiveRewardRate = product.rewardRate ? Number(product.rewardRate) : rewardPointRate;
-        productToAdd.points = Math.floor((selectedPriceVariant.price * effectiveRewardRate / 100) / 1000).toString();
+        const effectiveRewardRate = product.rewardRate ? Number(product.rewardRate) : platformFeeRate;
+        const effectiveCustomerShareRate = product.customerShareRate ? Number(product.customerShareRate) : rewardPointRate;
+        productToAdd.points = Math.floor((selectedPriceVariant.price * (effectiveRewardRate / 100) * (effectiveCustomerShareRate / 100)) / 500).toString();
       }
 
       const index = newCart.findIndex(i => i.product.id === product.id && JSON.stringify(i.options) === JSON.stringify(finalOptions));
@@ -289,8 +293,9 @@ const ProductDetailPage: FC = () => {
 
   let displayPoints = Number(product.points) || 0;
   if (product.hasPriceVariants && product.priceVariants && product.priceVariants.length > 0) {
-    const effectiveRewardRate = product.rewardRate ? Number(product.rewardRate) : rewardPointRate;
-    displayPoints = Math.floor((displayPrice * effectiveRewardRate / 100) / 1000);
+    const effectiveRewardRate = product.rewardRate ? Number(product.rewardRate) : platformFeeRate;
+    const effectiveCustomerShareRate = product.customerShareRate ? Number(product.customerShareRate) : rewardPointRate;
+    displayPoints = Math.floor((displayPrice * (effectiveRewardRate / 100) * (effectiveCustomerShareRate / 100)) / 500);
   }
 
   const productImages = product.gallery && product.gallery.length > 0
@@ -418,7 +423,7 @@ const ProductDetailPage: FC = () => {
           </Swiper>
           {/* Points Badge */}
           {displayPoints > 0 && (() => {
-            const isHighRate = product.rewardRate && Number(product.rewardRate) > rewardPointRate;
+            const isHighRate = product.rewardRate && Number(product.rewardRate) > platformFeeRate;
             return (
               <Box className={`absolute top-4 right-4 ${isHighRate ? 'bg-gradient-to-r from-red-500 to-orange-500' : 'bg-gradient-to-r from-yellow-500 to-amber-500'} text-white px-3 py-1 rounded-full text-xs font-bold shadow-md flex items-center space-x-1 z-10`}>
                 <CustomIcon icon="zi-star-solid" className="text-yellow-100" size={14} />

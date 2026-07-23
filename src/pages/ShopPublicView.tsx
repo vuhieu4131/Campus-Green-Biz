@@ -25,8 +25,10 @@ const ShopPublicView: FC = () => {
   const [services, setServices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(stateData.tab || "services");
-  // 👇 STATE QUẢN LÝ ẨN/HIỆN GIÁ TIỀN 👇
+  // 👇 STATE QUẢN LÝ ẨN/HIỆN GIÁ TIỀN & ĐIỂM 👇
   const [showPrice, setShowPrice] = useState(false);
+  const [adminPlatformFeeRate, setAdminPlatformFeeRate] = useState(15);
+  const [adminCustomerShareRate, setAdminCustomerShareRate] = useState(10);
   const [currentUserPhone, setCurrentUserPhone] = useState<string | null>(null);
 
   useEffect(() => {
@@ -203,8 +205,11 @@ const ShopPublicView: FC = () => {
       try {
         try {
           const configSnap = await getDoc(doc(db, "system_config", "admin_settings"));
-          if (configSnap.exists() && configSnap.data().showPrice !== undefined) {
-              setShowPrice(configSnap.data().showPrice);
+          if (configSnap.exists()) {
+              const data = configSnap.data();
+              if (data.showPrice !== undefined) setShowPrice(data.showPrice);
+              if (data.platformFeeRate !== undefined) setAdminPlatformFeeRate(Number(data.platformFeeRate));
+              if (data.rewardPointRate !== undefined) setAdminCustomerShareRate(Number(data.rewardPointRate));
           }
         } catch (e) {
           console.warn("Could not load admin config", e);
@@ -213,11 +218,11 @@ const ShopPublicView: FC = () => {
         let actualShopId = id; 
 
         // =========================================================
-        // BƯỚC 1: LẤY THÔNG TIN CỬA HÀNG TỪ BẢNG 'users' VÀ 'shops'
+        // BƯỚC 1: LẤY THÔNG TIN CỬA HÀNG TỪ BẢNG 'shops' TRƯỚC, NẾU KHÔNG CÓ THÌ TỪ 'users'
         // =========================================================
-        let shopDoc = await getDoc(doc(db, "users", id));
+        let shopDoc = await getDoc(doc(db, "shops", id));
         if (!shopDoc.exists()) {
-           shopDoc = await getDoc(doc(db, "shops", id));
+           shopDoc = await getDoc(doc(db, "users", id));
         }
         
         if (shopDoc.exists()) {
@@ -241,26 +246,26 @@ const ShopPublicView: FC = () => {
                  currentShopData = snapPhone.docs[0].data();
                  actualShopId = snapPhone.docs[0].id;
              } else {
-                 let qZalo = query(usersRef, where("zaloId", "==", id));
+                 let qZalo = query(shopsRef, where("zaloId", "==", id));
                  let snapZalo = await getDocs(qZalo);
       
                  if (!snapZalo.empty) {
                     currentShopData = snapZalo.docs[0].data();
                     actualShopId = snapZalo.docs[0].id;
                  } else {
-                    qZalo = query(shopsRef, where("zaloId", "==", id));
+                    qZalo = query(usersRef, where("zaloId", "==", id));
                     snapZalo = await getDocs(qZalo);
                     if (!snapZalo.empty) {
                        currentShopData = snapZalo.docs[0].data();
                        actualShopId = snapZalo.docs[0].id;
                     } else {
-                        let qProvider = query(usersRef, where("providerId", "==", id));
+                        let qProvider = query(shopsRef, where("providerId", "==", id));
                         let snapProvider = await getDocs(qProvider);
                         if (!snapProvider.empty) {
                             currentShopData = snapProvider.docs[0].data();
                             actualShopId = snapProvider.docs[0].id;
                         } else {
-                            qProvider = query(shopsRef, where("providerId", "==", id));
+                            qProvider = query(usersRef, where("providerId", "==", id));
                             snapProvider = await getDocs(qProvider);
                             if (!snapProvider.empty) {
                                 currentShopData = snapProvider.docs[0].data();
@@ -298,7 +303,17 @@ const ShopPublicView: FC = () => {
           if (currentShopData.phone) possibleIds.add(currentShopData.phone);
           if (currentShopData.shopPhone) possibleIds.add(currentShopData.shopPhone);
           if (currentShopData.ownerPhone) possibleIds.add(currentShopData.ownerPhone);
+          if (currentShopData.ownerId) possibleIds.add(currentShopData.ownerId);
           if (currentShopData.uid) possibleIds.add(currentShopData.uid);
+        }
+
+        // Nếu chủ shop đang xem chính gian hàng của mình bằng UID, bổ sung SĐT từ localStorage để query dịch vụ
+        const localPhone = localStorage.getItem("user_phone");
+        if (localPhone) {
+          const currentUid = auth.currentUser?.uid;
+          if (id === currentUid || id === localPhone || actualShopId === currentUid || actualShopId === localPhone) {
+            possibleIds.add(localPhone);
+          }
         }
 
         const allDocs: any[] = [];
@@ -580,14 +595,33 @@ const ShopPublicView: FC = () => {
                                 <img src={item.image || "https://via.placeholder.com/150"} className="absolute inset-0 w-full h-full object-cover" alt="Product" />
                                 
                                 {/* 👇 BỔ SUNG: HIỂN THỊ ĐIỂM TÍCH LŨY 👇 */}
-                                {item.points && (() => {
-                                    const adminRewardRate = Number(localStorage.getItem('rewardPointRate')) || 10;
-                                    const isHighRate = item.rewardRate && Number(item.rewardRate) > adminRewardRate;
-                                    return (
-                                        <div className={`absolute top-2 right-2 ${isHighRate ? 'bg-gradient-to-r from-red-500 to-orange-500' : 'bg-gradient-to-r from-yellow-500 to-amber-500'} text-white px-2 py-0.5 rounded text-[10px] font-bold shadow-sm z-10 flex items-center`}>
-                                            +{item.points} điểm {isHighRate ? '🔥' : ''}
-                                        </div>
-                                    );
+                                {(() => {
+                                    let pointsToDisplay = Number(item.points) || 0;
+                                    
+                                    if (item.hasPriceVariants || pointsToDisplay === 0) {
+                                        const parsePriceStr = (val: any) => {
+                                            if (!val) return 0;
+                                            if (typeof val === 'number') return val;
+                                            const parsed = Number(val.toString().replace(/[^0-9]/g, ''));
+                                            return isNaN(parsed) ? 0 : parsed;
+                                        };
+                                        const basePrice = parsePriceStr(item.minPrice !== undefined ? item.minPrice : item.price);
+                                        const appFeeRate = item.rewardRate ? Number(item.rewardRate) : adminPlatformFeeRate;
+                                        const customerShareRate = item.customerShareRate ? Number(item.customerShareRate) : adminCustomerShareRate;
+                                        
+                                        pointsToDisplay = Math.floor((basePrice * (appFeeRate / 100) * (customerShareRate / 100)) / 500);
+                                    }
+
+                                    if (pointsToDisplay > 0) {
+                                        const appFeeRate = item.rewardRate ? Number(item.rewardRate) : adminPlatformFeeRate;
+                                        const isHighRate = appFeeRate > adminPlatformFeeRate;
+                                        return (
+                                            <div className={`absolute top-2 right-2 ${isHighRate ? 'bg-gradient-to-r from-red-500 to-orange-500' : 'bg-gradient-to-r from-yellow-500 to-amber-500'} text-white px-2 py-0.5 rounded text-[10px] font-bold shadow-sm z-10 flex items-center`}>
+                                                +{pointsToDisplay} điểm {isHighRate ? '🔥' : ''}
+                                            </div>
+                                        );
+                                    }
+                                    return null;
                                 })()}
 
                                 {/* 👉 Trạng thái duyệt dành cho chủ shop */}
@@ -609,25 +643,37 @@ const ShopPublicView: FC = () => {
                                   {item.title || item.name}
                                 </Text>
                                 {/* 👇 HIỂN THỊ GIÁ DỰA TRÊN CÔNG TẮC ADMIN 👇 */}
-                                {showPrice ? (
-                                    <Box mt={2}>
-                                        <Text size="small" bold className="text-orange-600">
-                                            {Number(item.price || 0).toLocaleString()}đ
-                                        </Text>
+                                {showPrice ? (() => {
+                                        let dPrice = Number(item.price) || 0;
+                                        let dOriginalPrice = Number(item.originalPrice) || 0;
                                         
-                                        {/* 👉 HIỂN THỊ GIÁ GỐC GẠCH NGANG & % GIẢM GIÁ */}
-                                        {Number(item.originalPrice) > Number(item.price) && (
-                                            <Box flex alignItems="center" className="mt-0.5">
-                                                <Text size="xSmall" className="text-gray-400 line-through mr-1.5">
-                                                    {Number(item.originalPrice).toLocaleString()}đ
+                                        if (item.hasPriceVariants && item.priceVariants && item.priceVariants.length > 0) {
+                                            dPrice = Number(item.minPrice) || 0;
+                                            const variant = item.priceVariants.find((v: any) => Number(v.price) === dPrice);
+                                            if (variant && variant.originalPrice) {
+                                                dOriginalPrice = Number(variant.originalPrice);
+                                            }
+                                        }
+
+                                        return (
+                                            <Box mt={2}>
+                                                <Text size="small" bold className="text-orange-600">
+                                                    {dPrice.toLocaleString('vi-VN')}đ
                                                 </Text>
-                                                <Text size="xxxxSmall" className="bg-red-100 text-red-600 px-1 py-0.5 rounded font-bold">
-                                                    -{Math.round(((Number(item.originalPrice) - Number(item.price)) / Number(item.originalPrice)) * 100)}%
-                                                </Text>
+                                                
+                                                {dOriginalPrice > dPrice && dPrice > 0 && (
+                                                    <Box flex alignItems="center" className="mt-0.5">
+                                                        <Text size="xSmall" className="text-gray-400 line-through mr-1.5">
+                                                            {dOriginalPrice.toLocaleString('vi-VN')}đ
+                                                        </Text>
+                                                        <Text size="xxxxSmall" className="bg-red-100 text-red-600 px-1 py-0.5 rounded font-bold">
+                                                            -{Math.round(((dOriginalPrice - dPrice) / dOriginalPrice) * 100)}%
+                                                        </Text>
+                                                    </Box>
+                                                )}
                                             </Box>
-                                        )}
-                                    </Box>
-                                ) : (
+                                        );
+                                    })() : (
                                     <Text size="xSmall" bold className="text-blue-600 mt-2 italic">
                                       Liên hệ báo giá
                                     </Text>

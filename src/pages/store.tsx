@@ -389,7 +389,7 @@ const mockProducts = [
   },
 ];
 
-const HotProducts: FC<{ products: any[]; onProductClick: (product: any) => void; showPrice: boolean }> = ({ products, onProductClick, showPrice }) => {
+const HotProducts: FC<{ products: any[]; onProductClick: (product: any) => void; showPrice: boolean; adminPlatformFeeRate: number; adminCustomerShareRate: number }> = ({ products, onProductClick, showPrice, adminPlatformFeeRate, adminCustomerShareRate }) => {
   return (
     <Box className="mt-6 mb-4">
       <Text.Title className="font-bold text-base text-[#14502e] mb-3 px-4">Sản phẩm Hot 🔥</Text.Title>
@@ -426,10 +426,10 @@ const HotProducts: FC<{ products: any[]; onProductClick: (product: any) => void;
                   return isNaN(parsed) ? 0 : parsed;
               };
               const basePrice = parsePriceStr(p.minPrice !== undefined ? p.minPrice : p.price);
-              const adminRewardPointRate = Number(localStorage.getItem('rewardPointRate')) || 10;
-              const rewardPointRate = p.rewardRate ? Number(p.rewardRate) : adminRewardPointRate;
-              const earnedPoints = Math.floor((basePrice * (rewardPointRate / 100)) / 1000);
-              const isHighRate = rewardPointRate > adminRewardPointRate;
+              const appFeeRate = p.rewardRate ? Number(p.rewardRate) : adminPlatformFeeRate;
+              const customerShareRate = p.customerShareRate ? Number(p.customerShareRate) : adminCustomerShareRate;
+              const earnedPoints = Math.floor((basePrice * (appFeeRate / 100) * (customerShareRate / 100)) / 500);
+              const isHighRate = appFeeRate > adminPlatformFeeRate;
               
               if (showPrice && earnedPoints > 0) {
                 return (
@@ -450,7 +450,7 @@ const HotProducts: FC<{ products: any[]; onProductClick: (product: any) => void;
   );
 };
 
-const ProductsForYou: FC<{ products: any[]; onProductClick: (product: any) => void; showPrice: boolean }> = ({ products, onProductClick, showPrice }) => {
+const ProductsForYou: FC<{ products: any[]; onProductClick: (product: any) => void; showPrice: boolean; adminPlatformFeeRate: number; adminCustomerShareRate: number }> = ({ products, onProductClick, showPrice, adminPlatformFeeRate, adminCustomerShareRate }) => {
   return (
     <Box className="px-4 mt-4 mb-6">
       <Text.Title className="font-bold text-base text-[#14502e] mb-4">Sản phẩm dành cho bạn ✨</Text.Title>
@@ -479,10 +479,10 @@ const ProductsForYou: FC<{ products: any[]; onProductClick: (product: any) => vo
                   return isNaN(parsed) ? 0 : parsed;
               };
               const basePrice = parsePriceStr(p.minPrice !== undefined ? p.minPrice : p.price);
-              const adminRewardPointRate = Number(localStorage.getItem('rewardPointRate')) || 10;
-              const rewardPointRate = p.rewardRate ? Number(p.rewardRate) : adminRewardPointRate;
-              const earnedPoints = Math.floor((basePrice * (rewardPointRate / 100)) / 1000);
-              const isHighRate = rewardPointRate > adminRewardPointRate;
+              const appFeeRate = p.rewardRate ? Number(p.rewardRate) : adminPlatformFeeRate;
+              const customerShareRate = p.customerShareRate ? Number(p.customerShareRate) : adminCustomerShareRate;
+              const earnedPoints = Math.floor((basePrice * (appFeeRate / 100) * (customerShareRate / 100)) / 500);
+              const isHighRate = appFeeRate > adminPlatformFeeRate;
               
               if (showPrice && earnedPoints > 0) {
                 return (
@@ -512,6 +512,8 @@ const ConsumerStorePage: FC = () => {
   const [sheetVisible, setSheetVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [quantity, setQuantity] = useState(1);
+  const [adminPlatformFeeRate, setAdminPlatformFeeRate] = useState(10);
+  const [adminCustomerShareRate, setAdminCustomerShareRate] = useState(40);
   const { openSnackbar } = useSnackbar();
   const navigate = useNavigate();
 
@@ -519,8 +521,11 @@ const ConsumerStorePage: FC = () => {
     const fetchConfig = async () => {
       try {
         const configSnap = await getDoc(doc(db, "system_config", "admin_settings"));
-        if (configSnap.exists() && configSnap.data().showPrice !== undefined) {
-          setShowPrice(configSnap.data().showPrice);
+        if (configSnap.exists()) {
+          const data = configSnap.data();
+          if (data.showPrice !== undefined) setShowPrice(data.showPrice);
+          if (data.platformFeeRate !== undefined) setAdminPlatformFeeRate(Number(data.platformFeeRate));
+          if (data.rewardPointRate !== undefined) setAdminCustomerShareRate(Number(data.rewardPointRate));
         }
       } catch (e) {
         console.error("Lỗi khi tải cấu hình hiển thị giá:", e);
@@ -640,8 +645,8 @@ const ConsumerStorePage: FC = () => {
         </Box>
       ) : (
         <>
-          <HotProducts products={finalHotList} onProductClick={handleProductClick} showPrice={showPrice} />
-          <ProductsForYou products={finalForYouList} onProductClick={handleProductClick} showPrice={showPrice} />
+          <HotProducts products={finalHotList} onProductClick={handleProductClick} showPrice={showPrice} adminPlatformFeeRate={adminPlatformFeeRate} adminCustomerShareRate={adminCustomerShareRate} />
+          <ProductsForYou products={finalForYouList} onProductClick={handleProductClick} showPrice={showPrice} adminPlatformFeeRate={adminPlatformFeeRate} adminCustomerShareRate={adminCustomerShareRate} />
         </>
       )}
 

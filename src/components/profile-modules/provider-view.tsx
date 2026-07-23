@@ -685,21 +685,30 @@ const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
             const totalAmount = Number(orderData.totalAmount || orderData.totalPrice || orderData.total || 0);
 
             // 1. TÍNH CHI PHÍ NỀN TẢNG
-            let platformFeeRate = 10;
-            try {
-                const configRef = doc(db, "system_config", "admin_settings");
-                const configSnap = await getDoc(configRef);
-                if (configSnap.exists() && configSnap.data().platformFeeRate !== undefined) {
-                    platformFeeRate = Number(configSnap.data().platformFeeRate);
-                }
-            } catch (e) { console.log("Lỗi lấy tỷ lệ phí Admin:", e); }
+            let platformFee = 0;
+            let platformFeeRate = 10; // Rate mặc định cho fallback
 
-            const platformFee = Math.floor(totalAmount * (platformFeeRate / 100));
+            if (orderData.platformFee !== undefined) {
+                // ĐƠN MỚI: Lấy phí nền tảng đã đóng băng tại thời điểm đặt hàng
+                platformFee = orderData.platformFee;
+            } else {
+                // ĐƠN CŨ: Fallback tính theo cấu hình Admin hiện tại
+                try {
+                    const configRef = doc(db, "system_config", "admin_settings");
+                    const configSnap = await getDoc(configRef);
+                    if (configSnap.exists() && configSnap.data().platformFeeRate !== undefined) {
+                        platformFeeRate = Number(configSnap.data().platformFeeRate);
+                    }
+                } catch (e) { console.log("Lỗi lấy tỷ lệ phí Admin:", e); }
+                platformFee = Math.floor(totalAmount * (platformFeeRate / 100));
+            }
             updateData.platformFee = platformFee;
-            updateData.platformFeeRate = platformFeeRate;
+            updateData.platformFeeRate = platformFeeRate; // Chỉ mang tính tham khảo cho đơn mới
 
-            // 2. CỘNG ĐIỂM TÍCH LŨY (10.000đ = 1 điểm)
-            let totalPoints = Math.floor(totalAmount / 10000); 
+            // 2. CỘNG ĐIỂM TÍCH LŨY
+            // ĐƠN MỚI: Lấy earnedPoints đã lưu. ĐƠN CŨ: Chia 10000
+            let totalPoints = orderData.earnedPoints !== undefined ? orderData.earnedPoints : Math.floor(totalAmount / 10000); 
+
             if (totalPoints > 0) {
                 let buyerPoints = totalPoints;
                 const referrerPoints: Record<string, number> = {};
@@ -714,8 +723,17 @@ const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
                 const items = orderData.items || orderData.cartItems || [];
                 items.forEach((item: any) => {
                     if (item.referrerId && item.referrerId !== orderData.userId && item.product?.price) {
+                        let itemPts = 0;
                         const itemAmount = (parsePriceStr(item.product.price) * (item.quantity || 1));
-                        const itemPts = Math.floor(itemAmount / 10000);
+                        
+                        if (orderData.earnedPoints !== undefined) {
+                            // Đơn mới: ước lượng điểm của sản phẩm dựa trên tỷ trọng giá tiền
+                            itemPts = totalAmount > 0 ? Math.floor(totalPoints * (itemAmount / totalAmount)) : 0;
+                        } else {
+                            // Đơn cũ: chia 10000
+                            itemPts = Math.floor(itemAmount / 10000);
+                        }
+
                         if (itemPts > 0) {
                             const refPts = Math.floor(itemPts * 0.2); // 20%
                             if (refPts > 0) {
