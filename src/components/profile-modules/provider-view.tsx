@@ -2842,7 +2842,7 @@ useEffect(() => {
                                           })()
                                       )}
 
-                                      <Box flex justifyContent="space-between" alignItems="center" pt={2} className="border-t border-gray-100">
+                                      <Box flex justifyContent="space-between" alignItems="center" pt={2} className="border-t border-gray-100 cursor-default" onClick={(e) => e.stopPropagation()}>
                                           <Box flex flexDirection="column" alignItems="flex-start">
                                               {discountAmount > 0 && (<Text size="xxxxSmall" className="text-green-600 mb-0.5">Voucher: -{discountAmount.toLocaleString()}đ</Text>)}
                                               <Box flex alignItems="baseline">
@@ -2909,7 +2909,7 @@ useEffect(() => {
 
       {/* 👉 MODAL CHI TIẾT ĐƠN HÀNG (MỚI) */}
       <Modal 
-        visible={!!selectedOrderDetail} 
+        visible={!!selectedOrderDetail && !showReceiveMoneyModal} 
         title="Chi tiết đơn hàng" 
         zIndex={9999}
         onClose={() => {
@@ -3202,7 +3202,10 @@ useEffect(() => {
       <Modal
         visible={showReceiveMoneyModal}
         title="Thông tin nhận tiền"
-        onClose={() => setShowReceiveMoneyModal(false)}
+        onClose={() => {
+          setShowReceiveMoneyModal(false);
+          setSelectedOrderDetail(null);
+        }}
       >
         <Box className="p-4 flex flex-col items-center">
           {userData?.bankQrLink ? (
@@ -3224,7 +3227,10 @@ useEffect(() => {
             <Button
               variant="secondary"
               className="flex-1 rounded-xl bg-gray-200 text-gray-700 font-bold"
-              onClick={() => setShowReceiveMoneyModal(false)}
+              onClick={() => {
+                setShowReceiveMoneyModal(false);
+                setSelectedOrderDetail(null);
+              }}
             >
               Đóng
             </Button>
