@@ -9,11 +9,9 @@
     "hideIOSSafeAreaBottom": false,
     "actionBarHidden": true
   },
-  "pages": [
-    "/"
-  ],
-  "listCSS": ["assets/index-k7RpN2Na.css"],
-  "listSyncJS": ["assets/index.CEmMi196.module.js"],
+  "pages": ["/"],
+  "listCSS": ["assets/index-PC-0eekt.css"],
+  "listSyncJS": ["assets/index.DoUetYMX.module.js"],
   "listAsyncJS": [],
   "template": {
     "name": "zaui-coffee",
