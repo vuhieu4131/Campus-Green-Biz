@@ -29,6 +29,9 @@ const ShopPublicView: FC = () => {
   
   // States cho Thông tin chuyển khoản
   const [shopBankInfoText, setShopBankInfoText] = useState("");
+  const [bankCode, setBankCode] = useState("");
+  const [bankAccountNumber, setBankAccountNumber] = useState("");
+  const [bankAccountName, setBankAccountName] = useState("");
   const [shopBankQrLink, setShopBankQrLink] = useState("");
   const [isUploadingQr, setIsUploadingQr] = useState(false);
   const [savingPayment, setSavingPayment] = useState(false);
@@ -287,8 +290,14 @@ const ShopPublicView: FC = () => {
 
         // Cập nhật State thông tin Shop để hiển thị lên UI
         if (currentShopData) {
-          setShopBankInfoText(currentShopData.bankInfoText || "");
-          setShopBankQrLink(currentShopData.bankQrLink || "");
+          // TRƯỜNG HỢP LÀ CHỦ SHOP XEM TRANG CỦA MÌNH
+          if (isOwner) {
+            setShopBankInfoText(currentShopData.bankInfoText || "");
+            setShopBankQrLink(currentShopData.bankQrLink || "");
+            setBankCode(currentShopData.bankCode || "");
+            setBankAccountNumber(currentShopData.bankAccountNumber || "");
+            setBankAccountName(currentShopData.bankAccountName || "");
+          }
           setShop(prev => ({
             ...prev,
             id: actualShopId,
@@ -461,6 +470,9 @@ const ShopPublicView: FC = () => {
       await updateDoc(shopRef, {
         bankInfoText: shopBankInfoText,
         bankQrLink: shopBankQrLink,
+        bankCode,
+        bankAccountNumber,
+        bankAccountName,
         updatedAt: serverTimestamp()
       });
       openSnackbar({ text: "Đã lưu thông tin thanh toán thành công!", type: "success" });
@@ -806,11 +818,44 @@ const ShopPublicView: FC = () => {
                       </Box>
                       
                       <Box className="mb-4">
-                          <Text size="small" className="font-bold text-gray-700 mb-1">1. Thông tin ngân hàng (Dạng chữ)</Text>
-                          <Text size="xSmall" className="text-gray-400 italic mb-2">* Nội dung này sẽ hiển thị cho khách hàng copy khi họ chuyển khoản.</Text>
+                          <Text size="small" className="font-bold text-gray-700 mb-1">1. Thông tin VietQR (Tạo mã động)</Text>
+                          <Text size="xSmall" className="text-gray-400 italic mb-2">* Hệ thống sẽ tự tạo QR kèm số tiền & mã đơn hàng nếu điền đủ.</Text>
+                          <Box className="space-y-3 mt-3">
+                              <Box>
+                                  <Text size="xSmall" className="text-gray-600 mb-1 font-medium">Mã Ngân hàng (Ví dụ: MB, VCB, ACB, TPB...):</Text>
+                                  <input
+                                      className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:outline-none focus:border-green-500"
+                                      placeholder="Mã ngân hàng (ví dụ: MB)"
+                                      value={bankCode}
+                                      onChange={(e) => setBankCode(e.target.value)}
+                                  />
+                              </Box>
+                              <Box>
+                                  <Text size="xSmall" className="text-gray-600 mb-1 font-medium">Số tài khoản:</Text>
+                                  <input
+                                      className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:outline-none focus:border-green-500"
+                                      placeholder="Ví dụ: 123456789"
+                                      value={bankAccountNumber}
+                                      onChange={(e) => setBankAccountNumber(e.target.value)}
+                                  />
+                              </Box>
+                              <Box>
+                                  <Text size="xSmall" className="text-gray-600 mb-1 font-medium">Tên chủ tài khoản:</Text>
+                                  <input
+                                      className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:outline-none focus:border-green-500"
+                                      placeholder="Ví dụ: NGUYEN VAN A"
+                                      value={bankAccountName}
+                                      onChange={(e) => setBankAccountName(e.target.value)}
+                                  />
+                              </Box>
+                          </Box>
+                      </Box>
+                      <Box className="mb-4">
+                          <Text size="small" className="font-bold text-gray-700 mb-1">2. Thông tin chuyển khoản dự phòng (Dạng chữ)</Text>
+                          <Text size="xSmall" className="text-gray-400 italic mb-2">* Dành cho khách copy khi không quét được QR.</Text>
                           <textarea
                               className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:border-green-500"
-                              rows={4}
+                              rows={3}
                               placeholder="Ví dụ:&#10;Ngân hàng ABC&#10;Số tài khoản: 123456789&#10;Chủ tài khoản: NGUYEN VAN A"
                               value={shopBankInfoText}
                               onChange={(e) => setShopBankInfoText(e.target.value)}
@@ -818,8 +863,8 @@ const ShopPublicView: FC = () => {
                       </Box>
 
                       <Box className="mb-4">
-                          <Text size="small" className="font-bold text-gray-700 mb-1">2. Hình ảnh mã QR Ngân hàng (Tuỳ chọn)</Text>
-                          <Text size="xSmall" className="text-gray-400 italic mb-2">* Tải lên hình ảnh mã QR để hiển thị khi thanh toán</Text>
+                          <Text size="small" className="font-bold text-gray-700 mb-1">3. Hình ảnh mã QR Ngân hàng tĩnh</Text>
+                          <Text size="xSmall" className="text-gray-400 italic mb-2">* Chỉ dùng nếu bạn không điền thông tin VietQR ở trên.</Text>
                           
                           <Box className="border-2 border-dashed border-gray-300 rounded-xl p-4 flex flex-col items-center justify-center relative">
                               {shopBankQrLink ? (

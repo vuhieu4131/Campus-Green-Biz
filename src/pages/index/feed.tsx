@@ -6,6 +6,37 @@ import { db, auth } from "../../firebase";
 import { collection, query, getDocs, orderBy, limit, startAfter } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { getDefaultAvatar } from "../../utils/avatar";
+import { Swiper, SwiperSlide } from "swiper/react";
+import { Autoplay } from "swiper";
+import { useNavigate } from "react-router-dom";
+
+const ShopBannersSlider: FC<{ shops: any[] }> = ({ shops }) => {
+  const navigate = useNavigate();
+  if (!shops || shops.length === 0) return null;
+
+  return (
+    <Box className="my-2 mx-4 rounded-xl overflow-hidden shadow-sm border border-gray-100 bg-white">
+      <Swiper
+        modules={[Autoplay]}
+        autoplay={{ delay: 2000, disableOnInteraction: false }}
+        loop={shops.length > 1}
+        spaceBetween={0}
+        slidesPerView={1}
+      >
+        {shops.map((shop, idx) => (
+          <SwiperSlide key={idx} className="cursor-pointer" onClick={() => navigate(`/profile?id=${shop.id}`)}>
+            <Box className="relative">
+              <img src={shop.cover || shop.bannerUrl || shop.avatar} className="w-full h-[120px] object-cover" alt={shop.name || shop.shopName || "Cửa hàng"} />
+              <Box className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-black/80 to-transparent p-2 pt-6">
+                <Text className="text-white font-bold text-sm line-clamp-1">{shop.name || shop.shopName || "Cửa hàng"}</Text>
+              </Box>
+            </Box>
+          </SwiperSlide>
+        ))}
+      </Swiper>
+    </Box>
+  );
+};
 
 const mockPosts: RawPost[] = [
   {
@@ -34,11 +65,27 @@ const mockPosts: RawPost[] = [
 
 export const FeedList: FC = () => {
   const [posts, setPosts] = useState<RawPost[]>([]);
+  const [shops, setShops] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [lastDoc, setLastDoc] = useState<any>(null);
   const [hasMore, setHasMore] = useState(true);
   const sentinelRef = useRef<any>(null);
+
+  useEffect(() => {
+    const fetchShops = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, "shops"));
+        const shopsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const validShops = shopsData.filter(s => s.cover || s.avatar || s.bannerUrl);
+        const shuffled = validShops.sort(() => 0.5 - Math.random());
+        setShops(shuffled);
+      } catch (err) {
+        console.error("Error fetching shops", err);
+      }
+    };
+    fetchShops();
+  }, []);
 
   const fetchInitialPosts = async () => {
     try {
@@ -147,8 +194,11 @@ export const FeedList: FC = () => {
 
   return (
     <Box className="bg-transparent flex-1 overflow-y-auto pb-20">
-      {displayPosts.map((post) => (
-        <PostItem key={post.id} data={post} />
+      {displayPosts.map((post, index) => (
+        <React.Fragment key={post.id}>
+          <PostItem data={post} />
+          {(index + 1) % 5 === 0 && <ShopBannersSlider shops={shops} />}
+        </React.Fragment>
       ))}
 
       {/* Sentinel element to trigger infinite scroll load more */}

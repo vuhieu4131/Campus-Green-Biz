@@ -2764,6 +2764,15 @@ useEffect(() => {
                                               <span className="text-[10px] text-blue-500 hover:text-blue-700 underline font-medium cursor-pointer mr-1">
                                                   Xem chi tiết
                                               </span>
+                                              {order.customerPaymentNotification ? (
+                                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-600">
+                                                      {order.customerPaymentNotification === 'transfer' ? 'Đã chuyển khoản' : 'Đã TT TM'}
+                                                  </span>
+                                              ) : (order.status === 'confirmed' || order.status === 'shipping') ? (
+                                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold" style={{ backgroundColor: '#fef3c7', color: '#d97706' }}>
+                                                      Chờ thanh toán
+                                                  </span>
+                                              ) : null}
                                               <Text size="xSmall" bold className={order.status === 'pending' ? 'text-orange-500' : order.status === 'cancelled' ? 'text-red-500' : 'text-green-500'}>
                                                   {order.status === 'pending' ? 'Mới' : order.status === 'confirmed' ? 'Đã chốt' : order.status === 'cancelled' ? 'Đã hủy' : 'Hoàn thành'}
                                               </Text>
@@ -2876,8 +2885,9 @@ useEffect(() => {
                                                           setSelectedOrderDetail(order);
                                                           setShowReceiveMoneyModal(true);
                                                       }}
-                                                      className="text-white flex items-center h-7 px-3 rounded-lg border-none"
-                                                      style={{ backgroundColor: '#2563eb' }}
+                                                      disabled={order.customerPaymentNotification === 'cash'}
+                                                      className="text-white flex items-center h-7 px-3 rounded-lg border-none disabled:opacity-50"
+                                                      style={{ backgroundColor: order.customerPaymentNotification === 'cash' ? '#9ca3af' : '#2563eb' }}
                                                   >
                                                       <span className="text-[11px] font-bold">Chuyển khoản</span>
                                                   </Button>
@@ -2887,8 +2897,9 @@ useEffect(() => {
                                                           e.stopPropagation(); 
                                                           await handleUpdateOrderStatus(order.id, "completed"); 
                                                       }}
-                                                      className="text-white flex items-center h-7 px-3 rounded-lg border-none"
-                                                      style={{ backgroundColor: '#16a34a' }}
+                                                      disabled={order.customerPaymentNotification === 'transfer'}
+                                                      className="text-white flex items-center h-7 px-3 rounded-lg border-none disabled:opacity-50"
+                                                      style={{ backgroundColor: order.customerPaymentNotification === 'transfer' ? '#9ca3af' : '#16a34a' }}
                                                   >
                                                       <span className="text-[11px] font-bold">Tiền mặt</span>
                                                   </Button>
@@ -3152,21 +3163,23 @@ useEffect(() => {
                     <Box className="flex flex-col gap-2 w-full mt-2">
                       <Box className="flex gap-2 w-full">
                         <Button 
-                          className="text-white flex-1 rounded-xl text-sm font-bold"
-                          style={{ backgroundColor: '#2563eb' }}
+                          className="text-white flex-1 rounded-xl text-sm font-bold disabled:opacity-50"
+                          style={{ backgroundColor: selectedOrderDetail.customerPaymentNotification === 'cash' ? '#9ca3af' : '#2563eb' }}
                           onClick={() => setShowReceiveMoneyModal(true)}
+                          disabled={selectedOrderDetail.customerPaymentNotification === 'cash'}
                         >
                           Chuyển khoản
                         </Button>
                         <Button 
-                          className="text-white flex-1 rounded-xl text-sm font-bold"
-                          style={{ backgroundColor: '#16a34a' }}
+                          className="text-white flex-1 rounded-xl text-sm font-bold disabled:opacity-50"
+                          style={{ backgroundColor: selectedOrderDetail.customerPaymentNotification === 'transfer' ? '#9ca3af' : '#16a34a' }}
                           onClick={async () => {
                             try {
                               await handleUpdateOrderStatus(selectedOrderDetail.id, "completed");
                               setSelectedOrderDetail(null);
                             } catch (e) {}
                           }}
+                          disabled={selectedOrderDetail.customerPaymentNotification === 'transfer'}
                         >
                           Tiền mặt
                         </Button>
@@ -3208,11 +3221,22 @@ useEffect(() => {
         }}
       >
         <Box className="p-4 flex flex-col items-center">
-          {userData?.bankQrLink ? (
+          {(userData?.bankCode && userData?.bankAccountNumber) ? (
+            <Box className="mb-4 flex flex-col items-center">
+              <img 
+                src={`https://img.vietqr.io/image/${userData.bankCode}-${userData.bankAccountNumber}-compact2.png?amount=${selectedOrderDetail?.totalPrice || selectedOrderDetail?.totalAmount || selectedOrderDetail?.total || 0}&addInfo=${encodeURIComponent(selectedOrderDetail?.orderCode || selectedOrderDetail?.id?.slice(0, 8).toUpperCase() || "")}&accountName=${encodeURIComponent(userData.bankAccountName || "")}`} 
+                alt="QR Ngân hàng" 
+                className="max-w-[200px] object-contain rounded-lg shadow-sm" 
+              />
+              <Text className="text-[11px] text-green-600 font-bold mt-2 text-center bg-green-50 px-2 py-1 rounded">
+                Đã tự động đính kèm Số tiền & Mã đơn hàng
+              </Text>
+            </Box>
+          ) : userData?.bankQrLink ? (
             <img src={userData.bankQrLink} alt="Mã QR Nhận tiền" className="max-w-full h-48 object-contain mb-4 rounded-xl border border-gray-200 shadow-sm" />
           ) : (
             <Box className="w-48 h-48 bg-gray-100 flex items-center justify-center mb-4 rounded-xl border border-gray-200 text-center p-2 text-sm text-gray-500">
-              Shop chưa tải lên QR Code
+              Shop chưa cấu hình mã QR
             </Box>
           )}
           {userData?.bankInfoText && (

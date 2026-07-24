@@ -939,7 +939,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
             {/* Original Attached Product */}
             {data.originalPost.attachedProduct && (
               <Box 
-                className="bg-white border border-gray-200 rounded-lg p-2.5 flex items-start space-x-2.5 cursor-pointer hover:bg-gray-100/50 transition"
+                className="bg-white border border-gray-200 rounded-lg p-2 flex items-start space-x-2 cursor-pointer hover:bg-gray-100/50 transition"
                 onClick={() => {
                   const prod = {
                     id: data.originalPost.attachedProduct.id,
@@ -955,34 +955,14 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
                   <img 
                     src={data.originalPost.attachedProduct.image} 
                     alt={data.originalPost.attachedProduct.name || data.originalPost.attachedProduct.title} 
-                    className="w-12 h-12 object-cover rounded border border-gray-150 shrink-0" 
+                    className="w-10 h-10 object-cover rounded border border-gray-150 shrink-0" 
                   />
                 )}
-                <Box className="flex-1 min-w-0 flex flex-col justify-between min-h-[48px]">
+                <Box className="flex-1 min-w-0 flex flex-col justify-between min-h-[40px]">
                   <Box>
-                    <Text className="font-semibold text-gray-800 text-[13px] line-clamp-2 leading-tight">
+                    <Text className="font-semibold text-gray-800 text-[12px] line-clamp-2 leading-tight">
                       {data.originalPost.attachedProduct.name || data.originalPost.attachedProduct.title}
                     </Text>
-                  </Box>
-                  <Box className="flex items-center justify-between mt-1">
-                    {(() => {
-                      const parsePriceStr = (val: any) => {
-                          if (!val) return 0;
-                          if (typeof val === 'number') return val;
-                          const parsed = Number(val.toString().replace(/[^0-9]/g, ''));
-                          return isNaN(parsed) ? 0 : parsed;
-                      };
-                      const basePrice = parsePriceStr(data.originalPost.attachedProduct.minPrice !== undefined ? data.originalPost.attachedProduct.minPrice : data.originalPost.attachedProduct.price);
-                      return (
-                        <Text className="text-red-600 text-[11px] font-bold">
-                          {Number(basePrice || 0).toLocaleString('vi-VN')}đ
-                        </Text>
-                      );
-                    })()}
-                    <Box className="bg-[#14502e] text-white px-2 py-1 rounded-full text-[9px] font-semibold flex items-center space-x-0.5 shrink-0 shadow-sm active:opacity-90">
-                      <span>Xem sản phẩm</span>
-                      <svg className="w-2.5 h-2.5 fill-current" viewBox="0 0 24 24"><path d="M5 13h11.86l-5.43 5.43 1.42 1.42L21.14 12l-8.29-8.29-1.42 1.42 5.43 5.43H5v2z"/></svg>
-                    </Box>
                   </Box>
                   {(() => {
                     let pointsToDisplay = Number(data.originalPost.attachedProduct.points) || 0;
@@ -1015,6 +995,26 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
                     }
                     return null;
                   })()}
+                  <Box className="flex items-center justify-between mt-1">
+                    {(() => {
+                      const parsePriceStr = (val: any) => {
+                          if (!val) return 0;
+                          if (typeof val === 'number') return val;
+                          const parsed = Number(val.toString().replace(/[^0-9]/g, ''));
+                          return isNaN(parsed) ? 0 : parsed;
+                      };
+                      const basePrice = parsePriceStr(data.originalPost.attachedProduct.minPrice !== undefined ? data.originalPost.attachedProduct.minPrice : data.originalPost.attachedProduct.price);
+                      return (
+                        <Text className="text-red-600 text-[11px] font-bold">
+                          {Number(basePrice || 0).toLocaleString('vi-VN')}đ
+                        </Text>
+                      );
+                    })()}
+                    <Box className="bg-[#14502e] text-white px-2 py-1 rounded-full text-[9px] font-semibold flex items-center space-x-0.5 shrink-0 shadow-sm active:opacity-90">
+                      <span>Xem sản phẩm</span>
+                      <svg className="w-2.5 h-2.5 fill-current" viewBox="0 0 24 24"><path d="M5 13h11.86l-5.43 5.43 1.42 1.42L21.14 12l-8.29-8.29-1.42 1.42 5.43 5.43H5v2z"/></svg>
+                    </Box>
+                  </Box>
                 </Box>
               </Box>
             )}
@@ -1081,7 +1081,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
           {/* @ts-ignore */}
           {data.attachedProduct && (
             <Box 
-              className="mx-4 mb-3 bg-gray-50 border border-gray-200/60 rounded-xl p-3 flex items-start space-x-3 cursor-pointer hover:bg-gray-100 transition active:scale-[0.99]"
+              className="mx-4 mb-2 bg-gray-50 border border-gray-200/60 rounded-xl p-2.5 flex items-start space-x-2.5 cursor-pointer hover:bg-gray-100 transition active:scale-[0.99]"
               onClick={() => {
                 const prod = {
                   id: data.attachedProduct.id,
@@ -1097,39 +1097,48 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
                 <img 
                   src={data.attachedProduct.image} 
                   alt={data.attachedProduct.name || data.attachedProduct.title} 
-                  className="w-16 h-16 object-cover rounded-lg border border-gray-200 shrink-0" 
+                  className="w-12 h-12 object-cover rounded-lg border border-gray-200 shrink-0" 
                 />
               )}
-              <Box className="flex-1 min-w-0 flex flex-col justify-between min-h-[64px]">
+              <Box className="flex-1 min-w-0 flex flex-col justify-between min-h-[48px]">
                 <Box>
-                  <Text className="font-semibold text-gray-800 text-[14px] line-clamp-2 leading-tight">
+                  <Text className="font-semibold text-gray-800 text-[13px] line-clamp-2 leading-tight">
                     {data.attachedProduct.name || data.attachedProduct.title}
                   </Text>
                 </Box>
-                <Box className="flex items-center justify-between mt-2">
                   {(() => {
-                    const parsePriceStr = (val: any) => {
-                        if (!val) return 0;
-                        if (typeof val === 'number') return val;
-                        const parsed = Number(val.toString().replace(/[^0-9]/g, ''));
-                        return isNaN(parsed) ? 0 : parsed;
-                    };
-                    const basePrice = parsePriceStr(data.attachedProduct.minPrice !== undefined ? data.attachedProduct.minPrice : data.attachedProduct.price);
-                    return (
-                      <Text className="text-red-600 text-sm font-bold">
-                        {Number(basePrice || 0).toLocaleString('vi-VN')}đ
-                      </Text>
-                    );
+                    let pointsToDisplay = Number(data.attachedProduct.points) || 0;
+                    
+                    if (data.attachedProduct.hasPriceVariants || pointsToDisplay === 0) {
+                        const parsePriceStr = (val: any) => {
+                            if (!val) return 0;
+                            if (typeof val === 'number') return val;
+                            const parsed = Number(val.toString().replace(/[^0-9]/g, ''));
+                            return isNaN(parsed) ? 0 : parsed;
+                        };
+                        const basePrice = parsePriceStr(data.attachedProduct.minPrice !== undefined ? data.attachedProduct.minPrice : data.attachedProduct.price);
+                        const appFeeRate = data.attachedProduct.rewardRate ? Number(data.attachedProduct.rewardRate) : adminPlatformFeeRate;
+                        const customerShareRate = data.attachedProduct.customerShareRate ? Number(data.attachedProduct.customerShareRate) : adminCustomerShareRate;
+                        
+                        pointsToDisplay = Math.floor((basePrice * (appFeeRate / 100) * (customerShareRate / 100)) / 500);
+                    }
+
+                    if (pointsToDisplay > 0) {
+                        const appFeeRate = data.attachedProduct.rewardRate ? Number(data.attachedProduct.rewardRate) : adminPlatformFeeRate;
+                        const isHighRate = appFeeRate > adminPlatformFeeRate;
+                        return (
+                          <Box className="mt-1">
+                            <Box className={`inline-flex px-2 py-1 rounded-full text-[10px] font-bold items-center space-x-1 ${isHighRate ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white' : 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white'}`}>
+                              <Icon icon="zi-star-solid" size={12} />
+                              <span>+{pointsToDisplay} điểm {isHighRate ? '🔥' : ''}</span>
+                            </Box>
+                          </Box>
+                        );
+                    }
+                    return null;
                   })()}
-                  <Box className="bg-[#14502e] text-white px-3 py-1.5 rounded-full text-[11px] font-semibold flex items-center space-x-1 shrink-0 shadow-sm active:opacity-90">
-                    <span>Xem sản phẩm</span>
-                    <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M5 13h11.86l-5.43 5.43 1.42 1.42L21.14 12l-8.29-8.29-1.42 1.42 5.43 5.43H5v2z"/></svg>
-                  </Box>
-                </Box>
-                {(() => {
-                  let pointsToDisplay = Number(data.attachedProduct.points) || 0;
-                  
-                  if (data.attachedProduct.hasPriceVariants || pointsToDisplay === 0) {
+                  <Box className="flex items-center justify-between mt-1.5">
+                    {(() => {
                       const parsePriceStr = (val: any) => {
                           if (!val) return 0;
                           if (typeof val === 'number') return val;
@@ -1137,59 +1146,36 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
                           return isNaN(parsed) ? 0 : parsed;
                       };
                       const basePrice = parsePriceStr(data.attachedProduct.minPrice !== undefined ? data.attachedProduct.minPrice : data.attachedProduct.price);
-                      const appFeeRate = data.attachedProduct.rewardRate ? Number(data.attachedProduct.rewardRate) : adminPlatformFeeRate;
-                      const customerShareRate = data.attachedProduct.customerShareRate ? Number(data.attachedProduct.customerShareRate) : adminCustomerShareRate;
-                      
-                      pointsToDisplay = Math.floor((basePrice * (appFeeRate / 100) * (customerShareRate / 100)) / 500);
-                  }
-
-                  if (pointsToDisplay > 0) {
-                      const appFeeRate = data.attachedProduct.rewardRate ? Number(data.attachedProduct.rewardRate) : adminPlatformFeeRate;
-                      const isHighRate = appFeeRate > adminPlatformFeeRate;
                       return (
-                        <Box className="mt-2">
-                          <Box className={`inline-flex px-2 py-1 rounded-full text-[10px] font-bold items-center space-x-1 ${isHighRate ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white' : 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white'}`}>
-                            <Icon icon="zi-star-solid" size={12} />
-                            <span>+{pointsToDisplay} điểm {isHighRate ? '🔥' : ''}</span>
-                          </Box>
-                        </Box>
+                        <Text className="text-red-600 text-sm font-bold">
+                          {Number(basePrice || 0).toLocaleString('vi-VN')}đ
+                        </Text>
                       );
-                  }
-                  return null;
-                })()}
+                    })()}
+                    <Box className="bg-[#14502e] text-white px-2 py-1 rounded-full text-[10px] font-semibold flex items-center space-x-1 shrink-0 shadow-sm active:opacity-90">
+                      <span>Xem sản phẩm</span>
+                      <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M5 13h11.86l-5.43 5.43 1.42 1.42L21.14 12l-8.29-8.29-1.42 1.42 5.43 5.43H5v2z"/></svg>
+                    </Box>
+                  </Box>
               </Box>
             </Box>
           )}
         </>
       )}
 
-      {/* Stats */}
-      <Box className="flex justify-between items-center px-4 mb-3 text-gray-500 border-b border-gray-100 pb-2">
-        <Box className="flex items-center space-x-1">
-          <Box className="bg-red-500 rounded-full p-[2px] flex items-center justify-center">
-            <Icon icon="zi-heart-solid" className="text-white text-[10px]" />
-          </Box>
-          <Text size="xxSmall">{likesCount}</Text>
-        </Box>
-        <Box className="flex items-center space-x-3 cursor-pointer" onClick={() => currentUser ? setShowComments(true) : setShowAuth(true)}>
-          <Text size="xxSmall">{commentsCount} bình luận</Text>
-          <Text size="xxSmall">{sharesCount} chia sẻ</Text>
-        </Box>
-      </Box>
-
       {/* Actions */}
-      <Box className="flex justify-around items-center px-2">
-        <Box className="flex flex-1 justify-center items-center space-x-2 py-2 rounded-lg cursor-pointer active:bg-gray-50" onClick={() => isRealUser ? handleLike() : setShowAuth(true)}>
-          <Icon icon={liked ? "zi-heart-solid" : "zi-heart"} className={liked ? "text-red-500 text-xl" : "text-gray-500 text-xl"} />
-          <Text size="small" className={`font-medium ${liked ? "text-red-500" : "text-gray-500"}`}>Thích</Text>
+      <Box className="flex justify-around items-center px-2 py-1 border-t border-gray-100 mt-1">
+        <Box className="flex flex-1 justify-center items-center space-x-1.5 py-1.5 rounded-lg cursor-pointer active:bg-gray-50" onClick={() => isRealUser ? handleLike() : setShowAuth(true)}>
+          <Icon icon={liked ? "zi-heart-solid" : "zi-heart"} className={liked ? "text-red-500 text-lg" : "text-gray-500 text-lg"} />
+          <Text size="small" className={`font-medium ${liked ? "text-red-500" : "text-gray-500"}`}>Thích {likesCount > 0 ? `(${likesCount})` : ''}</Text>
         </Box>
-        <Box className="flex flex-1 justify-center items-center space-x-2 py-2 rounded-lg cursor-pointer active:bg-gray-50" onClick={() => currentUser ? setShowComments(true) : setShowAuth(true)}>
-          <CustomIcon icon="zi-chat" className="text-gray-500 text-xl" />
-          <Text size="small" className="font-medium text-gray-500">Bình luận</Text>
+        <Box className="flex flex-1 justify-center items-center space-x-1.5 py-1.5 rounded-lg cursor-pointer active:bg-gray-50" onClick={() => currentUser ? setShowComments(true) : setShowAuth(true)}>
+          <CustomIcon icon="zi-chat" className="text-gray-500 text-lg" />
+          <Text size="small" className="font-medium text-gray-500">Bình luận {commentsCount > 0 ? `(${commentsCount})` : ''}</Text>
         </Box>
-        <Box className="flex flex-1 justify-center items-center space-x-2 py-2 rounded-lg cursor-pointer active:bg-gray-50" onClick={() => currentUser ? setShowShare(true) : setShowAuth(true)}>
-          <CustomIcon icon="zi-share" className="text-gray-500 text-xl" />
-          <Text size="small" className="font-medium text-gray-500">Chia sẻ</Text>
+        <Box className="flex flex-1 justify-center items-center space-x-1.5 py-1.5 rounded-lg cursor-pointer active:bg-gray-50" onClick={() => currentUser ? setShowShare(true) : setShowAuth(true)}>
+          <CustomIcon icon="zi-share" className="text-gray-500 text-lg" />
+          <Text size="small" className="font-medium text-gray-500">Chia sẻ {sharesCount > 0 ? `(${sharesCount})` : ''}</Text>
         </Box>
       </Box>
 

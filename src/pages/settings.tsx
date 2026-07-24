@@ -3,9 +3,10 @@ import React, { FC, useState, useEffect } from "react";
 import { Page, Header, Box, Text, List, Icon, useNavigate, Modal, Button, Input, Spinner, Avatar, useSnackbar } from "zmp-ui";
 import { AuthOverlay } from "./auth";
 import { getDefaultAvatar } from "../utils/avatar";
-import { auth, db } from "../firebase";
+import { auth, db, storage } from "../firebase";
 import { signOut, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
 import { doc, getDoc, collection, query, where, getDocs, orderBy, updateDoc, increment, addDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { SectionBox } from "../components/section-box";
 import { openShareSheet, openChat } from "zmp-sdk/apis";
 import { useRecoilState } from "recoil";
@@ -348,6 +349,14 @@ const SettingsPage: FC = () => {
   const [cart, setCart] = useRecoilState(cartState);
   const [ordersTab, setOrdersTab] = useState<'cart' | 'pending' | 'history'>('cart');
 
+  // Transfer Modal State
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferOrder, setTransferOrder] = useState<any>(null);
+  const [shopBankInfo, setShopBankInfo] = useState<{ text: string, qrUrl: string, bankCode?: string, bankAccountNumber?: string, bankAccountName?: string } | null>(null);
+  const [receiptUrl, setReceiptUrl] = useState<string>("");
+  const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
+  const [isFetchingBankInfo, setIsFetchingBankInfo] = useState(false);
+
   const getStatusDisplay = (status: string) => {
     switch(status) {
         case 'pending': return { text: 'Chờ xác nhận', color: 'text-orange-500' };
@@ -385,6 +394,92 @@ const SettingsPage: FC = () => {
       setMyOrders([]);
     } finally {
       setLoadingMyOrders(false);
+    }
+  };
+  const handleCustomerPaymentNotify = async (orderId: string, method: string, uploadedReceipt?: string) => {
+    try {
+      openSnackbar({ text: "Đang cập nhật...", type: "loading", duration: 1500, position: "top" });
+      const orderRef = doc(db, "orders", orderId);
+      
+      const updateData: any = {
+        customerPaymentNotification: method,
+        customerPaymentNotifiedAt: new Date().toISOString()
+      };
+      if (uploadedReceipt) updateData.receiptUrl = uploadedReceipt;
+
+      await updateDoc(orderRef, updateData);
+      
+      setMyOrders(prev => prev.map(o => o.id === orderId ? { ...o, customerPaymentNotification: method, receiptUrl: uploadedReceipt } : o));
+      openSnackbar({ text: "Đã thông báo cho Shop!", type: "success", position: "top" });
+      setShowTransferModal(false);
+      setShowOrderDetailModal(false); // Đảm bảo tắt Chi tiết đơn hàng
+      setTransferOrder(null);
+      setReceiptUrl("");
+    } catch (error) {
+      console.error("Lỗi cập nhật thanh toán:", error);
+      openSnackbar({ text: "Có lỗi xảy ra, vui lòng thử lại!", type: "error", position: "top" });
+    }
+  };
+
+  const handleOpenTransferModal = async (order: any) => {
+    const isConfirm = window.confirm("CẢNH BÁO: Hành vi gian lận (báo cáo sai sự thật) sẽ bị trừ điểm ưu đãi tương ứng với đơn hàng hoặc khoá tài khoản vĩnh viễn. Bạn có chắc chắn muốn tiếp tục?");
+    if (!isConfirm) return;
+
+    setTransferOrder(order);
+    setShowTransferModal(true);
+    setIsFetchingBankInfo(true);
+    setReceiptUrl("");
+    try {
+      const shopPhone = order.shopId || order.providerId || order.ownerPhone;
+      if (shopPhone) {
+        const qShop = query(collection(db, "shops"), where("phone", "==", shopPhone));
+        const snap = await getDocs(qShop);
+        if (!snap.empty) {
+          const shopData = snap.docs[0].data();
+          setShopBankInfo({ 
+            text: shopData.bankInfoText || "", 
+            qrUrl: shopData.bankQrLink || "",
+            bankCode: shopData.bankCode || "",
+            bankAccountNumber: shopData.bankAccountNumber || "",
+            bankAccountName: shopData.bankAccountName || ""
+          });
+        } else {
+            const qUser = query(collection(db, "users"), where("phone", "==", shopPhone));
+            const snapUser = await getDocs(qUser);
+            if (!snapUser.empty) {
+                const userData = snapUser.docs[0].data();
+                setShopBankInfo({ 
+                  text: userData.bankInfoText || "", 
+                  qrUrl: userData.bankQrLink || "",
+                  bankCode: userData.bankCode || "",
+                  bankAccountNumber: userData.bankAccountNumber || "",
+                  bankAccountName: userData.bankAccountName || ""
+                });
+            }
+        }
+      }
+    } catch(err) {
+      console.error(err);
+    } finally {
+      setIsFetchingBankInfo(false);
+    }
+  };
+
+  const handleUploadReceipt = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingReceipt(true);
+    try {
+      const storageRef = ref(storage, `receipts/${Date.now()}_${file.name}`);
+      await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(storageRef);
+      setReceiptUrl(downloadURL);
+      openSnackbar({ text: "Tải biên lai thành công!", type: "success" });
+    } catch (error) {
+      console.error("Lỗi tải biên lai:", error);
+      openSnackbar({ text: "Lỗi khi tải ảnh. Vui lòng thử lại.", type: "error" });
+    } finally {
+      setIsUploadingReceipt(false);
     }
   };
 
@@ -2157,14 +2252,41 @@ const SettingsPage: FC = () => {
                           <Text size="xxSmall" className="text-gray-400 block">Tổng thanh toán</Text>
                           <Text size="small" bold className="text-red-500">{totalAmount.toLocaleString('vi-VN')}đ</Text>
                         </Box>
-                        <Button 
-                          size="small" 
-                          onClick={() => handleShareOrder(order)}
-                          className="bg-[#14502e] text-white flex items-center space-x-1"
-                        >
-                          <CustomIcon icon="zi-share" size={14} />
-                          <span className="text-xs">Chia sẻ Zalo</span>
-                        </Button>
+                        {(order.status === 'confirmed' || order.status === 'shipping') ? (
+                          <Box className="flex items-center space-x-2">
+                            <Button 
+                              size="small" 
+                              onClick={(e) => { e.stopPropagation(); handleOpenTransferModal(order); }}
+                              className="text-white flex items-center space-x-1 h-8 px-3 rounded-lg border-none disabled:opacity-50"
+                              style={{ backgroundColor: order.customerPaymentNotification === 'transfer' ? '#9ca3af' : '#2563eb' }}
+                              disabled={!!order.customerPaymentNotification}
+                            >
+                              <span className="text-xs font-bold">{order.customerPaymentNotification === 'transfer' ? 'Đã báo CK' : 'Chuyển khoản'}</span>
+                            </Button>
+                            <Button 
+                              size="small" 
+                              onClick={(e) => {
+                                  e.stopPropagation();
+                                  const isConfirm = window.confirm("CẢNH BÁO: Hành vi gian lận (báo cáo sai sự thật) sẽ bị trừ điểm ưu đãi tương ứng với đơn hàng hoặc khoá tài khoản vĩnh viễn. Bạn có chắc chắn muốn tiếp tục?");
+                                  if (isConfirm) handleCustomerPaymentNotify(order.id, 'cash');
+                              }}
+                              className="text-white flex items-center space-x-1 h-8 px-3 rounded-lg border-none disabled:opacity-50"
+                              style={{ backgroundColor: order.customerPaymentNotification === 'cash' ? '#9ca3af' : '#16a34a' }}
+                              disabled={!!order.customerPaymentNotification}
+                            >
+                              <span className="text-xs font-bold">{order.customerPaymentNotification === 'cash' ? 'Đã báo Tiền mặt' : 'Tiền mặt'}</span>
+                            </Button>
+                          </Box>
+                        ) : (
+                          <Button 
+                            size="small" 
+                            onClick={(e) => { e.stopPropagation(); handleShareOrder(order); }}
+                            className="bg-[#14502e] text-white flex items-center space-x-1"
+                          >
+                            <CustomIcon icon="zi-share" size={14} />
+                            <span className="text-xs">Chia sẻ Zalo</span>
+                          </Button>
+                        )}
                       </Box>
                     </Box>
                   );
@@ -2265,14 +2387,15 @@ const SettingsPage: FC = () => {
                           <Text size="xxSmall" className="text-gray-400 block">Tổng thanh toán</Text>
                           <Text size="small" bold className="text-red-500">{totalAmount.toLocaleString('vi-VN')}đ</Text>
                         </Box>
-                        <Button 
-                          size="small" 
-                          onClick={() => handleShareOrder(order)}
-                          className="bg-[#14502e] text-white flex items-center space-x-1"
-                        >
-                          <CustomIcon icon="zi-share" size={14} />
-                          <span className="text-xs">Chia sẻ Zalo</span>
-                        </Button>
+                        {(order.status === 'completed' || order.status === 'cancelled') && (
+                          <Box className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
+                            order.paymentMethod?.includes('Chuyển khoản') || order.customerPaymentNotification === 'transfer' 
+                            ? 'bg-blue-100 text-blue-700' 
+                            : 'bg-green-100 text-green-700'
+                          }`}>
+                            {order.paymentMethod?.includes('Chuyển khoản') || order.customerPaymentNotification === 'transfer' ? '💳 Chuyển khoản' : '💵 Tiền mặt'}
+                          </Box>
+                        )}
                       </Box>
                     </Box>
                   );
@@ -2622,6 +2745,105 @@ const SettingsPage: FC = () => {
           </Box>
         </Box>
       </Modal>
+
+      {/* Transfer Modal */}
+      <Modal 
+        visible={showTransferModal} 
+        title="Thông tin chuyển khoản" 
+        onClose={() => setShowTransferModal(false)}
+      >
+        <Box className="p-4 bg-gray-50 flex flex-col gap-4">
+          <Text className="text-sm text-gray-600">
+            Vui lòng chuyển khoản theo thông tin dưới đây và tải lên biên lai để báo cho Shop biết bạn đã thanh toán.
+          </Text>
+          
+          <Box className="bg-white p-3 rounded-xl border border-gray-200">
+            {isFetchingBankInfo ? (
+              <Box className="flex justify-center p-4"><Spinner /></Box>
+            ) : shopBankInfo ? (
+              <>
+                {(shopBankInfo.bankCode && shopBankInfo.bankAccountNumber) ? (
+                  <Box className="mb-3 flex justify-center flex-col items-center">
+                    <img 
+                      src={`https://img.vietqr.io/image/${shopBankInfo.bankCode}-${shopBankInfo.bankAccountNumber}-compact2.png?amount=${transferOrder?.totalAmount || transferOrder?.totalPrice || transferOrder?.total || 0}&addInfo=${encodeURIComponent(transferOrder?.orderCode || transferOrder?.id?.slice(0, 8).toUpperCase() || "")}&accountName=${encodeURIComponent(shopBankInfo.bankAccountName || "")}`} 
+                      alt="QR Ngân hàng" 
+                      className="max-w-[200px] object-contain rounded-lg shadow-sm" 
+                    />
+                    <Text className="text-[11px] text-green-600 font-bold mt-2 text-center bg-green-50 px-2 py-1 rounded">
+                      Đã tự động đính kèm Số tiền & Mã đơn hàng
+                    </Text>
+                  </Box>
+                ) : shopBankInfo.qrUrl ? (
+                  <Box className="mb-3 flex justify-center">
+                    <img src={shopBankInfo.qrUrl} alt="QR Ngân hàng" className="max-w-[200px] object-contain rounded-lg shadow-sm" />
+                  </Box>
+                ) : null}
+                {shopBankInfo.text && (
+                  <Text className="text-sm whitespace-pre-wrap font-medium text-gray-800 bg-blue-50 p-3 rounded-lg border border-blue-100">
+                    {shopBankInfo.text}
+                  </Text>
+                )}
+                {!shopBankInfo.qrUrl && !shopBankInfo.text && !shopBankInfo.bankCode && (
+                  <Text className="text-center text-sm text-gray-500 italic py-2">
+                    Shop chưa cập nhật thông tin ngân hàng.
+                  </Text>
+                )}
+              </>
+            ) : (
+              <Text className="text-center text-sm text-gray-500 italic py-2">
+                Không tìm thấy thông tin ngân hàng.
+              </Text>
+            )}
+          </Box>
+
+          <Box className="bg-white p-3 rounded-xl border border-gray-200">
+            <Text className="text-sm font-bold mb-2">Biên lai chuyển khoản</Text>
+            {receiptUrl ? (
+              <Box className="relative">
+                <img src={receiptUrl} alt="Biên lai" className="w-full h-40 object-cover rounded-lg border border-gray-200" />
+                <Button 
+                  size="small"
+                  className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center !p-0"
+                  onClick={() => setReceiptUrl("")}
+                >
+                  <Icon icon="zi-close" size={16} />
+                </Button>
+              </Box>
+            ) : (
+              <Box className="relative border-2 border-dashed border-gray-300 rounded-lg h-24 flex flex-col items-center justify-center bg-gray-50">
+                <Icon icon="zi-upload" className="text-gray-400 mb-1" size={24} />
+                <Text size="xSmall" className="text-gray-500">Nhấp để tải lên biên lai</Text>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  onChange={handleUploadReceipt}
+                  disabled={isUploadingReceipt}
+                />
+                {isUploadingReceipt && (
+                  <Box className="absolute inset-0 bg-white/80 flex items-center justify-center rounded-lg">
+                    <Spinner />
+                  </Box>
+                )}
+              </Box>
+            )}
+          </Box>
+
+          <Button 
+            fullWidth
+            onClick={() => {
+                if (transferOrder) {
+                    handleCustomerPaymentNotify(transferOrder.id, 'transfer', receiptUrl);
+                }
+            }}
+            disabled={!receiptUrl || isUploadingReceipt}
+            className="bg-[#14502e] text-white rounded-xl font-bold py-2.5 active:bg-[#0f3d23]"
+          >
+            Xác nhận đã chuyển tiền
+          </Button>
+        </Box>
+      </Modal>
+
     </Page>
   );
 };
