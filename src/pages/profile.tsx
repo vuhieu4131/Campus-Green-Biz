@@ -459,35 +459,46 @@ const NewMemberView: FC<{
           </Box>
         </Box>
         {isOtherProfile && (
-          <Box className="flex items-center space-x-2 shrink-0 mt-3 justify-center w-full">
-            <Button 
-              className="rounded-full font-medium shadow-sm px-4 h-8 text-sm flex items-center justify-center"
-              style={{ 
-                backgroundColor: isFollowing ? "#f3f4f6" : "#14502e", 
-                color: isFollowing ? "#374151" : "white",
-                border: isFollowing ? "1px solid #e5e7eb" : "none"
-              }}
-              onClick={() => {
-                if (isFollowing) {
-                  setShowFollowingOptions(true);
-                } else {
-                  if (onFollowToggle) onFollowToggle();
-                }
-              }}
-            >
-              {isFollowing ? (
-                <Box className="flex items-center">
-                  Đang theo dõi
-                  <span className="ml-1 inline-flex"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
-                </Box>
-              ) : "Theo dõi"}
-            </Button>
-            <Button 
-              className="rounded-full font-medium shadow-sm px-4 h-8 text-sm flex items-center justify-center bg-[#0068ff] text-white"
-              onClick={() => handleChat(auth.currentUser, user.id, navigate, openSnackbar)}
-            >
-              Nhắn tin
-            </Button>
+          <Box className="flex flex-col items-center shrink-0 mt-3 justify-center w-full space-y-3">
+            <Box className="flex items-center space-x-2 justify-center w-full">
+              <Button 
+                className="rounded-full font-medium shadow-sm px-4 h-8 text-sm flex items-center justify-center"
+                style={{ 
+                  backgroundColor: isFollowing ? "#f3f4f6" : "#14502e", 
+                  color: isFollowing ? "#374151" : "white",
+                  border: isFollowing ? "1px solid #e5e7eb" : "none"
+                }}
+                onClick={() => {
+                  if (isFollowing) {
+                    setShowFollowingOptions(true);
+                  } else {
+                    if (onFollowToggle) onFollowToggle();
+                  }
+                }}
+              >
+                {isFollowing ? (
+                  <Box className="flex items-center">
+                    Đang theo dõi
+                    <span className="ml-1 inline-flex"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+                  </Box>
+                ) : "Theo dõi"}
+              </Button>
+              <Button 
+                className="rounded-full font-medium shadow-sm px-4 h-8 text-sm flex items-center justify-center bg-[#0068ff] text-white"
+                onClick={() => handleChat(auth.currentUser, user.id, navigate, openSnackbar)}
+              >
+                Nhắn tin
+              </Button>
+            </Box>
+            {role === "provider" && (
+              <Button 
+                className="rounded-full font-medium shadow-sm px-4 h-8 text-sm flex items-center justify-center bg-white text-[#14502e] border border-[#14502e]"
+                style={{ width: "fit-content", minWidth: "160px" }}
+                onClick={() => navigate(`/shop-details/${user.id}`)}
+              >
+                Gian hàng shop
+              </Button>
+            )}
           </Box>
         )}
       </Box>
