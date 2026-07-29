@@ -16,8 +16,17 @@ import { collection, getDocs, query, orderBy } from "firebase/firestore";
 export const userState = selector({
   key: "user",
   get: async () => {
-    const { userInfo } = await getUserInfo({ autoRequestPermission: true });
-    return userInfo;
+    try {
+      const { userInfo } = await getUserInfo({ autoRequestPermission: false });
+      return userInfo;
+    } catch (error) {
+      console.warn("User has not granted Zalo UserInfo permission:", error);
+      return {
+        id: "",
+        avatar: "",
+        name: "Người dùng Zalo",
+      };
+    }
   },
 });
 
