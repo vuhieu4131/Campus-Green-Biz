@@ -28,6 +28,7 @@ const ProductDetailPage: FC = () => {
   const [swiperInstance, setSwiperInstance] = useState<any>(null);
   const [authVisible, setAuthVisible] = useState(false);
   const [selectedPriceVariant, setSelectedPriceVariant] = useState<any>(null);
+  const [collaboratorCount, setCollaboratorCount] = useState(0);
 
   const setCart = useSetRecoilState(cartState);
 
@@ -50,6 +51,27 @@ const ProductDetailPage: FC = () => {
     };
     fetchConfig();
   }, []);
+
+  useEffect(() => {
+    if (!id) return;
+    const fetchCollaborators = async () => {
+      try {
+        const qPosts = query(collection(db, "posts"), where("attachedProduct.id", "==", id));
+        const snap = await getDocs(qPosts);
+        if (!snap.empty) {
+          const uniqueAuthors = new Set();
+          snap.forEach(doc => {
+            const data = doc.data();
+            if (data.authorId) uniqueAuthors.add(data.authorId);
+          });
+          setCollaboratorCount(uniqueAuthors.size);
+        }
+      } catch (err) {
+        console.error("Lỗi khi tải số lượng CTV:", err);
+      }
+    };
+    fetchCollaborators();
+  }, [id]);
 
   useEffect(() => {
     if (product && !id) {
@@ -480,19 +502,26 @@ const ProductDetailPage: FC = () => {
           </Text.Title>
 
           {product.shopName && (
-            <Box 
-              flex alignItems="center" 
-              className="text-gray-500 text-xs mt-2 cursor-pointer active:opacity-70"
-              onClick={() => {
-                const shopId = product.ownerPhone || product.providerId;
-                if (shopId) {
-                  navigate(`/shop-details/${shopId}`);
-                }
-              }}
-            >
-              <CustomIcon icon="zi-store" size={14} className="mr-1 text-gray-400" />
-              <span>Cung cấp bởi: </span>
-              <span className="font-bold text-[#14502e] ml-1">{product.shopName}</span>
+            <Box className="mt-2">
+              <Box 
+                flex alignItems="center" 
+                className="text-gray-500 text-xs cursor-pointer active:opacity-70"
+                onClick={() => {
+                  const shopId = product.ownerPhone || product.providerId;
+                  if (shopId) {
+                    navigate(`/shop-details/${shopId}`);
+                  }
+                }}
+              >
+                <CustomIcon icon="zi-store" size={14} className="mr-1 text-gray-400" />
+                <span>Cung cấp bởi: </span>
+                <span className="font-bold text-[#14502e] ml-1">{product.shopName}</span>
+              </Box>
+              <Box flex alignItems="center" className="text-gray-500 text-xs mt-1">
+                <CustomIcon icon="zi-user" size={14} className="mr-1 text-gray-400" />
+                <span>Cộng tác viên: </span>
+                <span className="font-bold text-[#14502e] ml-1">{collaboratorCount}</span>
+              </Box>
             </Box>
           )}
         </Box>
