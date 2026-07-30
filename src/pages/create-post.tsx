@@ -212,6 +212,11 @@ const CreatePostPage: FC = () => {
       return;
     }
 
+    if (!attachedProduct) {
+      openSnackbar({ text: "Bạn phải đính kèm một sản phẩm để tạo bài quảng bá!", type: "error" });
+      return;
+    }
+
     setIsPosting(true);
     try {
       let uploadedVideoUrl = "";
@@ -373,7 +378,7 @@ const CreatePostPage: FC = () => {
         >
           <Icon icon="zi-close" className="text-2xl text-gray-700" />
         </Box>
-        <Text.Title className="font-bold text-lg text-[#14502e] flex-1 text-center">Tạo bài đăng</Text.Title>
+        <Text.Title className="font-bold text-lg text-[#14502e] flex-1 text-center">Tạo bài quảng bá</Text.Title>
         <Box className="w-10" />
       </Box>
 
@@ -410,7 +415,7 @@ const CreatePostPage: FC = () => {
         {/* Input Area */}
         <Box className="px-4 py-2">
             <textarea
-              placeholder="Bạn đang nghĩ gì?"
+              placeholder="Hãy viết đánh giá hoặc giới thiệu về sản phẩm..."
               value={content}
               onChange={adjustTextareaHeight}
               className="w-full border-none text-[17px] bg-transparent p-0 outline-none resize-none placeholder:text-gray-400 overflow-hidden"

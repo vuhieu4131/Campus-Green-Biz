@@ -76,8 +76,8 @@ export const FeedList: FC = () => {
     const fetchShops = async () => {
       try {
         const querySnapshot = await getDocs(collection(db, "shops"));
-        const shopsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        const validShops = shopsData.filter(s => s.cover || s.avatar || s.bannerUrl);
+        const shopsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
+        const validShops = shopsData.filter((s: any) => s.cover || s.avatar || s.bannerUrl);
         const shuffled = validShops.sort(() => 0.5 - Math.random());
         setShops(shuffled);
       } catch (err) {
@@ -210,7 +210,7 @@ export const FeedList: FC = () => {
 
       <Box className="py-4 flex justify-center items-center cursor-pointer" onClick={fetchInitialPosts}>
         <Text size="small" className="text-[#14502e] font-medium border border-[#14502e] px-4 py-1.5 rounded-full">
-          Làm mới bảng tin
+          Làm mới tin tức
         </Text>
       </Box>
     </Box>
