@@ -5,27 +5,31 @@ import { FeedList } from "./feed";
 import { Welcome } from "./welcome";
 import { Categories } from "./categories";
 import { ShopDirectory } from "./shop-directory";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "../../firebase";
 
 const HomePage: React.FunctionComponent = () => {
-  const [showPosts, setShowPosts] = useState(true);
+  const [showPosts, setShowPosts] = useState(false);
   const [loadingConfig, setLoadingConfig] = useState(true);
 
   useEffect(() => {
-    const fetchConfig = async () => {
-      try {
-        const configSnap = await getDoc(doc(db, "system_config", "admin_settings"));
-        if (configSnap.exists() && configSnap.data().showPosts !== undefined) {
-          setShowPosts(configSnap.data().showPosts);
+    const unsub = onSnapshot(
+      doc(db, "system_config", "admin_settings"), 
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.showPosts !== undefined) {
+            setShowPosts(data.showPosts);
+          }
         }
-      } catch (error) {
+        setLoadingConfig(false);
+      },
+      (error) => {
         console.error("Lỗi tải cấu hình:", error);
-      } finally {
         setLoadingConfig(false);
       }
-    };
-    fetchConfig();
+    );
+    return () => unsub();
   }, []);
 
   return (

@@ -308,6 +308,9 @@ export const AdminView: FC<AdminProps> = ({ userData, onLogout }) => {
   const [savingSettings, setSavingSettings] = useState(false);
   const [showPrice, setShowPrice] = useState(false);
   const [showPosts, setShowPosts] = useState(true); // Mặc định bật bài viết
+  const [showCreatePostTab, setShowCreatePostTab] = useState(true);
+  const [showChatTab, setShowChatTab] = useState(true);
+  const [showFullProfile, setShowFullProfile] = useState(true);
   // 👉 BƯỚC 2: State cho Chiến dịch Voucher
   const [voucherConfig, setVoucherConfig] = useState<{
     title: string; startTime: string; endTime: string; isOpen: boolean; applicableProducts: string[];
@@ -340,6 +343,9 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                 // 👉 BỔ SUNG: Kéo cấu hình Voucher về máy (ĐÃ FIX LỖI)
                 if (data.showPrice !== undefined) setShowPrice(data.showPrice);
                 if (data.showPosts !== undefined) setShowPosts(data.showPosts);
+                if (data.showCreatePostTab !== undefined) setShowCreatePostTab(data.showCreatePostTab);
+                if (data.showChatTab !== undefined) setShowChatTab(data.showChatTab);
+                if (data.showFullProfile !== undefined) setShowFullProfile(data.showFullProfile);
               setVoucherConfig({
                 title: data.voucherTitle || "",
                 startTime: data.voucherStartTime || "",
@@ -435,7 +441,10 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
             platformFeeRate: Number(platformFeeRate),
             rewardPointRate: Number(rewardPointRate), // 👉 ĐÃ THÊM: Lưu tỷ lệ điểm lên Firebase
             showPrice: showPrice,
-            showPosts: showPosts
+            showPosts: showPosts,
+            showCreatePostTab: showCreatePostTab,
+            showChatTab: showChatTab,
+            showFullProfile: showFullProfile
         }, { merge: true }); // Dùng merge để không làm mất password admin
           openSnackbar({ text: "Lưu cài đặt thành công!", type: "success" });
       } catch (error) { openSnackbar({ text: "Lỗi lưu cài đặt", type: "error" }); }
@@ -2663,6 +2672,44 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                   />
               </Box>
               {/* 👆 KẾT THÚC: CÔNG TẮC KIỂM DUYỆT BÀI VIẾT 👆 */}
+              {/* 👇 BẮT ĐẦU: CÔNG TẮC TÙY CHỈNH THANH ĐIỀU HƯỚNG 👇 */}
+              <Box className="bg-purple-50 p-4 rounded-xl border border-purple-200 shadow-md mb-4 flex flex-col space-y-4">
+                  <Text size="small" bold className="text-purple-800">Tùy chỉnh Thanh điều hướng (Menu dưới)</Text>
+                  
+                  <Box className="flex items-center justify-between">
+                      <Box className="flex-1 pr-4">
+                          <Text size="small" bold className="mb-1 text-purple-700">Hiển thị nút "Đăng bài"</Text>
+                          <Text size="xxxxSmall" className="text-purple-600 italic">Tắt để ẩn nút Đăng bài (dấu + ở giữa) trên menu dưới cùng.</Text>
+                      </Box>
+                      <Switch 
+                          checked={showCreatePostTab} 
+                          onChange={(e: any) => setShowCreatePostTab(e.target.checked)}
+                      />
+                  </Box>
+
+                  <Box className="flex items-center justify-between border-t border-purple-200 pt-4">
+                      <Box className="flex-1 pr-4">
+                          <Text size="small" bold className="mb-1 text-purple-700">Hiển thị nút "Tin nhắn"</Text>
+                          <Text size="xxxxSmall" className="text-purple-600 italic">Tắt để ẩn nút Tin nhắn (Chat) trên menu dưới cùng.</Text>
+                      </Box>
+                      <Switch 
+                          checked={showChatTab} 
+                          onChange={(e: any) => setShowChatTab(e.target.checked)}
+                      />
+                  </Box>
+
+                  <Box className="flex items-center justify-between border-t border-purple-200 pt-4">
+                      <Box className="flex-1 pr-4">
+                          <Text size="small" bold className="mb-1 text-purple-700">Hiển thị "Hồ sơ Cá nhân" đầy đủ</Text>
+                          <Text size="xxxxSmall" className="text-purple-600 italic">Tắt để đổi trang Cá nhân thành giao diện "Cài đặt" cơ bản (chỉ có thông tin tài khoản, đơn hàng,...).</Text>
+                      </Box>
+                      <Switch 
+                          checked={showFullProfile} 
+                          onChange={(e: any) => setShowFullProfile(e.target.checked)}
+                      />
+                  </Box>
+              </Box>
+              {/* 👆 KẾT THÚC: CÔNG TẮC TÙY CHỈNH THANH ĐIỀU HƯỚNG 👆 */}
               <Box className="bg-white p-4 rounded-xl border border-gray-200 shadow-md mb-4">
                   <Text size="small" className="mb-2 text-gray-600">Tỷ lệ trích trả Chi phí nền tảng (%)</Text>
                   <Input 

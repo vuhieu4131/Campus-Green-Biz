@@ -7,7 +7,7 @@ import { CartIcon } from "./cart-icon";
 import { auth, db } from "../firebase";
 import { AuthOverlay } from "../pages/auth";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc } from "firebase/firestore";
 
 const StoreIcon = ({ active }: { active?: boolean }) => {
   if (active) {
@@ -32,15 +32,33 @@ export const Navigation: FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const tabsKeys = ["/", "/store", "/create-post", "/chat-list", "/profile"];
   const [showAuth, setShowAuth] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
+
+  const [showCreatePostTab, setShowCreatePostTab] = useState(true);
+  const [showChatTab, setShowChatTab] = useState(true);
+
+  const tabsKeys = useMemo(() => {
+    const keys = ["/", "/store"];
+    if (showCreatePostTab) keys.push("/create-post");
+    if (showChatTab) keys.push("/chat-list");
+    keys.push("/profile");
+    return keys;
+  }, [showCreatePostTab, showChatTab]);
 
   useEffect(() => {
     let unsub1: (() => void) | undefined;
     let unsub2: (() => void) | undefined;
     let unsub3: (() => void) | undefined;
+
+    const unsubConfig = onSnapshot(doc(db, "system_config", "admin_settings"), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setShowCreatePostTab(data.showCreatePostTab !== false);
+        setShowChatTab(data.showChatTab !== false);
+      }
+    });
 
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
@@ -97,6 +115,7 @@ export const Navigation: FC = () => {
       if (unsub1) unsub1();
       if (unsub2) unsub2();
       if (unsub3) unsub3();
+      unsubConfig();
     };
   }, []);
 

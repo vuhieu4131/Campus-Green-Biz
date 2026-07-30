@@ -4,7 +4,7 @@ import { Product } from "types/product";
 import { Box, Text } from "zmp-ui";
 import { useNavigate } from "react-router-dom";
 
-export const ProductItem: FC<{ product: Product }> = ({ product }) => {
+export const ProductItem: FC<{ product: Product, showPrice?: boolean }> = ({ product, showPrice = false }) => {
   const navigate = useNavigate();
 
   return (
@@ -20,9 +20,15 @@ export const ProductItem: FC<{ product: Product }> = ({ product }) => {
         />
       </Box>
       <Text className="font-semibold text-gray-800 line-clamp-2 leading-snug">{product.name || product.title}</Text>
-      <Text size="xxSmall" className="text-gray pb-2">
-        <FinalPrice>{product}</FinalPrice>
-      </Text>
+      {showPrice ? (
+        <Text size="xxSmall" className="text-gray pb-2">
+          <FinalPrice>{product}</FinalPrice>
+        </Text>
+      ) : (
+        <Text className="text-blue-500 italic text-[12px] font-medium leading-normal pb-2 block">
+          Liên hệ báo giá
+        </Text>
+      )}
     </div>
   );
 };

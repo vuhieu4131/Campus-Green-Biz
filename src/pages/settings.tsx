@@ -48,13 +48,10 @@ const UserPersonalMenu: FC<UserPersonalMenuProps> = ({ onReferralClick, onShareC
   );
 };
 
-const UserUtilities: FC<{ onLogout: () => void, onContactClick: () => void }> = ({ onLogout, onContactClick }) => {
-  const navigate = useNavigate();
+const UserUtilities: FC<{ onLogout: () => void }> = ({ onLogout }) => {
   return (
-    <SectionBox title="Tiện ích khác">
+    <SectionBox>
       <List>
-        <List.Item onClick={onContactClick} title="Liên hệ hỗ trợ" prefix={<CustomIcon icon="zi-call" className="text-blue-500" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
-        <List.Item onClick={() => navigate('/terms')} title="Điều khoản sử dụng" prefix={<CustomIcon icon="zi-note" className="text-gray-800" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
         <List.Item title="Đăng xuất" prefix={<CustomIcon icon="zi-leave" className="text-red-500" />} onClick={onLogout} className="text-red-500 font-medium" />
       </List>
     </SectionBox>
@@ -1532,7 +1529,7 @@ const SettingsPage: FC = () => {
         onSupportClick={() => setShowSupportModal(true)}
         onMyOrdersClick={handleOpenMyOrders}
       />
-      <UserUtilities onLogout={handleLogout} onContactClick={() => setShowContactModal(true)} />
+      <UserUtilities onLogout={handleLogout} />
 
       {/* Modal Liên hệ hỗ trợ */}
       <Modal

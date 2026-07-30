@@ -3,7 +3,7 @@ import React, { FC, useState, useEffect } from "react";
 import { Page, Box, Text, Icon, Button, useSnackbar, Spinner, Modal } from "zmp-ui";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { db } from "../firebase";
-import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, onSnapshot } from "firebase/firestore";
 import { useSetRecoilState } from "recoil";
 import { cartState } from "../state";
 import { Swiper, SwiperSlide } from "swiper/react";
@@ -21,7 +21,7 @@ const ProductDetailPage: FC = () => {
   const [loading, setLoading] = useState(!product);
   const [quantity, setQuantity] = useState(1);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
-  const [showPrice, setShowPrice] = useState(true);
+  const [showPrice, setShowPrice] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [fullscreenVisible, setFullscreenVisible] = useState(false);
   const [activeImgIndex, setActiveImgIndex] = useState(0);
@@ -38,20 +38,17 @@ const ProductDetailPage: FC = () => {
   const [platformFeeRate, setPlatformFeeRate] = useState(10);
 
   useEffect(() => {
-    const fetchConfig = async () => {
-      try {
-        const configSnap = await getDoc(doc(db, "system_config", "admin_settings"));
-        if (configSnap.exists()) {
-          const data = configSnap.data();
-          if (data.showPrice !== undefined) setShowPrice(data.showPrice);
-          if (data.rewardPointRate !== undefined) setRewardPointRate(Number(data.rewardPointRate));
-          if (data.platformFeeRate !== undefined) setPlatformFeeRate(Number(data.platformFeeRate));
-        }
-      } catch (e) {
-        console.error("Lỗi khi tải cấu hình hiển thị giá:", e);
+    const unsubConfig = onSnapshot(doc(db, "system_config", "admin_settings"), (configSnap) => {
+      if (configSnap.exists()) {
+        const data = configSnap.data();
+        if (data.showPrice !== undefined) setShowPrice(data.showPrice);
+        if (data.rewardPointRate !== undefined) setRewardPointRate(Number(data.rewardPointRate));
+        if (data.platformFeeRate !== undefined) setPlatformFeeRate(Number(data.platformFeeRate));
       }
-    };
-    fetchConfig();
+    }, (e) => {
+      console.error("Lỗi khi tải cấu hình hiển thị giá:", e);
+    });
+    return () => unsubConfig();
   }, []);
 
   useEffect(() => {
@@ -62,6 +59,8 @@ const ProductDetailPage: FC = () => {
         const snap = await getDocs(qPosts);
         if (!snap.empty) {
           const uniqueAuthors = new Map();
+          
+          // Lấy danh sách authorId duy nhất từ các bài viết
           snap.forEach(doc => {
             const data = doc.data();
             if (data.authorId && !uniqueAuthors.has(data.authorId)) {
@@ -72,7 +71,34 @@ const ProductDetailPage: FC = () => {
               });
             }
           });
-          setCollaborators(Array.from(uniqueAuthors.values()));
+          
+          // Lấy thông tin avatar mới nhất từ collection "users"
+          const authors = Array.from(uniqueAuthors.values());
+          const updatedAuthors = await Promise.all(authors.map(async (author) => {
+            try {
+              // Thử tìm theo phone (ID của user thường là số điện thoại)
+              let userSnap = await getDoc(doc(db, "users", author.id));
+              let userData = userSnap.exists() ? userSnap.data() : null;
+              
+              if (!userData) {
+                // Thử tìm bằng query where phone
+                const qUsers = query(collection(db, "users"), where("phone", "==", author.id));
+                const snapUsers = await getDocs(qUsers);
+                if (!snapUsers.empty) {
+                  userData = snapUsers.docs[0].data();
+                }
+              }
+              
+              if (userData && userData.avatar) {
+                return { ...author, avatar: userData.avatar, name: userData.name || userData.fullName || author.name };
+              }
+            } catch (err) {
+              console.error("Lỗi khi tải thông tin user:", err);
+            }
+            return author;
+          }));
+
+          setCollaborators(updatedAuthors);
           setCollaboratorCount(uniqueAuthors.size);
         }
       } catch (err) {
@@ -792,7 +818,16 @@ const ProductDetailPage: FC = () => {
       >
         <Box p={4} className="max-h-60 overflow-y-auto">
           {collaborators.map((c, i) => (
-            <Box key={i} flex alignItems="center" className="pb-3 mb-3 border-b border-gray-100 last:border-0 last:pb-0 last:mb-0">
+            <Box 
+              key={i} 
+              flex 
+              alignItems="center" 
+              className="pb-3 mb-3 border-b border-gray-100 last:border-0 last:pb-0 last:mb-0 cursor-pointer active:opacity-70"
+              onClick={() => {
+                setShowCollaboratorsModal(false);
+                navigate(`/profile?id=${c.id}`);
+              }}
+            >
               <img src={c.avatar} className="w-10 h-10 rounded-full mr-3 object-cover shadow-sm border border-gray-100" />
               <Text className="font-medium text-sm text-gray-800">{c.name}</Text>
             </Box>

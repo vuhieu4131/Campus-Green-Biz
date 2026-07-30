@@ -1163,15 +1163,11 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
         </>
       )}
 
-      {/* Actions */}
+      {/* Actions (Affiliate) */}
       <Box className="flex justify-around items-center px-2 py-1 border-t border-gray-100 mt-1">
         <Box className="flex flex-1 justify-center items-center space-x-1.5 py-1.5 rounded-lg cursor-pointer active:bg-gray-50" onClick={() => isRealUser ? handleLike() : setShowAuth(true)}>
           <Icon icon={liked ? "zi-heart-solid" : "zi-heart"} className={liked ? "text-red-500 text-lg" : "text-gray-500 text-lg"} />
-          <Text size="small" className={`font-medium ${liked ? "text-red-500" : "text-gray-500"}`}>Thích {likesCount > 0 ? `(${likesCount})` : ''}</Text>
-        </Box>
-        <Box className="flex flex-1 justify-center items-center space-x-1.5 py-1.5 rounded-lg cursor-pointer active:bg-gray-50" onClick={() => currentUser ? setShowComments(true) : setShowAuth(true)}>
-          <CustomIcon icon="zi-chat" className="text-gray-500 text-lg" />
-          <Text size="small" className="font-medium text-gray-500">Bình luận {commentsCount > 0 ? `(${commentsCount})` : ''}</Text>
+          <Text size="small" className={`font-medium ${liked ? "text-red-500" : "text-gray-500"}`}>Hữu ích {likesCount > 0 ? `(${likesCount})` : ''}</Text>
         </Box>
         <Box className="flex flex-1 justify-center items-center space-x-1.5 py-1.5 rounded-lg cursor-pointer active:bg-gray-50" onClick={() => currentUser ? setShowShare(true) : setShowAuth(true)}>
           <CustomIcon icon="zi-share" className="text-gray-500 text-lg" />
@@ -1209,7 +1205,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
                   ) : <div />}
                 </Box>
               )}
-              {/* Bottom Actions */}
+              {/* Bottom Actions (Affiliate) */}
               <Box className="absolute bottom-0 left-0 w-full flex flex-col bg-gradient-to-t from-black/80 to-transparent pt-10 pb-safe pointer-events-none">
                 <Box className="pointer-events-auto">
                   <Box className="flex justify-between items-center px-4 mb-2 text-white/90">
@@ -1219,19 +1215,14 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
                       </Box>
                       <Text size="xxSmall" className="text-white">{likesCount}</Text>
                     </Box>
-                    <Box className="flex items-center space-x-3 cursor-pointer" onClick={(e) => { e.stopPropagation(); currentUser ? setShowComments(true) : setShowAuth(true); }}>
-                      <Text size="xxSmall" className="text-white">{commentsCount} bình luận</Text>
+                    <Box className="flex items-center space-x-3 cursor-pointer" onClick={(e) => { e.stopPropagation(); currentUser ? setShowShare(true) : setShowAuth(true); }}>
                       <Text size="xxSmall" className="text-white">{sharesCount} chia sẻ</Text>
                     </Box>
                   </Box>
                   <Box className="flex justify-around items-center px-2 pb-2 border-t border-white/20 pt-2">
                     <Box className="flex flex-1 justify-center items-center space-x-2 py-2 cursor-pointer active:bg-white/10 rounded-lg" onClick={(e) => { e.stopPropagation(); isRealUser ? handleLike() : setShowAuth(true); }}>
                       <Icon icon={liked ? "zi-heart-solid" : "zi-heart"} className={liked ? "text-red-500 text-xl" : "text-white text-xl"} />
-                      <Text size="small" className={`font-medium ${liked ? "text-red-500" : "text-white"}`}>Thích</Text>
-                    </Box>
-                    <Box className="flex flex-1 justify-center items-center space-x-2 py-2 cursor-pointer active:bg-white/10 rounded-lg" onClick={(e) => { e.stopPropagation(); currentUser ? setShowComments(true) : setShowAuth(true); }}>
-                      <CustomIcon icon="zi-chat" className="text-white text-xl" />
-                      <Text size="small" className="font-medium text-white">Bình luận</Text>
+                      <Text size="small" className={`font-medium ${liked ? "text-red-500" : "text-white"}`}>Hữu ích</Text>
                     </Box>
                     <Box className="flex flex-1 justify-center items-center space-x-2 py-2 cursor-pointer active:bg-white/10 rounded-lg" onClick={(e) => { e.stopPropagation(); currentUser ? setShowShare(true) : setShowAuth(true); }}>
                       <CustomIcon icon="zi-share" className="text-white text-xl" />
@@ -1245,84 +1236,60 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
         </Box>
       )}
 
-      {/* Bảng Bình luận (Comment Bottom Sheet) */}
-      <Sheet visible={showComments} onClose={() => setShowComments(false)} autoHeight title="Bình luận">
-        <Box className="p-4 flex flex-col space-y-1 max-h-[60vh] overflow-y-auto">
-          {rootComments.length === 0 ? (
-            <Text className="text-center text-gray-400 py-4">Chưa có bình luận nào.</Text>
-          ) : (
-            rootComments.map((rootCmt) => (
-              <Box key={rootCmt.id} className="mb-4">
-                {renderComment(rootCmt, false)}
-                {repliesMap.has(rootCmt.id) && repliesMap.get(rootCmt.id)!.length > 0 && (
-                  <Box className="ml-10">
-                    {repliesMap.get(rootCmt.id)!.map(reply => renderComment(reply, true))}
+      {/* Comment section */}
+      {showComments && (
+        <Box className="px-4 py-3 border-t border-gray-100 bg-gray-50/50">
+          <Text className="font-bold text-[15px] text-gray-800 mb-3">Bình luận ({commentsCount})</Text>
+          <Box className="space-y-3 mb-4">
+            {rootComments.map(cmt => (
+              <Box key={cmt.id}>
+                {renderComment(cmt)}
+                {repliesMap.has(cmt.id) && (
+                  <Box className="ml-10 mt-2 space-y-2 border-l-2 border-gray-100 pl-3">
+                    {repliesMap.get(cmt.id)!.map(reply => renderComment(reply, true))}
                   </Box>
                 )}
               </Box>
-            ))
-          )}
-        </Box>
-        <Box className="p-3 pb-24 border-t border-gray-200 flex flex-col bg-white">
-          {replyingTo && (
-            <Box className="flex items-center justify-between mb-2 px-2 bg-gray-50 rounded p-1">
-              <Text size="xSmall" className="text-gray-600">Đang trả lời <span className="font-bold">{replyingTo.authorName}</span></Text>
-              <CustomIcon icon="zi-close" className="text-gray-400 cursor-pointer" size={16} onClick={() => setReplyingTo(null)} />
-            </Box>
-          )}
-          <Box className="flex space-x-3 items-center">
-            <Avatar src={currentUser?.photoURL || getDefaultAvatar(currentUser?.uid)} size={36} className="flex-shrink-0" />
-            <Box className="flex-1 bg-gray-100 rounded-full px-4 py-1 flex items-center">
-              <Input
+            ))}
+          </Box>
+          <Box className="flex items-start space-x-2 relative">
+            <Avatar src={getValidAvatar(currentUser?.photoURL || "", currentUser?.uid || "")} size={32} className="flex-shrink-0 mt-1 border border-gray-200" />
+            <Box className="flex-1 flex flex-col bg-white border border-gray-200 rounded-xl overflow-hidden focus-within:border-[#14502e] transition-colors shadow-sm">
+              {replyingTo && (
+                <Box className="bg-gray-50 px-3 py-1.5 flex justify-between items-center border-b border-gray-100">
+                  <Text size="xSmall" className="text-gray-500">Đang trả lời <span className="font-semibold text-gray-700">{replyingTo.authorName}</span></Text>
+                  <Icon icon="zi-close" size={14} className="text-gray-400 cursor-pointer p-1" onClick={() => setReplyingTo(null)} />
+                </Box>
+              )}
+              <textarea
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
-                className="flex-1 bg-transparent border-none p-0 h-9"
-                placeholder="Viết bình luận..."
-                onKeyDown={(e) => e.key === 'Enter' && handleSendComment()}
+                placeholder={replyingTo ? "Viết câu trả lời..." : "Viết bình luận..."}
+                className="w-full border-none text-[14px] px-3 py-2.5 outline-none bg-transparent resize-none min-h-[40px]"
+                rows={1}
+                style={{ height: 'auto', minHeight: '40px' }}
+                onInput={(e) => {
+                  const target = e.target as HTMLTextAreaElement;
+                  target.style.height = 'auto';
+                  target.style.height = target.scrollHeight + 'px';
+                }}
               />
+              <Box className="flex items-center justify-between px-2 pb-2">
+                <Box className="flex items-center space-x-2">
+                  <CustomIcon icon="zi-photo" className="text-gray-400 text-lg cursor-pointer p-1 active:text-[#14502e]" onClick={() => openSnackbar({ text: "Tính năng đăng ảnh đang cập nhật", type: "info" })} />
+                  <CustomIcon icon="zi-video" className="text-gray-400 text-lg cursor-pointer p-1 active:text-[#14502e]" onClick={() => openSnackbar({ text: "Tính năng đăng video đang cập nhật", type: "info" })} />
+                  <Icon icon="zi-shop" className="text-gray-400 text-lg cursor-pointer p-1 active:text-[#14502e]" onClick={() => openSnackbar({ text: "Tính năng gắn sản phẩm đang cập nhật", type: "info" })} />
+                </Box>
+                <Icon 
+                  icon="zi-send-solid" 
+                  className={`text-2xl cursor-pointer p-1 transition-colors ${commentText.trim() ? "text-[#14502e]" : "text-gray-300"}`}
+                  onClick={handleSendComment}
+                />
+              </Box>
             </Box>
-            <button
-              onClick={handleSendComment}
-              className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
-                commentText.trim() 
-                  ? "bg-[#14502e] text-white shadow-sm active:scale-95" 
-                  : "bg-gray-100 text-gray-400 cursor-not-allowed"
-              }`}
-            >
-              <CustomIcon icon="zi-send-solid" size={16} />
-            </button>
           </Box>
         </Box>
-      </Sheet>
-
-      {/* Menu tương tác bình luận (Long press menu) */}
-      <Sheet visible={!!activeCommentMenu} onClose={() => setActiveCommentMenu(null)} autoHeight title="Tùy chọn bình luận">
-        <Box className="p-2 pb-6">
-          <Box className="flex items-center p-4 cursor-pointer active:bg-gray-100 rounded-xl text-gray-700" onClick={() => { handleLikeComment(activeCommentMenu); setActiveCommentMenu(null); }}>
-            <Icon icon="zi-heart" className="mr-3 text-2xl text-red-500" />
-            <Text className="text-[16px] font-medium">{activeCommentMenu?.likedBy?.includes(currentUser?.uid) ? "Bỏ thả tim" : "Thả tim"}</Text>
-          </Box>
-          <Box className="flex items-center p-4 cursor-pointer active:bg-gray-100 rounded-xl text-gray-700" onClick={() => { 
-            navigator.clipboard?.writeText(activeCommentMenu?.content || ""); 
-            openSnackbar({ text: "Đã sao chép", type: "success" }); 
-            setActiveCommentMenu(null); 
-          }}>
-            <CustomIcon icon="zi-copy" className="mr-3 text-2xl" />
-            <Text className="text-[16px] font-medium">Sao chép văn bản</Text>
-          </Box>
-          <Box className="flex items-center p-4 cursor-pointer active:bg-gray-100 rounded-xl text-gray-700" onClick={() => { openSnackbar({ text: "Đã báo cáo", type: "success" }); setActiveCommentMenu(null); }}>
-            <CustomIcon icon="zi-warning" className="mr-3 text-2xl" />
-            <Text className="text-[16px] font-medium">Báo cáo vi phạm</Text>
-          </Box>
-          {(currentUser?.uid === activeCommentMenu?.authorId || currentUser?.uid === data.authorId) && (
-            <Box className="flex items-center p-4 cursor-pointer active:bg-gray-100 rounded-xl text-red-500 border-t border-gray-100" onClick={() => handleDeleteComment(activeCommentMenu.id)}>
-              <CustomIcon icon="zi-delete" className="mr-3 text-2xl" />
-              <Text className="text-[16px] font-medium">Xóa bình luận</Text>
-            </Box>
-          )}
-        </Box>
-      </Sheet>
-
+      )}
       {/* Bảng Chia sẻ */}
       <Sheet visible={showShare} onClose={() => setShowShare(false)} autoHeight title="Chia sẻ lên">
         <Box className="p-6 grid grid-cols-4 gap-4">

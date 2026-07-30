@@ -506,7 +506,7 @@ const ProductsForYou: FC<{ products: any[]; onProductClick: (product: any) => vo
 const ConsumerStorePage: FC = () => {
   const [dbServices, setDbServices] = useState<any[]>([]);
   const [loadingServices, setLoadingServices] = useState(true);
-  const [showPrice, setShowPrice] = useState(true);
+  const [showPrice, setShowPrice] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   
   const [sheetVisible, setSheetVisible] = useState(false);
@@ -518,20 +518,16 @@ const ConsumerStorePage: FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchConfig = async () => {
-      try {
-        const configSnap = await getDoc(doc(db, "system_config", "admin_settings"));
-        if (configSnap.exists()) {
-          const data = configSnap.data();
-          if (data.showPrice !== undefined) setShowPrice(data.showPrice);
-          if (data.platformFeeRate !== undefined) setAdminPlatformFeeRate(Number(data.platformFeeRate));
-          if (data.rewardPointRate !== undefined) setAdminCustomerShareRate(Number(data.rewardPointRate));
-        }
-      } catch (e) {
-        console.error("Lỗi khi tải cấu hình hiển thị giá:", e);
+    const unsubConfig = onSnapshot(doc(db, "system_config", "admin_settings"), (configSnap) => {
+      if (configSnap.exists()) {
+        const data = configSnap.data();
+        if (data.showPrice !== undefined) setShowPrice(data.showPrice);
+        if (data.platformFeeRate !== undefined) setAdminPlatformFeeRate(Number(data.platformFeeRate));
+        if (data.rewardPointRate !== undefined) setAdminCustomerShareRate(Number(data.rewardPointRate));
       }
-    };
-    fetchConfig();
+    }, (e) => {
+      console.error("Lỗi khi tải cấu hình hiển thị giá:", e);
+    });
 
     const q = query(collection(db, "services"));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -544,7 +540,10 @@ const ConsumerStorePage: FC = () => {
       console.error("Lỗi khi tải sản phẩm:", error);
       setLoadingServices(false);
     });
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      unsubConfig();
+    };
   }, []);
 
   useEffect(() => {

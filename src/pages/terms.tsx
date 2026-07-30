@@ -38,7 +38,7 @@ const TermsPage = () => {
           <Text size="large" bold className="text-blue-800 mb-2">3. Chính sách Tích điểm & Ưu đãi</Text>
           <Box className="space-y-3">
             <Text className="text-gray-700 leading-relaxed text-[15px]">
-              - Hệ thống duy trì các loại ví điểm (Ví Tính Hạng, Ví Ưu Đãi, Ví Tương Tác) dựa trên hoạt động mua sắm, giới thiệu thành viên và tương tác cộng đồng của người dùng.
+              - Hệ thống duy trì các loại ví điểm (Ví Tính Hạng, Ví Ưu Đãi, Ví Tương Tác) dựa trên hoạt động mua sắm, giới thiệu thành viên của người dùng.
             </Text>
             <Text className="text-gray-700 leading-relaxed text-[15px]">
               - Điểm thưởng chỉ có giá trị sử dụng để quy đổi thành Voucher hoặc nhận ưu đãi bên trong ứng dụng Campus Green Biz, tuyệt đối không có giá trị quy đổi thành tiền mặt ngoài hệ thống.
@@ -55,6 +55,21 @@ const TermsPage = () => {
             </Text>
             <Text className="text-gray-700 leading-relaxed text-[15px]">
               - Mọi vấn đề phát sinh liên quan đến chất lượng sản phẩm, dịch vụ, hoặc tranh chấp trong quá trình mua bán sẽ do Cửa hàng trực tiếp chịu trách nhiệm xử lý. Tuy nhiên, nền tảng cam kết sẽ hỗ trợ tiếp nhận phản hồi và phối hợp giải quyết để bảo vệ quyền lợi chính đáng của Người dùng.
+            </Text>
+          </Box>
+        </Box>
+        {/* Section 5 */}
+        <Box className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+          <Text size="large" bold className="text-blue-800 mb-2">5. Chính sách Quyền riêng tư và Dữ liệu cá nhân (Privacy Policy)</Text>
+          <Box className="space-y-3">
+            <Text className="text-gray-700 leading-relaxed text-[15px]">
+            Để đáp ứng tiêu chuẩn của Zalo Mini App và bảo vệ người dùng, chúng tôi quy định rõ:
+            </Text>
+            <Text className="text-gray-700 leading-relaxed text-[15px]">
+            - Thu thập dữ liệu: Để ứng dụng hoạt động trơn tru, Campus Green Biz có yêu cầu người dùng cấp quyền truy cập: Số điện thoại (để định danh, đăng nhập không cần mật khẩu, liên kết ví điểm thưởng), Vị trí hiện tại (để gợi ý các cửa hàng gần nhất và tính toán chi phí giao hàng(nếu có)), và Hình ảnh/Media (để tải lên hình ảnh avata, sản phẩm).
+            </Text>
+            <Text className="text-gray-700 leading-relaxed text-[15px]">
+            - Sử dụng và Bảo mật dữ liệu: Chúng tôi cam kết chỉ sử dụng thông tin của bạn cho các mục đích vận hành hệ thống như đã nêu. Dữ liệu của bạn được lưu trữ trên hạ tầng máy chủ bảo mật, tuyệt đối không bán hoặc chia sẻ cho bất kỳ bên thứ 3 nào vì mục đích quảng cáo khi chưa có sự đồng ý của bạn.
             </Text>
           </Box>
         </Box>

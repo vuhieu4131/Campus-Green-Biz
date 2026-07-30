@@ -14,7 +14,9 @@ import {
   useSnackbar,
   Modal,
   Spinner,
+  List,
 } from "zmp-ui";
+import { openChat } from "zmp-sdk/apis";
 import { useLocation } from "react-router-dom";
 import subscriptionDecor from "static/subscription-decor.svg";
 import { AuthOverlay } from "./auth";
@@ -23,13 +25,14 @@ import CustomIcon from "../components/custom-icon";
 // IMPORT CÔNG CỤ FIREBASE
 import { auth, db, storage } from "../firebase";
 import { onAuthStateChanged, signOut, User } from "firebase/auth";
-import { doc, getDoc, collection, query, where, getDocs, updateDoc, arrayUnion, arrayRemove, orderBy, addDoc, serverTimestamp, limit } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, updateDoc, arrayUnion, arrayRemove, orderBy, addDoc, serverTimestamp, limit, onSnapshot } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { compressImage } from "../utils/compression";
 import { PostItem } from "../components/post-item";
 import { RawPost } from "../utils/edgeRanker";
 import { ProviderView } from "../components/profile-modules/provider-view";
 import { AdminView } from "../components/profile-modules/admin-view";
+import SettingsPage from "./settings";
 
 class ErrorBoundary extends React.Component<
   any,
@@ -68,22 +71,77 @@ class ErrorBoundary extends React.Component<
 
 // --- COMPONENT CHƯA ĐĂNG NHẬP (LỜI MỜI) ---
 const Subscription: FC<{ onOpenAuth: () => void }> = ({ onOpenAuth }) => {
+  const navigate = useNavigate();
+  const [showContactModal, setShowContactModal] = useState(false);
+
   return (
-    <Box className="m-4" onClick={onOpenAuth}>
-      <Box
-        className="bg-green text-white rounded-xl p-4 space-y-2"
-        style={{
-          backgroundImage: `url(${subscriptionDecor})`,
-          backgroundPosition: "right 8px center",
-          backgroundRepeat: "no-repeat",
-          cursor: "pointer",
-        }}
-      >
-        <Text.Title className="font-bold">Đăng ký / Đăng nhập</Text.Title>
-        <Text size="xxSmall">
-          Tạo tài khoản để nhận ưu đãi và quản lý đơn hàng
-        </Text>
+    <Box className="flex flex-col h-full bg-gray-50 pb-20">
+      <Box className="m-4" onClick={onOpenAuth}>
+        <Box
+          className="bg-green text-white rounded-xl p-4 space-y-2"
+          style={{
+            backgroundImage: `url(${subscriptionDecor})`,
+            backgroundPosition: "right 8px center",
+            backgroundRepeat: "no-repeat",
+            cursor: "pointer",
+          }}
+        >
+          <Text.Title className="font-bold">Đăng ký / Đăng nhập</Text.Title>
+          <Text size="xxSmall">
+            Tạo tài khoản để nhận ưu đãi và quản lý đơn hàng
+          </Text>
+        </Box>
       </Box>
+
+      <Box className="mt-2">
+        <Box className="mx-4 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <List>
+            <List.Item 
+              title="Liên hệ hỗ trợ" 
+              prefix={<CustomIcon icon="zi-call" className="text-blue-500" />} 
+              suffix={<CustomIcon icon="zi-chevron-right" />} 
+              onClick={() => setShowContactModal(true)}
+            />
+            <List.Item 
+              title="Điều khoản sử dụng" 
+              prefix={<CustomIcon icon="zi-note" className="text-gray-800" />} 
+              suffix={<CustomIcon icon="zi-chevron-right" />} 
+              onClick={() => navigate('/terms')}
+            />
+          </List>
+        </Box>
+      </Box>
+
+      {/* Modal Liên hệ hỗ trợ */}
+      <Modal
+        visible={showContactModal}
+        title="Liên hệ CSKH"
+        onClose={() => setShowContactModal(false)}
+      >
+        <Box className="flex flex-col items-center mt-2 px-2 pb-4">
+          <Box className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4">
+            <CustomIcon icon="zi-chat" className="text-blue-500" size={32} />
+          </Box>
+          <Text className="text-center text-gray-700 leading-relaxed mb-6">
+            Đội ngũ Chăm sóc khách hàng của chúng tôi luôn sẵn sàng hỗ trợ bạn giải đáp mọi thắc mắc từ 8:00 đến 22:00 hàng ngày.
+            <br/><br/>
+            Email: <span className="font-semibold text-blue-600">campusgreenbiz@gmail.com</span>
+          </Text>
+          <Box 
+            className="w-full bg-[#8b1919] text-white py-3 rounded-xl flex items-center justify-center font-bold cursor-pointer shadow-md"
+            onClick={() => {
+              openChat({
+                type: 'oa',
+                id: '1234567890', // Default Zalo OA ID placeholder
+                message: 'Xin chào, tôi cần hỗ trợ.'
+              });
+              setShowContactModal(false);
+            }}
+          >
+            Chat với CSKH
+          </Box>
+        </Box>
+      </Modal>
     </Box>
   );
 };
@@ -944,6 +1002,20 @@ const ProfilePage: FC = () => {
   const [showProviderDashboard, setShowProviderDashboard] = useState(false);
   const [loadingTarget, setLoadingTarget] = useState(false);
 
+  const [showFullProfile, setShowFullProfile] = useState(true);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "system_config", "admin_settings"), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.showFullProfile !== undefined) {
+          setShowFullProfile(data.showFullProfile);
+        }
+      }
+    });
+    return () => unsub();
+  }, []);
+
   const handleUpdateImage = async (field: "avatar" | "cover", file: File) => {
     if (!currentUser || !userData) return;
     setIsUploadingImage(true);
@@ -1127,6 +1199,17 @@ const ProfilePage: FC = () => {
       console.error("Follow toggle failed", error);
     }
   };
+
+  if (!showFullProfile && currentUser && !profileId) {
+    const isRegularUser = !userData?.role || userData?.role === "user" || userData?.role === "member" || userData?.role === "distributor" || (userData?.role === "provider" && !showProviderDashboard);
+    if (isRegularUser) {
+      return (
+        <ErrorBoundary>
+          <SettingsPage />
+        </ErrorBoundary>
+      );
+    }
+  }
 
   return (
     <ErrorBoundary>
