@@ -36,8 +36,14 @@ export const Navigation: FC = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
 
-  const [showCreatePostTab, setShowCreatePostTab] = useState(true);
-  const [showChatTab, setShowChatTab] = useState(true);
+  const [showCreatePostTab, setShowCreatePostTab] = useState(() => {
+    const cached = localStorage.getItem('showCreatePostTab');
+    return cached ? cached === 'true' : false;
+  });
+  const [showChatTab, setShowChatTab] = useState(() => {
+    const cached = localStorage.getItem('showChatTab');
+    return cached ? cached === 'true' : false;
+  });
 
   const tabsKeys = useMemo(() => {
     const keys = ["/", "/store"];
@@ -55,9 +61,15 @@ export const Navigation: FC = () => {
     const unsubConfig = onSnapshot(doc(db, "system_config", "admin_settings"), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        setShowCreatePostTab(data.showCreatePostTab !== false);
-        setShowChatTab(data.showChatTab !== false);
+        const createTab = data.showCreatePostTab !== false;
+        const chatTab = data.showChatTab !== false;
+        setShowCreatePostTab(createTab);
+        setShowChatTab(chatTab);
+        localStorage.setItem('showCreatePostTab', createTab.toString());
+        localStorage.setItem('showChatTab', chatTab.toString());
       }
+    }, (error) => {
+      console.error("Error reading admin_settings in navigation", error);
     });
 
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
