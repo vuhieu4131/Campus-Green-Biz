@@ -29,6 +29,8 @@ const ProductDetailPage: FC = () => {
   const [authVisible, setAuthVisible] = useState(false);
   const [selectedPriceVariant, setSelectedPriceVariant] = useState<any>(null);
   const [collaboratorCount, setCollaboratorCount] = useState(0);
+  const [collaborators, setCollaborators] = useState<any[]>([]);
+  const [showCollaboratorsModal, setShowCollaboratorsModal] = useState(false);
 
   const setCart = useSetRecoilState(cartState);
 
@@ -59,11 +61,18 @@ const ProductDetailPage: FC = () => {
         const qPosts = query(collection(db, "posts"), where("attachedProduct.id", "==", id));
         const snap = await getDocs(qPosts);
         if (!snap.empty) {
-          const uniqueAuthors = new Set();
+          const uniqueAuthors = new Map();
           snap.forEach(doc => {
             const data = doc.data();
-            if (data.authorId) uniqueAuthors.add(data.authorId);
+            if (data.authorId && !uniqueAuthors.has(data.authorId)) {
+              uniqueAuthors.set(data.authorId, {
+                id: data.authorId,
+                name: data.authorName || 'Người dùng Zalo',
+                avatar: data.authorAvatar || 'https://via.placeholder.com/100'
+              });
+            }
           });
+          setCollaborators(Array.from(uniqueAuthors.values()));
           setCollaboratorCount(uniqueAuthors.size);
         }
       } catch (err) {
@@ -517,10 +526,17 @@ const ProductDetailPage: FC = () => {
                 <span>Cung cấp bởi: </span>
                 <span className="font-bold text-[#14502e] ml-1">{product.shopName}</span>
               </Box>
-              <Box flex alignItems="center" className="text-gray-500 text-xs mt-1">
+              <Box 
+                flex alignItems="center" 
+                className={`text-gray-500 text-xs mt-1 ${collaboratorCount > 0 ? 'cursor-pointer active:opacity-70' : ''}`}
+                onClick={() => {
+                  if (collaboratorCount > 0) setShowCollaboratorsModal(true);
+                }}
+              >
                 <CustomIcon icon="zi-user" size={14} className="mr-1 text-gray-400" />
                 <span>Cộng tác viên: </span>
                 <span className="font-bold text-[#14502e] ml-1">{collaboratorCount}</span>
+                {collaboratorCount > 0 && <CustomIcon icon="zi-chevron-right" size={14} className="ml-1 text-gray-400" />}
               </Box>
             </Box>
           )}
@@ -768,6 +784,22 @@ const ProductDetailPage: FC = () => {
           </div>
         </div>
       )}
+      {/* Collaborators Modal */}
+      <Modal
+        visible={showCollaboratorsModal}
+        title="Danh sách Cộng tác viên"
+        onClose={() => setShowCollaboratorsModal(false)}
+      >
+        <Box p={4} className="max-h-60 overflow-y-auto">
+          {collaborators.map((c, i) => (
+            <Box key={i} flex alignItems="center" className="pb-3 mb-3 border-b border-gray-100 last:border-0 last:pb-0 last:mb-0">
+              <img src={c.avatar} className="w-10 h-10 rounded-full mr-3 object-cover shadow-sm border border-gray-100" />
+              <Text className="font-medium text-sm text-gray-800">{c.name}</Text>
+            </Box>
+          ))}
+        </Box>
+      </Modal>
+
       {/* Lớp phủ đăng nhập/đăng ký */}
       <React.Suspense fallback={null}>
         <AuthOverlay
