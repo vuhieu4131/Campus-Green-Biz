@@ -1256,7 +1256,7 @@ const ProfilePage: FC = () => {
                 </Box>
               </Box>
             )}
-            {userData?.role === "admin" && <AdminView userData={userData} onLogout={handleLogout} />}
+            {(userData?.role === "admin" || userData?.role === "admin_phu") && <AdminView userData={userData} onLogout={handleLogout} />}
             {userData?.role === "provider" && showProviderDashboard && <ProviderView userData={userData} setUserData={setUserData} onLogout={handleLogout} onBackToProfile={() => setShowProviderDashboard(false)} initialOpenVipModal={location.state?.openVipWallet} />}
             
             {(!userData?.role || userData?.role === "user" || userData?.role === "member" || userData?.role === "distributor" || (userData?.role === "provider" && !showProviderDashboard)) && (

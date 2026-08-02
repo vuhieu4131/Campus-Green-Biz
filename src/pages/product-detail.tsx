@@ -536,7 +536,7 @@ const ProductDetailPage: FC = () => {
             {product.title || product.name}
           </Text.Title>
 
-          {product.shopName && (
+          {product.shopName && showPrice && (
             <Box className="mt-2">
               <Box 
                 flex alignItems="center" 

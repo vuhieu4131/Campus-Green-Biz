@@ -109,6 +109,7 @@ export const AdminView: FC<AdminProps> = ({ userData, onLogout }) => {
   const [newAdminPhone, setNewAdminPhone] = useState("");
   const [newAdminName, setNewAdminName] = useState("");
   const [newAdminPassword, setNewAdminPassword] = useState("");
+  const [newAdminRole, setNewAdminRole] = useState("admin_phu");
   const [creatingAdmin, setCreatingAdmin] = useState(false);
   const [adminTab, setAdminTab] = useState("create");
 
@@ -567,7 +568,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
       switch (featureId) {
         case "members": q = query(collection(db, "users")); break;
         case "providers": q = query(collection(db, "shops")); break;
-        case "create_admin": q = query(collection(db, "users"), where("role", "==", "admin")); break;
+        case "create_admin": q = query(collection(db, "users"), where("role", "in", ["admin", "admin_phu"])); break;
         case "posts": q = query(collection(db, "services")); break;
         case "community_posts": q = query(collection(db, "posts")); break;
         case "banners": q = query(collection(db, "banners"), orderBy("createdAt", "desc")); break;
@@ -1044,9 +1045,9 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
         if (!qSnap.empty) { openSnackbar({ text: "SĐT đã tồn tại!", type: "error" }); } 
         else {
             const docRef = doc(db, "users", newAdminPhone);
-            await setDoc(docRef, { id: newAdminPhone, phone: newAdminPhone, name: newAdminName, password: newAdminPassword, role: "admin", avatar: "https://img.icons8.com/color/48/administrator-male.png", createdAt: serverTimestamp(), status: "active" });
+            await setDoc(docRef, { id: newAdminPhone, phone: newAdminPhone, name: newAdminName, password: newAdminPassword, role: newAdminRole, avatar: "https://img.icons8.com/color/48/administrator-male.png", createdAt: serverTimestamp(), status: "active" });
             openSnackbar({ text: "Tạo Admin thành công!", type: "success" });
-            setNewAdminPhone(""); setNewAdminName(""); setNewAdminPassword(""); 
+            setNewAdminPhone(""); setNewAdminName(""); setNewAdminPassword(""); setNewAdminRole("admin_phu");
             fetchData("create_admin");
             setAdminTab("list");
         }
@@ -1326,6 +1327,12 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                         <Box mb={4}><Input label="SĐT Admin" value={newAdminPhone} onChange={(e) => setNewAdminPhone(e.target.value)} type="number" /></Box>
                         <Box mb={4}><Input label="Tên hiển thị" value={newAdminName} onChange={(e) => setNewAdminName(e.target.value)} /></Box>
                         <Box mb={4}><Input.Password label="Mật khẩu" value={newAdminPassword} onChange={(e) => setNewAdminPassword(e.target.value)} /></Box>
+                        <Box mb={4}>
+                            <Select label="Phân quyền" value={newAdminRole} onChange={(v: any) => setNewAdminRole(v)} closeOnSelect>
+                                <Option value="admin_phu" title="Admin phụ (Hạn chế)" />
+                                <Option value="admin" title="Admin chính (Toàn quyền)" />
+                            </Select>
+                        </Box>
                         <Button fullWidth loading={creatingAdmin} onClick={handleCreateAdmin}>Tạo tài khoản</Button>
                     </>
                 ) : (
@@ -1339,7 +1346,10 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                 <Box key={admin.id} className="p-3 mb-3 border border-gray-100 rounded-xl shadow-sm flex items-center bg-gray-50">
                                     <Avatar src={admin.avatar || "https://img.icons8.com/color/48/administrator-male.png"} size={48} className="mr-3 shrink-0" />
                                     <Box flex flexDirection="column" className="flex-1">
-                                        <Text bold>{admin.name || admin.fullName}</Text>
+                                        <Box flex alignItems="center">
+                                            <Text bold>{admin.name || admin.fullName}</Text>
+                                            {admin.role === 'admin_phu' && <span className="ml-2 bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded text-[10px] font-bold">Admin phụ</span>}
+                                        </Box>
                                         <Text size="small" className="text-gray-500">SĐT: {admin.phone}</Text>
                                     </Box>
                                     {admin.phone !== "0000869131" && (
@@ -2837,50 +2847,55 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
             </Box>
         </Box>
       </Box>
-      <Box className="m-4 bg-white rounded-2xl shadow-md border border-gray-100 p-4">
-          <Text bold size="normal" className="text-gray-800 mb-3">Thống kê tổng quan</Text>
-      {/* 👉 BƯỚC 2: BẢNG THỐNG KÊ GỌN GÀNG (CHỈ HIỆN SỐ CÒN NỢ) */}
-      <Box className="grid grid-cols-2 gap-3">
-          {/* Ô 1: Tổng Doanh thu */}
-          <Box 
-              className="col-span-2 p-4 rounded-xl flex justify-between items-center shadow-md"
-              style={{ backgroundColor: '#10b981', color: '#ffffff' }} 
-          >
-              <Box>
-                  <Box flex alignItems="center" className="opacity-90 mb-1">
-                      <CustomIcon icon="zi-poll" size={16} className="mr-1"/>
-                      <Text size="xSmall" className="uppercase tracking-wider">Tổng Doanh thu Nền tảng</Text>
-                  </Box>
-                  <Text bold size="xLarge">{adminStats.totalRevenue.toLocaleString()}đ</Text>
-              </Box>
-              <CustomIcon icon="zi-check-circle" size={32} className="opacity-30" />
-          </Box>
+      {userData?.role === 'admin' && (
+        <Box className="m-4 bg-white rounded-2xl shadow-md border border-gray-100 p-4">
+            <Text bold size="normal" className="text-gray-800 mb-3">Thống kê tổng quan</Text>
+        {/* 👉 BƯỚC 2: BẢNG THỐNG KÊ GỌN GÀNG (CHỈ HIỆN SỐ CÒN NỢ) */}
+        <Box className="grid grid-cols-2 gap-3">
+            {/* Ô 1: Tổng Doanh thu */}
+            <Box 
+                className="col-span-2 p-4 rounded-xl flex justify-between items-center shadow-md"
+                style={{ backgroundColor: '#10b981', color: '#ffffff' }} 
+            >
+                <Box>
+                    <Box flex alignItems="center" className="opacity-90 mb-1">
+                        <CustomIcon icon="zi-poll" size={16} className="mr-1"/>
+                        <Text size="xSmall" className="uppercase tracking-wider">Tổng Doanh thu Nền tảng</Text>
+                    </Box>
+                    <Text bold size="xLarge">{adminStats.totalRevenue.toLocaleString()}đ</Text>
+                </Box>
+                <CustomIcon icon="zi-check-circle" size={32} className="opacity-30" />
+            </Box>
 
-          {/* Ô 2: Tổng số đơn */}
-          <Box 
-              className="bg-blue-50 p-3 rounded-xl border border-blue-100 flex flex-col justify-center items-center cursor-pointer active:opacity-70 transition-opacity"
-              onClick={() => { setStatsTab("all"); setShowStatsDetail(true); }}
-          >
-              <Text size="xSmall" className="text-gray-500 mb-1">Tổng số đơn</Text>
-              <Text bold size="large" className="text-blue-600">{adminStats.totalOrders}</Text>
-          </Box>
+            {/* Ô 2: Tổng số đơn */}
+            <Box 
+                className="bg-blue-50 p-3 rounded-xl border border-blue-100 flex flex-col justify-center items-center cursor-pointer active:opacity-70 transition-opacity"
+                onClick={() => { setStatsTab("all"); setShowStatsDetail(true); }}
+            >
+                <Text size="xSmall" className="text-gray-500 mb-1">Tổng số đơn</Text>
+                <Text bold size="large" className="text-blue-600">{adminStats.totalOrders}</Text>
+            </Box>
 
-          {/* Ô 3: Phí còn nợ (Hiển thị ra ngoài theo yêu cầu) */}
-          <Box 
-              className="bg-red-50 p-3 rounded-xl border border-red-200 flex flex-col justify-center items-center cursor-pointer active:opacity-70 transition-opacity"
-              onClick={() => { setStatsTab("unpaid"); setShowStatsDetail(true); }}
-          >
-              <Text size="xSmall" className="text-red-600 mb-1">Phí còn nợ</Text>
-              <Text bold size="large" className="text-red-500">{adminStats.totalUnpaidFee.toLocaleString()}đ</Text>
-          </Box>
-      </Box>
-      </Box>
+            {/* Ô 3: Phí còn nợ (Hiển thị ra ngoài theo yêu cầu) */}
+            <Box 
+                className="bg-red-50 p-3 rounded-xl border border-red-200 flex flex-col justify-center items-center cursor-pointer active:opacity-70 transition-opacity"
+                onClick={() => { setStatsTab("unpaid"); setShowStatsDetail(true); }}
+            >
+                <Text size="xSmall" className="text-red-600 mb-1">Phí còn nợ</Text>
+                <Text bold size="large" className="text-red-500">{adminStats.totalUnpaidFee.toLocaleString()}đ</Text>
+            </Box>
+        </Box>
+        </Box>
+      )}
       <Box className="m-4 grid grid-cols-2 gap-4">
-        {MENU_ITEMS.map((item) => (
+        {MENU_ITEMS.filter(item => 
+          userData?.role !== 'admin_phu' || 
+          ['members', 'providers', 'posts', 'feedbacks'].includes(item.id)
+        ).map((item) => (
           <Box key={item.id} className="bg-white p-4 rounded-xl flex flex-col items-center shadow-md border border-gray-50 relative cursor-pointer active:opacity-80" onClick={() => setSelectedFeature(item.id)}>
             <CustomIcon icon={item.icon as any} className={`${item.color} text-3xl mb-2`} />
             <Text bold size="small" className="text-center">{item.label}</Text>
-            {pendingCounts[item.id] > 0 && (<Box className="absolute top-2 right-2 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold shadow-md">{pendingCounts[item.id]}</Box>)}
+            {pendingCounts[item.id as keyof typeof pendingCounts] > 0 && (<Box className="absolute top-2 right-2 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold shadow-md">{pendingCounts[item.id as keyof typeof pendingCounts]}</Box>)}
           </Box>
         ))}
       </Box>
