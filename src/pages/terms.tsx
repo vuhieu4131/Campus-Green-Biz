@@ -13,7 +13,10 @@ const TermsPage = () => {
         <Box className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
           <Text size="large" bold className="text-blue-800 mb-2">1. Giới thiệu</Text>
           <Text className="text-gray-700 leading-relaxed text-[15px]">
-            Chào mừng bạn đến với ứng dụng Campus Green Biz. Bằng việc truy cập và sử dụng dịch vụ trên nền tảng của chúng tôi, bạn đồng ý tuân thủ các điều khoản và điều kiện dưới đây. Campus Green Biz là nền tảng kết nối người dùng với các cửa hàng, nhà cung cấp uy tín.
+          Chào mừng bạn đến với ứng dụng Campus Green Biz. Bằng việc truy cập và sử dụng dịch vụ trên nền tảng của chúng tôi, bạn đồng ý tuân thủ các điều khoản và điều kiện dưới đây.
+          </Text>
+          <Text className="text-gray-700 leading-relaxed text-[15px]">
+          Campus Green Biz hiện tại là một dự án sinh viên phi lợi nhuận, được xây dựng và phát triển nhằm mục đích tham gia cuộc thi "Sáng tạo trẻ VNUF" do Trường Đại học Lâm Nghiệp phát động. Ở giai đoạn dự thi này, dự án hoạt động chủ yếu như một danh bạ giới thiệu địa điểm và chương trình khách hàng thân thiết. Nền tảng giúp cung cấp thông tin về các cửa hàng, nhà cung cấp uy tín hướng tới các giá trị xanh tại khu vực Campus (trường học) để người dùng tham khảo, lựa chọn; đồng thời cung cấp tính năng trải nghiệm tích điểm đổi ưu đãi. Ứng dụng hoàn toàn không thực hiện chức năng bán hàng, không thu tiền và không xử lý bất kỳ giao dịch thương mại nào trực tuyến.
           </Text>
         </Box>
 
@@ -22,13 +25,13 @@ const TermsPage = () => {
           <Text size="large" bold className="text-blue-800 mb-2">2. Quyền lợi và Trách nhiệm</Text>
           <Box className="space-y-3">
             <Text className="text-gray-700 leading-relaxed text-[15px]">
-              - Người dùng được cung cấp thông tin minh bạch về sản phẩm, dịch vụ, giá cả và các chương trình ưu đãi từ các cửa hàng.
+              - Người dùng được cung cấp thông tin minh bạch về danh sách cửa hàng, hình ảnh sản phẩm tham khảo và các chương trình ưu đãi đang diễn ra tại cửa hàng.
             </Text>
             <Text className="text-gray-700 leading-relaxed text-[15px]">
-              - Người dùng có trách nhiệm cung cấp thông tin liên hệ và địa chỉ giao hàng chính xác để đảm bảo quá trình đặt hàng và giao nhận diễn ra thuận lợi.
+              - Nền tảng chỉ cung cấp thông tin liên hệ. Mọi nhu cầu mua bán, trao đổi, giao nhận sản phẩm sẽ do Người dùng liên hệ và thực hiện trực tiếp với Cửa hàng.
             </Text>
             <Text className="text-gray-700 leading-relaxed text-[15px]">
-              - Người dùng cam kết tuân thủ các quy định mua sắm, không thực hiện các hành vi gian lận điểm thưởng, đặt đơn hàng ảo hoặc trục lợi từ các chương trình khuyến mãi.
+              - Người dùng cam kết sử dụng ứng dụng đúng mục đích; không thực hiện các hành vi gian lận điểm thưởng, tạo đánh giá ảo hoặc lạm dụng/trục lợi từ các chương trình mã ưu đãi của hệ thống.
             </Text>
           </Box>
         </Box>
@@ -38,10 +41,10 @@ const TermsPage = () => {
           <Text size="large" bold className="text-blue-800 mb-2">3. Chính sách Tích điểm & Ưu đãi</Text>
           <Box className="space-y-3">
             <Text className="text-gray-700 leading-relaxed text-[15px]">
-              - Hệ thống duy trì các loại ví điểm (Ví Tính Hạng, Ví Ưu Đãi, Ví Tương Tác) dựa trên hoạt động mua sắm, giới thiệu thành viên của người dùng.
+              - Hệ thống duy trì các loại ví điểm (Ví Tính Hạng, Ví Ưu Đãi) dựa trên hoạt động của giới thiệu người dùng trên ứng dụng hoặc khi người dùng đến trải nghiệm trực tiếp tại các cửa hàng liên kết.
             </Text>
             <Text className="text-gray-700 leading-relaxed text-[15px]">
-              - Điểm thưởng chỉ có giá trị sử dụng để quy đổi thành Voucher hoặc nhận ưu đãi bên trong ứng dụng Campus Green Biz, tuyệt đối không có giá trị quy đổi thành tiền mặt ngoài hệ thống.
+              - Điểm thưởng chỉ có giá trị sử dụng nội bộ để quy đổi thành các Mã ưu đãi/Mã giảm giá (Voucher) dùng tại cửa hàng. Điểm thưởng là hoàn toàn miễn phí, không phát sinh từ việc nạp tiền, không phải là tài sản kỹ thuật số và tuyệt đối không có giá trị quy đổi thành tiền mặt ở trong hay ngoài hệ thống.
             </Text>
           </Box>
         </Box>
@@ -51,10 +54,10 @@ const TermsPage = () => {
           <Text size="large" bold className="text-blue-800 mb-2">4. Miễn trừ trách nhiệm</Text>
           <Box className="space-y-3">
             <Text className="text-gray-700 leading-relaxed text-[15px]">
-              - Campus Green Biz hoạt động với vai trò nền tảng trung gian kết nối Người dùng và Cửa hàng. Chúng tôi không trực tiếp sản xuất, cung cấp hay bảo hành sản phẩm.
+              - Với bản chất là một dự án học thuật đang trong quá trình thử nghiệm và dự thi, Campus Green Biz chỉ hoạt động với vai trò là kênh thông tin giới thiệu. Chúng tôi không trực tiếp kinh doanh, không sản xuất, không vận chuyển hay bảo hành bất kỳ sản phẩm/dịch vụ nào.
             </Text>
             <Text className="text-gray-700 leading-relaxed text-[15px]">
-              - Mọi vấn đề phát sinh liên quan đến chất lượng sản phẩm, dịch vụ, hoặc tranh chấp trong quá trình mua bán sẽ do Cửa hàng trực tiếp chịu trách nhiệm xử lý. Tuy nhiên, nền tảng cam kết sẽ hỗ trợ tiếp nhận phản hồi và phối hợp giải quyết để bảo vệ quyền lợi chính đáng của Người dùng.
+              - Ứng dụng không can thiệp vào quá trình giao dịch tài chính hay thỏa thuận giữa Người dùng và Cửa hàng. Mọi vấn đề phát sinh liên quan đến chất lượng sản phẩm, dịch vụ sẽ do Cửa hàng trực tiếp chịu trách nhiệm xử lý với Người dùng. Ban quản trị dự án cam kết sẽ hỗ trợ tiếp nhận phản hồi để điều chỉnh dữ liệu minh họa và loại bỏ các cửa hàng không đạt chất lượng ra khỏi hệ thống.
             </Text>
           </Box>
         </Box>
@@ -66,10 +69,10 @@ const TermsPage = () => {
             Để đáp ứng tiêu chuẩn của Zalo Mini App và bảo vệ người dùng, chúng tôi quy định rõ:
             </Text>
             <Text className="text-gray-700 leading-relaxed text-[15px]">
-            - Thu thập dữ liệu: Để ứng dụng hoạt động trơn tru, Campus Green Biz có yêu cầu người dùng cấp quyền truy cập: Số điện thoại (để định danh, đăng nhập không cần mật khẩu, liên kết ví điểm thưởng), Vị trí hiện tại (để gợi ý các cửa hàng gần nhất và tính toán chi phí giao hàng(nếu có)), và Hình ảnh/Media (để tải lên hình ảnh avata, sản phẩm).
+            - Thu thập dữ liệu: Để ứng dụng hoạt động trơn tru, Campus Green Biz có yêu cầu người dùng cấp quyền truy cập: Số điện thoại (để định danh tài khoản thành viên, hỗ trợ đăng nhập và quản lý ví điểm thưởng), Vị trí hiện tại (chỉ dùng để gợi ý các cửa hàng gần nhất, hỗ trợ tìm kiếm và chỉ đường), và Hình ảnh/Media (để tải lên ảnh đại diện cá nhân).
             </Text>
             <Text className="text-gray-700 leading-relaxed text-[15px]">
-            - Sử dụng và Bảo mật dữ liệu: Chúng tôi cam kết chỉ sử dụng thông tin của bạn cho các mục đích vận hành hệ thống như đã nêu. Dữ liệu của bạn được lưu trữ trên hạ tầng máy chủ bảo mật, tuyệt đối không bán hoặc chia sẻ cho bất kỳ bên thứ 3 nào vì mục đích quảng cáo khi chưa có sự đồng ý của bạn.
+            - Sử dụng và Bảo mật dữ liệu: Chúng tôi cam kết chỉ sử dụng thông tin của bạn cho các mục đích vận hành tính năng thẻ thành viên như đã nêu. Dữ liệu của bạn được lưu trữ trên hạ tầng máy chủ bảo mật, tuyệt đối không bán hoặc chia sẻ cho bất kỳ bên thứ 3 nào vì mục đích quảng cáo khi chưa có sự đồng ý của bạn.
             </Text>
           </Box>
         </Box>

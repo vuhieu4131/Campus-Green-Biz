@@ -10,8 +10,8 @@
     "actionBarHidden": true
   },
   "pages": ["/"],
-  "listCSS": ["assets/index-DP-BjLFv.css"],
-  "listSyncJS": ["assets/index.lWDlBqHM.module.js"],
+  "listCSS": [],
+  "listSyncJS": [],
   "listAsyncJS": [],
   "template": {
     "name": "zaui-coffee",
