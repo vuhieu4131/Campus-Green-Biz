@@ -3,6 +3,7 @@ import { initializeApp } from "firebase/app";
 import { getFirestore, doc, updateDoc, increment, setDoc, getDoc } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getAuth } from "firebase/auth"; // Nếu dự án của bạn có dùng Auth
+import { getRandomAvatar } from "./utils/avatar";
 
 // Cấu hình Firebase thực tế trích xuất từ dự án "campusbizproject" của bạn
 const firebaseConfig = {
@@ -39,7 +40,7 @@ export const db = getFirestore(app);
   if (!userSnap.exists()) {
     await setDoc(userRef, {
       name: user.name,
-      avatar: user.avatar,
+      avatar: user.avatar || getRandomAvatar(),
       rankPoints: 0,      // Ví A: Điểm hạng (Chỉ cộng dồn để lên cấp)
       spendingPoints: 0,  // Ví B: Điểm tiêu dùng (Có thể trừ khi đổi quà/mua hàng)
       rank: "Mới",        // Đổi từ "Đồng" thành "Mới" cho chuẩn logic dự án mới

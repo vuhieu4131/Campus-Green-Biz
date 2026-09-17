@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { Box, Button, Input, Select, Text, useSnackbar, Header, Icon, Spinner, Avatar, Page } from "zmp-ui";
 import { doc, setDoc, serverTimestamp, collection, query, where, getDocs, updateDoc, increment, getDoc, addDoc } from "firebase/firestore";
 import { db } from "../../firebase";
+import { getRandomAvatar } from "../../utils/avatar";
 
 const { Option } = Select;
 
@@ -160,7 +161,7 @@ export const RegisterForm: React.FunctionComponent<RegisterProps> = ({ userInfo,
         id: cleanPhone,       // ID document là SĐT
         zaloId: userInfo.id,  // Lưu thêm Zalo ID để sau này có thể mapping
         name: fullName, 
-        avatar: userInfo.avatar,
+        avatar: userInfo.avatar || getRandomAvatar(),
         phone: cleanPhone,
         password: password,
         role: role, 

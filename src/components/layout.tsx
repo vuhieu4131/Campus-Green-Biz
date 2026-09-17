@@ -1,5 +1,5 @@
 import React, { FC, Suspense, useState, useEffect } from "react";
-import { Route, Routes } from "react-router";
+import { Route, Routes, useNavigate } from "react-router";
 import { Box, Modal, Button, Text } from "zmp-ui";
 import { Navigation } from "./navigation";
 import HomePage from "pages/index";
@@ -43,7 +43,19 @@ if (import.meta.env.DEV) {
 }
 
 export const Layout: FC = () => {
+  const navigate = useNavigate();
   useHandlePayment();
+
+  // Xử lý Deep link từ Zalo (khi quét mã QR hoặc bấm link chia sẻ)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const startPath = urlParams.get('path');
+    if (startPath) {
+      setTimeout(() => {
+        navigate(startPath);
+      }, 100);
+    }
+  }, [navigate]);
 
   const [voucherData, setVoucherData] = useState<any>(null);
   const [showVoucherModal, setShowVoucherModal] = useState(false);

@@ -212,10 +212,6 @@ const CreatePostPage: FC = () => {
       return;
     }
 
-    if (!attachedProduct) {
-      openSnackbar({ text: "Bạn phải đính kèm một sản phẩm để tạo bài quảng bá!", type: "error" });
-      return;
-    }
 
     setIsPosting(true);
     try {

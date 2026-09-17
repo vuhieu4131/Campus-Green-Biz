@@ -57,6 +57,7 @@ const PostPage: React.FunctionComponent = () => {
   const [isVip, setIsVip] = useState(false);
   const [currentVipPoints, setCurrentVipPoints] = useState(0);
   const [showVipModal, setShowVipModal] = useState(false);
+  const [showPrice, setShowPrice] = useState(false);
 
  useEffect(() => {
   const init = async () => {
@@ -92,6 +93,9 @@ const PostPage: React.FunctionComponent = () => {
           // 👉 BƯỚC 3: Lấy Tỷ lệ tích điểm và Tỷ lệ chi phí từ Cấu hình Admin
           const configSnap = await getDoc(doc(db, "system_config", "admin_settings"));
           if (configSnap.exists()) {
+              if (configSnap.data().showPrice !== undefined) {
+                  setShowPrice(configSnap.data().showPrice);
+              }
               let currentAdminRate = minRewardRate;
               if (configSnap.data().rewardPointRate !== undefined) {
                   currentAdminRate = Number(configSnap.data().rewardPointRate);
@@ -313,7 +317,7 @@ const handleRemoveVideo = () => {
     
     // 👉 BƯỚC 5: CHỐT CHẶN - Kiểm tra điểm Shop nhập vào có đạt yêu cầu không
     const enteredRewardRate = Number(form.rewardRate) || 0;
-    if (enteredRewardRate < defaultPlatformFeeRate) {
+    if (showPrice && enteredRewardRate < defaultPlatformFeeRate) {
         openSnackbar({ 
             text: `Hệ thống yêu cầu tỷ lệ chi phí App tối thiểu là ${defaultPlatformFeeRate}%. Bạn không thể đặt tỷ lệ thấp hơn!`, 
             type: "error", 
@@ -338,7 +342,7 @@ const handleRemoveVideo = () => {
     const enteredPoints = Number(form.points) || 0;
     const requiredMinPointsSubmit = Math.floor((basePriceForPoints * (defaultPlatformFeeRate / 100) * (minRewardRate / 100)) / 500);
 
-    if (!hasPriceVariants && enteredPoints < requiredMinPointsSubmit) {
+    if (showPrice && !hasPriceVariants && enteredPoints < requiredMinPointsSubmit) {
         openSnackbar({ 
             text: `Hệ số chia sẻ điểm là ${minRewardRate}%. Bạn phải tặng khách ít nhất ${requiredMinPointsSubmit} điểm!`, 
             type: "error", 
@@ -595,6 +599,7 @@ const handleRemoveVideo = () => {
         </Box>
 
         {/* CÂU HỎI ĐĂNG VIP */}
+        {showPrice && (
         <Box mb={4} className="bg-purple-50 p-3.5 rounded-xl border border-purple-100 shadow-sm">
           <Box flex justifyContent="space-between" alignItems="center">
             <Text size="small" className="font-semibold text-purple-950 flex-1 pr-2">Bạn có muốn đăng Sản phẩm/ Dịch vụ này lên VIP không?</Text>
@@ -613,6 +618,7 @@ const handleRemoveVideo = () => {
             </Box>
           )}
         </Box>
+        )}
         {/* 👇 THÊM MỚI: Ô nhập Nhãn phân loại 👇 */}
         <Box mb={4}>
           <Input 
@@ -699,6 +705,7 @@ const handleRemoveVideo = () => {
                 {hasPriceVariants && (
                     <Box className="mt-3 pl-3 border-l-2 border-purple-300">
                         {/* TỶ LỆ CHI PHÍ APP CHUNG CHO CÁC BIẾN THỂ */}
+                        {showPrice && (
                         <Box mb={3}>
                             <Input 
                                 type="number" 
@@ -717,6 +724,7 @@ const handleRemoveVideo = () => {
                                 * Hệ thống yêu cầu tỷ lệ tối thiểu {defaultPlatformFeeRate}% (Tương đương ít nhất {requiredMinPoints} điểm). Tăng tỷ lệ đồng nghĩa việc khách nhận nhiều điểm hơn.
                             </Text>
                         </Box>
+                        )}
 
                         {priceVariants.map((variant, idx) => {
                             const vPrice = Number(variant.price) || 0;
@@ -731,6 +739,8 @@ const handleRemoveVideo = () => {
                                         <Input placeholder="Tên gói" value={variant.label} onChange={(e) => handlePriceVariantChange(idx, "label", e.target.value)} />
                                     </Box>
                                     <Box flex style={{ gap: 8 }}>
+                                        {showPrice && (
+                                        <>
                                         <Box className="flex-1">
                                             <Text size="xxxxSmall" className="text-gray-500 mb-1">Giá gốc (Tùy chọn)</Text>
                                             <Input type="number" placeholder="Không bắt buộc" value={variant.originalPrice} onChange={(e) => handlePriceVariantChange(idx, "originalPrice", e.target.value)} />
@@ -748,6 +758,8 @@ const handleRemoveVideo = () => {
                                             <Text size="xxxxSmall" className="text-gray-500 mb-1">Điểm thưởng</Text>
                                             <Input disabled type="number" placeholder="0" value={vPoints > 0 ? vPoints : ""} className="bg-gray-100 text-center" />
                                         </Box>
+                                        </>
+                                        )}
                                     </Box>
                                 </Box>
                                 {priceVariants.length > 1 && (
@@ -770,14 +782,14 @@ const handleRemoveVideo = () => {
         {/* Đã gỡ bỏ block Địa điểm áp dụng */}
 
         {/* 👉 GIAO DIỆN NHẬP GIÁ MỚI */}
-        {!hasPriceVariants && (
+        {!hasPriceVariants && showPrice && (
             <Box mb={3}>
                 <Input type="number" label="Giá gốc (Chưa giảm - Tùy chọn)" placeholder="Ví dụ: 300000" value={form.originalPrice} onChange={(e) => handleChange("originalPrice", e.target.value)} />
             </Box>
         )}
 
+        {!hasPriceVariants && showPrice && (
         <Box mb={2} flex flexDirection="row" style={{ gap: 12 }}>
-          {!hasPriceVariants && (
             <Box style={{ flex: 1, position: 'relative' }}>
               <Input type="number" label="Giá bán (Thực thu)" placeholder="200000" value={form.price} onChange={(e) => handleChange("price", e.target.value)} />
               
@@ -788,8 +800,6 @@ const handleRemoveVideo = () => {
                   </Box>
               )}
             </Box>
-          )}
-          {!hasPriceVariants && (
             <Box style={{ flex: 1 }}>
               <Input 
                 type="number" 
@@ -805,15 +815,13 @@ const handleRemoveVideo = () => {
                 }}
               />
             </Box>
-          )}
-          {!hasPriceVariants && (
             <Box style={{ flex: 1 }}>
               <Input type="number" label="Điểm thưởng" placeholder="10" value={form.points} onChange={(e) => handleChange("points", e.target.value)} disabled={true} />
             </Box>
-          )}
         </Box>
+        )}
         {/* 👉 GIAO DIỆN CẢNH BÁO THỜI GIAN THỰC */}
-        {!hasPriceVariants && (
+        {!hasPriceVariants && showPrice && (
           basePriceForUI > 0 && !isPointsValid ? (
               <Text size="xxxxSmall" className="text-red-500 italic mb-4 ml-1 font-medium">
                   ⚠️ Hệ thống yêu cầu tỷ lệ tối thiểu là {defaultPlatformFeeRate}% (Tương đương ít nhất {requiredMinPoints} điểm). Vui lòng nhập mức tỷ lệ chi phí cao hơn!

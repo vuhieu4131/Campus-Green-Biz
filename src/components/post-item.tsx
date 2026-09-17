@@ -50,9 +50,8 @@ const awardInteractionPoints = async (userId: string, amount: number, descriptio
     }
     
     if (accountSnap.exists()) {
-      const currentPoints = accountSnap.data().interactionPoints || 0;
       await updateDoc(accountRef, {
-        interactionPoints: currentPoints + amount
+        interactionPoints: increment(amount)
       });
       
       await addDoc(collection(db, "point_transactions"), {
@@ -93,9 +92,8 @@ const deductInteractionPoints = async (userId: string, amount: number, descripti
     }
     
     if (accountSnap.exists()) {
-      const currentPoints = accountSnap.data().interactionPoints || 0;
       await updateDoc(accountRef, {
-        interactionPoints: Math.max(0, currentPoints - amount)
+        interactionPoints: increment(-amount)
       });
       
       await addDoc(collection(db, "point_transactions"), {
@@ -210,6 +208,25 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState("");
   const [editPrivacy, setEditPrivacy] = useState("Công khai");
+
+  const [isAttachedProductDeleted, setIsAttachedProductDeleted] = useState(false);
+
+  React.useEffect(() => {
+    let attachedId = null;
+    if (data.originalPost?.attachedProduct?.id) {
+      attachedId = data.originalPost.attachedProduct.id;
+    } else if (data.attachedProduct?.id) {
+      attachedId = data.attachedProduct.id;
+    }
+
+    if (attachedId) {
+      getDoc(doc(db, "services", attachedId)).then((snap) => {
+        if (!snap.exists()) {
+          setIsAttachedProductDeleted(true);
+        }
+      }).catch(err => console.error("Error checking product", err));
+    }
+  }, [data]);
 
   const [adminPlatformFeeRate, setAdminPlatformFeeRate] = useState(15);
   const [adminCustomerShareRate, setAdminCustomerShareRate] = useState(10);
@@ -939,8 +956,9 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
             {/* Original Attached Product */}
             {data.originalPost.attachedProduct && (
               <Box 
-                className="bg-white border border-gray-200 rounded-lg p-2 flex items-start space-x-2 cursor-pointer hover:bg-gray-100/50 transition"
+                className={`bg-white border border-gray-200 rounded-lg p-2 flex items-start space-x-2 ${isAttachedProductDeleted ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer hover:bg-gray-100/50 transition'}`}
                 onClick={() => {
+                  if (isAttachedProductDeleted) return;
                   const prod = {
                     id: data.originalPost.attachedProduct.id,
                     title: data.originalPost.attachedProduct.name || data.originalPost.attachedProduct.title,
@@ -960,11 +978,14 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
                 )}
                 <Box className="flex-1 min-w-0 flex flex-col justify-between min-h-[40px]">
                   <Box>
-                    <Text className="font-semibold text-gray-800 text-[12px] line-clamp-2 leading-tight">
+                    <Text className={`font-semibold text-[12px] line-clamp-2 leading-tight ${isAttachedProductDeleted ? 'text-gray-500 line-through' : 'text-gray-800'}`}>
                       {data.originalPost.attachedProduct.name || data.originalPost.attachedProduct.title}
                     </Text>
+                    {isAttachedProductDeleted && (
+                      <Text className="text-red-500 text-[10px] mt-0.5 font-medium">Sản phẩm đã bị xóa hoặc ngưng bán</Text>
+                    )}
                   </Box>
-                  {(() => {
+                  {!isAttachedProductDeleted && (() => {
                     let pointsToDisplay = Number(data.originalPost.attachedProduct.points) || 0;
                     
                     if (data.originalPost.attachedProduct.hasPriceVariants || pointsToDisplay === 0) {
@@ -995,26 +1016,28 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
                     }
                     return null;
                   })()}
-                  <Box className="flex items-center justify-between mt-1">
-                    {(() => {
-                      const parsePriceStr = (val: any) => {
-                          if (!val) return 0;
-                          if (typeof val === 'number') return val;
-                          const parsed = Number(val.toString().replace(/[^0-9]/g, ''));
-                          return isNaN(parsed) ? 0 : parsed;
-                      };
-                      const basePrice = parsePriceStr(data.originalPost.attachedProduct.minPrice !== undefined ? data.originalPost.attachedProduct.minPrice : data.originalPost.attachedProduct.price);
-                      return (
-                        <Text className="text-red-600 text-[11px] font-bold">
-                          {Number(basePrice || 0).toLocaleString('vi-VN')}đ
-                        </Text>
-                      );
-                    })()}
-                    <Box className="bg-[#14502e] text-white px-2 py-1 rounded-full text-[9px] font-semibold flex items-center space-x-0.5 shrink-0 shadow-sm active:opacity-90">
-                      <span>Xem sản phẩm</span>
-                      <svg className="w-2.5 h-2.5 fill-current" viewBox="0 0 24 24"><path d="M5 13h11.86l-5.43 5.43 1.42 1.42L21.14 12l-8.29-8.29-1.42 1.42 5.43 5.43H5v2z"/></svg>
+                  {!isAttachedProductDeleted && (
+                    <Box className="flex items-center justify-between mt-1">
+                      {(() => {
+                        const parsePriceStr = (val: any) => {
+                            if (!val) return 0;
+                            if (typeof val === 'number') return val;
+                            const parsed = Number(val.toString().replace(/[^0-9]/g, ''));
+                            return isNaN(parsed) ? 0 : parsed;
+                        };
+                        const basePrice = parsePriceStr(data.originalPost.attachedProduct.minPrice !== undefined ? data.originalPost.attachedProduct.minPrice : data.originalPost.attachedProduct.price);
+                        return (
+                          <Text className="text-red-600 text-[11px] font-bold">
+                            {Number(basePrice || 0).toLocaleString('vi-VN')}đ
+                          </Text>
+                        );
+                      })()}
+                      <Box className="bg-[#14502e] text-white px-2 py-1 rounded-full text-[9px] font-semibold flex items-center space-x-0.5 shrink-0 shadow-sm active:opacity-90">
+                        <span>Xem sản phẩm</span>
+                        <svg className="w-2.5 h-2.5 fill-current" viewBox="0 0 24 24"><path d="M5 13h11.86l-5.43 5.43 1.42 1.42L21.14 12l-8.29-8.29-1.42 1.42 5.43 5.43H5v2z"/></svg>
+                      </Box>
                     </Box>
-                  </Box>
+                  )}
                 </Box>
               </Box>
             )}
@@ -1081,8 +1104,9 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
           {/* @ts-ignore */}
           {data.attachedProduct && (
             <Box 
-              className="mx-4 mb-2 bg-gray-50 border border-gray-200/60 rounded-xl p-2.5 flex items-start space-x-2.5 cursor-pointer hover:bg-gray-100 transition active:scale-[0.99]"
+              className={`mx-4 mb-2 bg-gray-50 border border-gray-200/60 rounded-xl p-2.5 flex items-start space-x-2.5 ${isAttachedProductDeleted ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-gray-100 transition active:scale-[0.99]'}`}
               onClick={() => {
+                if (isAttachedProductDeleted) return;
                 const prod = {
                   id: data.attachedProduct.id,
                   title: data.attachedProduct.name || data.attachedProduct.title,
@@ -1102,41 +1126,45 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
               )}
               <Box className="flex-1 min-w-0 flex flex-col justify-between min-h-[48px]">
                 <Box>
-                  <Text className="font-semibold text-gray-800 text-[13px] line-clamp-2 leading-tight">
+                  <Text className={`font-semibold text-[13px] line-clamp-2 leading-tight ${isAttachedProductDeleted ? 'text-gray-500 line-through' : 'text-gray-800'}`}>
                     {data.attachedProduct.name || data.attachedProduct.title}
                   </Text>
+                  {isAttachedProductDeleted && (
+                    <Text className="text-red-500 text-[11px] mt-1 font-medium">Sản phẩm đã bị xóa hoặc ngưng bán</Text>
+                  )}
                 </Box>
-                  {(() => {
-                    let pointsToDisplay = Number(data.attachedProduct.points) || 0;
-                    
-                    if (data.attachedProduct.hasPriceVariants || pointsToDisplay === 0) {
-                        const parsePriceStr = (val: any) => {
-                            if (!val) return 0;
-                            if (typeof val === 'number') return val;
-                            const parsed = Number(val.toString().replace(/[^0-9]/g, ''));
-                            return isNaN(parsed) ? 0 : parsed;
-                        };
-                        const basePrice = parsePriceStr(data.attachedProduct.minPrice !== undefined ? data.attachedProduct.minPrice : data.attachedProduct.price);
-                        const appFeeRate = data.attachedProduct.rewardRate ? Number(data.attachedProduct.rewardRate) : adminPlatformFeeRate;
-                        const customerShareRate = data.attachedProduct.customerShareRate ? Number(data.attachedProduct.customerShareRate) : adminCustomerShareRate;
-                        
-                        pointsToDisplay = Math.floor((basePrice * (appFeeRate / 100) * (customerShareRate / 100)) / 500);
-                    }
+                {!isAttachedProductDeleted && (() => {
+                  let pointsToDisplay = Number(data.attachedProduct.points) || 0;
+                  
+                  if (data.attachedProduct.hasPriceVariants || pointsToDisplay === 0) {
+                      const parsePriceStr = (val: any) => {
+                          if (!val) return 0;
+                          if (typeof val === 'number') return val;
+                          const parsed = Number(val.toString().replace(/[^0-9]/g, ''));
+                          return isNaN(parsed) ? 0 : parsed;
+                      };
+                      const basePrice = parsePriceStr(data.attachedProduct.minPrice !== undefined ? data.attachedProduct.minPrice : data.attachedProduct.price);
+                      const appFeeRate = data.attachedProduct.rewardRate ? Number(data.attachedProduct.rewardRate) : adminPlatformFeeRate;
+                      const customerShareRate = data.attachedProduct.customerShareRate ? Number(data.attachedProduct.customerShareRate) : adminCustomerShareRate;
+                      
+                      pointsToDisplay = Math.floor((basePrice * (appFeeRate / 100) * (customerShareRate / 100)) / 500);
+                  }
 
-                    if (pointsToDisplay > 0) {
-                        const appFeeRate = data.attachedProduct.rewardRate ? Number(data.attachedProduct.rewardRate) : adminPlatformFeeRate;
-                        const isHighRate = appFeeRate > adminPlatformFeeRate;
-                        return (
-                          <Box className="mt-1">
-                            <Box className={`inline-flex px-2 py-1 rounded-full text-[10px] font-bold items-center space-x-1 ${isHighRate ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white' : 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white'}`}>
-                              <Icon icon="zi-star-solid" size={12} />
-                              <span>+{pointsToDisplay} điểm {isHighRate ? '🔥' : ''}</span>
-                            </Box>
+                  if (pointsToDisplay > 0) {
+                      const appFeeRate = data.attachedProduct.rewardRate ? Number(data.attachedProduct.rewardRate) : adminPlatformFeeRate;
+                      const isHighRate = appFeeRate > adminPlatformFeeRate;
+                      return (
+                        <Box className="mt-1">
+                          <Box className={`inline-flex px-2 py-1 rounded-full text-[10px] font-bold items-center space-x-1 ${isHighRate ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white' : 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white'}`}>
+                            <Icon icon="zi-star-solid" size={12} />
+                            <span>+{pointsToDisplay} điểm {isHighRate ? '🔥' : ''}</span>
                           </Box>
-                        );
-                    }
-                    return null;
-                  })()}
+                        </Box>
+                      );
+                  }
+                  return null;
+                })()}
+                {!isAttachedProductDeleted && (
                   <Box className="flex items-center justify-between mt-1.5">
                     {(() => {
                       const parsePriceStr = (val: any) => {
@@ -1157,6 +1185,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
                       <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M5 13h11.86l-5.43 5.43 1.42 1.42L21.14 12l-8.29-8.29-1.42 1.42 5.43 5.43H5v2z"/></svg>
                     </Box>
                   </Box>
+                )}
               </Box>
             </Box>
           )}
@@ -1168,6 +1197,10 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
         <Box className="flex flex-1 justify-center items-center space-x-1.5 py-1.5 rounded-lg cursor-pointer active:bg-gray-50" onClick={() => isRealUser ? handleLike() : setShowAuth(true)}>
           <Icon icon={liked ? "zi-heart-solid" : "zi-heart"} className={liked ? "text-red-500 text-lg" : "text-gray-500 text-lg"} />
           <Text size="small" className={`font-medium ${liked ? "text-red-500" : "text-gray-500"}`}>Hữu ích {likesCount > 0 ? `(${likesCount})` : ''}</Text>
+        </Box>
+        <Box className="flex flex-1 justify-center items-center space-x-1.5 py-1.5 rounded-lg cursor-pointer active:bg-gray-50" onClick={() => setShowComments(!showComments)}>
+          <CustomIcon icon="zi-chat" className="text-gray-500 text-lg" />
+          <Text size="small" className="font-medium text-gray-500">Bình luận {commentsCount > 0 ? `(${commentsCount})` : ''}</Text>
         </Box>
         <Box className="flex flex-1 justify-center items-center space-x-1.5 py-1.5 rounded-lg cursor-pointer active:bg-gray-50" onClick={() => currentUser ? setShowShare(true) : setShowAuth(true)}>
           <CustomIcon icon="zi-share" className="text-gray-500 text-lg" />
@@ -1223,6 +1256,10 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
                     <Box className="flex flex-1 justify-center items-center space-x-2 py-2 cursor-pointer active:bg-white/10 rounded-lg" onClick={(e) => { e.stopPropagation(); isRealUser ? handleLike() : setShowAuth(true); }}>
                       <Icon icon={liked ? "zi-heart-solid" : "zi-heart"} className={liked ? "text-red-500 text-xl" : "text-white text-xl"} />
                       <Text size="small" className={`font-medium ${liked ? "text-red-500" : "text-white"}`}>Hữu ích</Text>
+                    </Box>
+                    <Box className="flex flex-1 justify-center items-center space-x-2 py-2 cursor-pointer active:bg-white/10 rounded-lg" onClick={(e) => { e.stopPropagation(); setShowImageViewer(false); setShowComments(true); }}>
+                      <CustomIcon icon="zi-chat" className="text-white text-xl" />
+                      <Text size="small" className="font-medium text-white">Bình luận</Text>
                     </Box>
                     <Box className="flex flex-1 justify-center items-center space-x-2 py-2 cursor-pointer active:bg-white/10 rounded-lg" onClick={(e) => { e.stopPropagation(); currentUser ? setShowShare(true) : setShowAuth(true); }}>
                       <CustomIcon icon="zi-share" className="text-white text-xl" />

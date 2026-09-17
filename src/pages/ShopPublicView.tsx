@@ -539,7 +539,7 @@ const ShopPublicView: FC = () => {
           <Tabs activeKey={activeTab} onChange={setActiveTab}>
               <Tabs.Tab key="services" label="Dịch vụ & Sản phẩm" />
               <Tabs.Tab key="info" label="Thông tin" />
-              {isOwner && <Tabs.Tab key="payment" label="Thông tin chuyển khoản" />}
+              {isOwner && showPrice && <Tabs.Tab key="payment" label="Thông tin chuyển khoản" />}
           </Tabs>
       </Box>
 
@@ -808,7 +808,7 @@ const ShopPublicView: FC = () => {
                       </Box>
                   </Box>
               </Box>
-          ) : activeTab === "payment" && isOwner ? (
+          ) : activeTab === "payment" && isOwner && showPrice ? (
               // TAB 3: THÔNG TIN CHUYỂN KHOẢN (CHỈ CHỦ SHOP MỚI THẤY & SỬA ĐƯỢC)
               <Box className="flex flex-col gap-4">
                   <Box className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">

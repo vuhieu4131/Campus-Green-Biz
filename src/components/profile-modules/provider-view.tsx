@@ -215,6 +215,7 @@ export const ProviderView: FC<ProviderProps> = ({ userData, setUserData, onBackT
   const [showShareModal, setShowShareModal] = useState(false);
   // 👉 THÊM MỚI: STATE QUẢN LÝ ĐƠN HÀNG (CHỦ SHOP)
   const [showOrdersModal, setShowOrdersModal] = useState(false);
+  const [showPrice, setShowPrice] = useState(false);
   const [orderList, setOrderList] = useState<any[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [selectedOrderDetail, setSelectedOrderDetail] = useState<any>(null);
@@ -1114,6 +1115,7 @@ useEffect(() => {
               const data = configSnap.data();
               setAdminBankInfoText(data.bankInfoText || "");
               setAdminBankQrLink(data.bankQrLink || "");
+              if (data.showPrice !== undefined) setShowPrice(data.showPrice);
           }
       } catch (e) {
           console.error("Lỗi lấy thông tin ngân hàng:", e);
@@ -1788,7 +1790,7 @@ useEffect(() => {
                       }
                     }} 
                   />
-                  <Item 
+                  {showPrice && <Item 
     title="Quản lý đơn hàng" 
     subTitle="Theo dõi tất cả đơn đặt lịch" 
     prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-blue-50"><CustomIcon icon="zi-note" className="text-blue-600" size={18}/></div>} 
@@ -1803,7 +1805,7 @@ useEffect(() => {
       </Box>
   } 
   onClick={fetchShopOrders} 
-/>
+/>}
                   <Item title="Xem trang cửa hàng" subTitle="Xem giao diện khách hàng" prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-blue-50"><CustomIcon icon="zi-list-1" className="text-blue-600" size={18}/></div>} suffix={<CustomIcon icon="zi-chevron-right" className="text-gray-400"/>} onClick={goToShopDetail} />
                   <Item title="Trang cá nhân (Bài đăng)" subTitle="Xem hồ sơ và bài đăng của Shop" prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-teal-50"><CustomIcon icon="zi-user" className="text-teal-600" size={18}/></div>} suffix={<CustomIcon icon="zi-chevron-right" className="text-gray-400"/>} onClick={() => {
                       if (onBackToProfile) {
@@ -1820,7 +1822,7 @@ useEffect(() => {
               <List>
                   <Item title="Danh sách khách hàng" subTitle="Người dùng do Shop giới thiệu" prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-orange-50"><CustomIcon icon="zi-group" className="text-orange-600" size={18}/></div>} suffix={<CustomIcon icon="zi-chevron-right" className="text-gray-400"/>} onClick={handleShowReferrals} />
                   <Item title="Chia sẻ ứng dụng" subTitle="QR Code + Mã giới thiệu" prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-purple-50"><CustomIcon icon="zi-share-external-1" className="text-purple-600" size={18}/></div>} suffix={<CustomIcon icon="zi-chevron-right" className="text-gray-400"/>} onClick={() => setShowShareModal(true)} />
-                  <Item title="Đổi mật khẩu" prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-red-50"><CustomIcon icon="zi-lock" className="text-red-600" size={18}/></div>} suffix={<CustomIcon icon="zi-chevron-right" className="text-gray-400"/>} onClick={() => setShowChangePassModal(true)} />
+                  <Item title="Đổi mật khẩu" prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-red-50"><CustomIcon icon="zi-key" className="text-red-600" size={18}/></div>} suffix={<CustomIcon icon="zi-chevron-right" className="text-gray-400"/>} onClick={() => setShowChangePassModal(true)} />
                   <Item 
                         title="Gửi phản hồi" 
                         prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-teal-50"><Icon icon="zi-chat" className="text-teal-600" size={18}/></div>} 
@@ -1838,7 +1840,7 @@ useEffect(() => {
                          />
                   <Item 
                       title="Đăng xuất tài khoản" 
-                      prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100"><Icon icon="zi-leave" className="text-red-500" size={18}/></div>} 
+                      prefix={<div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100"><CustomIcon icon="zi-leave" className="text-red-500" size={18}/></div>} 
                       suffix={<Icon icon="zi-chevron-right" className="text-gray-400"/>}
                       onClick={onLogout} 
                         />

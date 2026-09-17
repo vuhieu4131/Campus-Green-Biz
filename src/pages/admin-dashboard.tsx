@@ -92,7 +92,7 @@ const ShopManagement: FC = () => (
     <List>
       <List.Item title="Danh sách khách hàng" subTitle="Người dùng do Shop giới thiệu" prefix={<CustomIcon icon="zi-group" className="text-orange-400" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
       <List.Item title="Chia sẻ ứng dụng" subTitle="QR Code + Mã giới thiệu" prefix={<CustomIcon icon="zi-share" className="text-purple-500" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
-      <List.Item title="Đổi mật khẩu" prefix={<CustomIcon icon="zi-lock" className="text-red-400" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
+      <List.Item title="Đổi mật khẩu" prefix={<CustomIcon icon="zi-key" className="text-red-400" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
       <List.Item title="Gửi phản hồi" prefix={<CustomIcon icon="zi-chat" className="text-teal-500" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
     </List>
   </Box>

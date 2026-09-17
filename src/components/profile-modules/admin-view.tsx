@@ -308,6 +308,7 @@ export const AdminView: FC<AdminProps> = ({ userData, onLogout }) => {
   const [rewardPointRate, setRewardPointRate] = useState("10");
   const [savingSettings, setSavingSettings] = useState(false);
   const [showPrice, setShowPrice] = useState(false);
+  const [allowShopAddPoints, setAllowShopAddPoints] = useState(false);
   const [showPosts, setShowPosts] = useState(true); // Mặc định bật bài viết
   const [showCreatePostTab, setShowCreatePostTab] = useState(true);
   const [showChatTab, setShowChatTab] = useState(true);
@@ -343,6 +344,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                 if (data.rewardPointRate !== undefined) setRewardPointRate(data.rewardPointRate.toString());
                 // 👉 BỔ SUNG: Kéo cấu hình Voucher về máy (ĐÃ FIX LỖI)
                 if (data.showPrice !== undefined) setShowPrice(data.showPrice);
+                if (data.allowShopAddPoints !== undefined) setAllowShopAddPoints(data.allowShopAddPoints);
                 if (data.showPosts !== undefined) setShowPosts(data.showPosts);
                 if (data.showCreatePostTab !== undefined) setShowCreatePostTab(data.showCreatePostTab);
                 if (data.showChatTab !== undefined) setShowChatTab(data.showChatTab);
@@ -442,6 +444,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
             platformFeeRate: Number(platformFeeRate),
             rewardPointRate: Number(rewardPointRate), // 👉 ĐÃ THÊM: Lưu tỷ lệ điểm lên Firebase
             showPrice: showPrice,
+            allowShopAddPoints: allowShopAddPoints,
             showPosts: showPosts,
             showCreatePostTab: showCreatePostTab,
             showChatTab: showChatTab,
@@ -2667,6 +2670,20 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                       onChange={(e: any) => setShowPrice(e.target.checked)}
                   />
               </Box>
+              {/* 👇 BẮT ĐẦU: CÔNG TẮC TÍCH ĐIỂM 👇 */}
+              <Box className="bg-green-50 p-4 rounded-xl border border-green-200 shadow-md mb-4 flex items-center justify-between">
+                  <Box className="flex-1 pr-4">
+                      <Text size="small" bold className="mb-1 text-green-800">Tính năng Tích điểm cho khách</Text>
+                      <Text size="xxxxSmall" className="text-green-700 italic leading-relaxed">
+                          ⚠️ <b>LƯU Ý:</b> Bật/tắt nút "Tích điểm cho khách" trong trang cá nhân của các chủ Shop.
+                      </Text>
+                  </Box>
+                  <Switch 
+                      checked={allowShopAddPoints} 
+                      onChange={(e: any) => setAllowShopAddPoints(e.target.checked)}
+                  />
+              </Box>
+              {/* 👆 KẾT THÚC: CÔNG TẮC TÍCH ĐIỂM 👆 */}
               {/* 👆 KẾT THÚC: CÔNG TẮC KIỂM DUYỆT ZALO 👆 */}
               {/* 👇 BẮT ĐẦU: CÔNG TẮC KIỂM DUYỆT BÀI VIẾT 👇 */}
               <Box className="bg-blue-50 p-4 rounded-xl border border-blue-200 shadow-md mb-4 flex items-center justify-between">
@@ -2842,7 +2859,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
         <Box flex alignItems="center" justifyContent="space-between">
             <Box flex alignItems="center"><Avatar src={"https://firebasestorage.googleapis.com/v0/b/campusbizproject.firebasestorage.app/o/avatars%2F000_OK_3.png?alt=media&token=6c861511-4802-4d36-8f1f-add6f7e327f7"} size={48} /><Box ml={3}><Text.Title className="text-white" size="small">ADMIN</Text.Title><Text size="small">Xin chào, {userData.name}</Text></Box></Box>
             <Box flex style={{ paddingRight: '80px' }}>
-                <Box onClick={() => setShowChangePass(true)} className="bg-blue-700 p-2 rounded-full cursor-pointer active:opacity-80 mr-2"><CustomIcon icon="zi-lock" className="text-white" /></Box>
+                <Box onClick={() => setShowChangePass(true)} className="bg-blue-700 p-2 rounded-full cursor-pointer active:opacity-80 mr-2"><CustomIcon icon="zi-key" className="text-white" /></Box>
                 <Box onClick={onLogout} className="bg-blue-700 p-2 rounded-full cursor-pointer active:opacity-80"><CustomIcon icon="zi-leave" className="text-white" /></Box>
             </Box>
         </Box>

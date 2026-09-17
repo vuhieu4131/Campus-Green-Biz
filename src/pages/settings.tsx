@@ -29,19 +29,25 @@ interface UserPersonalMenuProps {
   onMyOrdersClick: () => void;
   unreadNotifCount?: number;
   activeOrderCount?: number;
+  showPrice?: boolean;
+  isShopOwner?: boolean;
+  onAddPointsClick?: () => void;
 }
 
-const UserPersonalMenu: FC<UserPersonalMenuProps> = ({ onReferralClick, onShareClick, onChangePasswordClick, onSupportClick, onMyOrdersClick, unreadNotifCount = 0, activeOrderCount = 0 }) => {
+const UserPersonalMenu: FC<UserPersonalMenuProps> = ({ onReferralClick, onShareClick, onChangePasswordClick, onSupportClick, onMyOrdersClick, onAddPointsClick, unreadNotifCount = 0, activeOrderCount = 0, showPrice = false, isShopOwner = false }) => {
   const navigate = useNavigate();
   return (
     <SectionBox title="Cá nhân">
       <List>
         <List.Item onClick={() => navigate('/account-info')} title="Thông tin tài khoản" prefix={<CustomIcon icon="zi-user" className="text-gray-600" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
+        {isShopOwner && onAddPointsClick && (
+          <List.Item onClick={onAddPointsClick} title="Tích điểm cho khách" prefix={<CustomIcon icon="zi-plus-circle" className="text-green-500" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
+        )}
         <List.Item onClick={() => navigate('/notification')} title="Thông báo" prefix={<Box className="relative"><CustomIcon icon="zi-notif" className="text-blue-500" />{unreadNotifCount > 0 && <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1 shadow-sm border-2 border-white">{unreadNotifCount > 99 ? '99+' : unreadNotifCount}</span>}</Box>} suffix={<CustomIcon icon="zi-chevron-right" />} />
-        <List.Item onClick={onMyOrdersClick} title="Đơn hàng của tôi" prefix={<Box className="relative"><CustomIcon icon="zi-note" className="text-orange-500" />{activeOrderCount > 0 && <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1 shadow-sm border-2 border-white">{activeOrderCount > 99 ? '99+' : activeOrderCount}</span>}</Box>} suffix={<CustomIcon icon="zi-chevron-right" />} />
+        {showPrice && <List.Item onClick={onMyOrdersClick} title="Đơn hàng của tôi" prefix={<Box className="relative"><CustomIcon icon="zi-note" className="text-orange-500" />{activeOrderCount > 0 && <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1 shadow-sm border-2 border-white">{activeOrderCount > 99 ? '99+' : activeOrderCount}</span>}</Box>} suffix={<CustomIcon icon="zi-chevron-right" />} />}
         <List.Item onClick={onReferralClick} title="Người được giới thiệu" prefix={<CustomIcon icon="zi-group" className="text-gray-700" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
         <List.Item onClick={onShareClick} title="Chia sẻ ứng dụng" prefix={<CustomIcon icon="zi-share" className="text-gray-700" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
-        <List.Item onClick={onChangePasswordClick} title="Đổi mật khẩu" prefix={<CustomIcon icon="zi-lock" className="text-gray-700" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
+        <List.Item onClick={onChangePasswordClick} title="Đổi mật khẩu" prefix={<CustomIcon icon="zi-key" className="text-gray-700" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
         <List.Item onClick={onSupportClick} title="Gửi phản hồi / Hỗ trợ" prefix={<CustomIcon icon="zi-chat" className="text-gray-700" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
       </List>
     </SectionBox>
@@ -109,9 +115,38 @@ const SettingsPage: FC = () => {
   const [voucherPrograms, setVoucherPrograms] = useState<any[]>([]);
   const [expandedCampaignId, setExpandedCampaignId] = useState<string | null>(null);
   const [allServices, setAllServices] = useState<any[]>([]);
+  const [showPrice, setShowPrice] = useState(false);
+  const [allowShopAddPoints, setAllowShopAddPoints] = useState(false);
+
+  const [showAddPointsModal, setShowAddPointsModal] = useState(false);
+  const [addPointsPhone, setAddPointsPhone] = useState("");
+  const [addPointsOrderValue, setAddPointsOrderValue] = useState("");
+  const [isAddingPoints, setIsAddingPoints] = useState(false);
+  const [addPointsCustomerName, setAddPointsCustomerName] = useState("");
+  const [addPointsCustomerId, setAddPointsCustomerId] = useState("");
+  const [isCheckingPhone, setIsCheckingPhone] = useState(false);
+  const [addPointsVoucherCode, setAddPointsVoucherCode] = useState("");
+  const [addPointsVoucherDiscount, setAddPointsVoucherDiscount] = useState(0);
+  const [addPointsVoucherId, setAddPointsVoucherId] = useState("");
+  const [isCheckingVoucher, setIsCheckingVoucher] = useState(false);
 
   useEffect(() => {
     window.scrollTo(0, 0);
+
+    const fetchAdminSettings = async () => {
+      try {
+        const docRef = doc(db, "system_config", "admin_settings");
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.showPrice !== undefined) setShowPrice(data.showPrice);
+          if (data.allowShopAddPoints !== undefined) setAllowShopAddPoints(data.allowShopAddPoints);
+        }
+      } catch (err) {
+        console.error("Lỗi lấy admin_settings:", err);
+      }
+    };
+    fetchAdminSettings();
 
     const fetchVoucher = async () => {
       try {
@@ -1123,6 +1158,146 @@ const SettingsPage: FC = () => {
     setShowOrderDetailModal(true);
   };
 
+  const handleCheckPhone = async () => {
+    if (!addPointsPhone || addPointsPhone.length < 9) {
+      openSnackbar({ text: "Vui lòng nhập số điện thoại hợp lệ", type: "warning" });
+      return;
+    }
+    setIsCheckingPhone(true);
+    setAddPointsCustomerName("");
+    setAddPointsCustomerId("");
+    try {
+      const q = query(collection(db, "users"), where("phone", "==", addPointsPhone));
+      const snap = await getDocs(q);
+      if (snap.empty) {
+        openSnackbar({ text: "Không tìm thấy khách hàng", type: "warning" });
+      } else {
+        const docSnap = snap.docs[0];
+        setAddPointsCustomerId(docSnap.id);
+        setAddPointsCustomerName(docSnap.data().name || docSnap.data().fullName || "Khách hàng");
+      }
+    } catch (e) {
+      console.error(e);
+      openSnackbar({ text: "Lỗi kiểm tra số điện thoại", type: "error" });
+    }
+    setIsCheckingPhone(false);
+  };
+
+  const handleCheckVoucher = async () => {
+    if (!addPointsCustomerId) {
+      openSnackbar({ text: "Vui lòng kiểm tra số điện thoại trước", type: "warning" });
+      return;
+    }
+    if (!addPointsVoucherCode) {
+      openSnackbar({ text: "Vui lòng nhập mã voucher", type: "warning" });
+      return;
+    }
+    
+    setIsCheckingVoucher(true);
+    setAddPointsVoucherDiscount(0);
+    setAddPointsVoucherId("");
+    try {
+      const q = query(collection(db, `users/${addPointsCustomerId}/my_vouchers`), where("code", "==", addPointsVoucherCode.toUpperCase()), where("isUsed", "==", false));
+      const snap = await getDocs(q);
+      if (snap.empty) {
+        openSnackbar({ text: "Mã voucher không hợp lệ hoặc đã sử dụng", type: "warning" });
+      } else {
+        const vDoc = snap.docs[0];
+        const vData = vDoc.data();
+        
+        if (vData.expiryDate) {
+          const exp = new Date(vData.expiryDate).getTime();
+          if (Date.now() > exp) {
+            openSnackbar({ text: "Mã voucher đã hết hạn", type: "warning" });
+            setIsCheckingVoucher(false);
+            return;
+          }
+        }
+        
+        setAddPointsVoucherId(vDoc.id);
+        setAddPointsVoucherDiscount(vData.value || vData.discountAmount || 0);
+        openSnackbar({ text: `Áp dụng thành công! Giảm ${Number(vData.value || vData.discountAmount || 0).toLocaleString('vi-VN')}đ`, type: "success" });
+      }
+    } catch(e) {
+      console.error(e);
+      openSnackbar({ text: "Lỗi kiểm tra mã voucher", type: "error" });
+    }
+    setIsCheckingVoucher(false);
+  };
+
+  const handleAddPoints = async () => {
+    if (!addPointsCustomerId) {
+      openSnackbar({ text: "Vui lòng kiểm tra số điện thoại khách hàng trước", type: "warning" });
+      return;
+    }
+    if (!addPointsOrderValue) {
+      openSnackbar({ text: "Vui lòng nhập giá trị đơn hàng", type: "warning" });
+      return;
+    }
+
+    const orderVal = Number(addPointsOrderValue.replace(/\D/g, ''));
+    if (orderVal <= 0) {
+      openSnackbar({ text: "Giá trị đơn hàng không hợp lệ", type: "warning" });
+      return;
+    }
+
+    const finalVal = Math.max(0, orderVal - addPointsVoucherDiscount);
+
+    setIsAddingPoints(true);
+    try {
+      const promoPoints = Math.floor((finalVal * 0.1) / 10000);
+      const interactPoints = Math.floor((finalVal * 0.05) / 100);
+
+      await updateDoc(doc(db, "users", addPointsCustomerId), {
+        spendingPoints: increment(promoPoints),
+        interactionPoints: increment(interactPoints)
+      });
+      
+      if (addPointsVoucherId) {
+        await updateDoc(doc(db, `users/${addPointsCustomerId}/my_vouchers`, addPointsVoucherId), {
+          isUsed: true,
+          usedAt: serverTimestamp()
+        });
+      }
+      
+      if (promoPoints > 0) {
+        await addDoc(collection(db, "point_transactions"), {
+          userId: addPointsCustomerId,
+          type: "plus",
+          amount: promoPoints,
+          walletType: "promo",
+          description: `Tích điểm mua hàng từ Shop ${userData?.name || userData?.shopName || 'Campus Biz'}` + (addPointsVoucherId ? ` (Có áp dụng Voucher)` : ""),
+          createdAt: serverTimestamp()
+        });
+      }
+      
+      if (interactPoints > 0) {
+        await addDoc(collection(db, "point_transactions"), {
+          userId: addPointsCustomerId,
+          type: "plus",
+          amount: interactPoints,
+          walletType: "interaction",
+          description: `Tích điểm mua hàng từ Shop ${userData?.name || userData?.shopName || 'Campus Biz'}` + (addPointsVoucherId ? ` (Có áp dụng Voucher)` : ""),
+          createdAt: serverTimestamp()
+        });
+      }
+
+      openSnackbar({ text: `Đã cộng ${promoPoints} điểm ưu đãi và ${interactPoints} điểm tương tác thành công!`, type: "success" });
+      setShowAddPointsModal(false);
+      setAddPointsPhone("");
+      setAddPointsOrderValue("");
+      setAddPointsCustomerName("");
+      setAddPointsCustomerId("");
+      setAddPointsVoucherCode("");
+      setAddPointsVoucherDiscount(0);
+      setAddPointsVoucherId("");
+    } catch (e) {
+      console.error("Lỗi tích điểm:", e);
+      openSnackbar({ text: "Có lỗi xảy ra, vui lòng thử lại sau.", type: "error" });
+    }
+    setIsAddingPoints(false);
+  };
+
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -1528,8 +1703,112 @@ const SettingsPage: FC = () => {
         onChangePasswordClick={() => setShowPasswordModal(true)}
         onSupportClick={() => setShowSupportModal(true)}
         onMyOrdersClick={handleOpenMyOrders}
+        showPrice={showPrice}
+        isShopOwner={(userData?.role === 'provider' || userData?.role === 'admin') && allowShopAddPoints}
+        onAddPointsClick={() => setShowAddPointsModal(true)}
       />
       <UserUtilities onLogout={handleLogout} />
+
+      {/* Modal Tích điểm cho khách */}
+      <Modal
+        visible={showAddPointsModal}
+        title="Tích điểm cho khách"
+        onClose={() => setShowAddPointsModal(false)}
+      >
+        <Box className="flex flex-col gap-4 mt-2 px-2 pb-4">
+          <Box>
+            <Box flex justifyContent="space-between" alignItems="center" className="mb-1">
+              <Text size="xSmall" className="text-gray-600 font-medium">Số điện thoại khách hàng:</Text>
+              {addPointsCustomerName && <Text size="xSmall" className="text-blue-600 font-bold">{addPointsCustomerName}</Text>}
+            </Box>
+            <Box flex className="gap-2">
+              <input
+                type="tel"
+                className="flex-1 border border-gray-300 rounded-lg p-2.5 text-sm focus:outline-none focus:border-green-500"
+                placeholder="Nhập số điện thoại"
+                value={addPointsPhone}
+                onChange={(e) => setAddPointsPhone(e.target.value)}
+              />
+              <Button 
+                size="small" 
+                onClick={handleCheckPhone} 
+                loading={isCheckingPhone}
+                className="whitespace-nowrap rounded-lg text-white"
+              >
+                Kiểm tra
+              </Button>
+            </Box>
+          </Box>
+          
+          <Box>
+            <Text size="xSmall" className="text-gray-600 mb-1 font-medium">Mã voucher (nếu có):</Text>
+            <Box flex className="gap-2">
+              <input
+                type="text"
+                className="flex-1 border border-gray-300 rounded-lg p-2.5 text-sm focus:outline-none focus:border-green-500 uppercase"
+                placeholder="Nhập mã voucher"
+                value={addPointsVoucherCode}
+                onChange={(e) => setAddPointsVoucherCode(e.target.value.toUpperCase())}
+                disabled={!addPointsCustomerId}
+              />
+              <Button 
+                size="small" 
+                onClick={handleCheckVoucher} 
+                loading={isCheckingVoucher}
+                disabled={!addPointsCustomerId}
+                className="whitespace-nowrap rounded-lg border-none text-white disabled:opacity-50"
+                style={{ backgroundColor: addPointsCustomerId ? '#eab308' : '#9ca3af' }}
+              >
+                Áp dụng
+              </Button>
+            </Box>
+            {addPointsVoucherDiscount > 0 && (
+              <Text size="xxxxSmall" className="text-green-600 mt-1 italic font-medium">Đã áp dụng giảm {addPointsVoucherDiscount.toLocaleString('vi-VN')}đ</Text>
+            )}
+          </Box>
+
+          <Box>
+            <Text size="xSmall" className="text-gray-600 mb-1 font-medium">Giá trị đơn hàng (VNĐ):</Text>
+            <input
+              type="text"
+              className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:outline-none focus:border-green-500"
+              placeholder="300.000"
+              value={addPointsOrderValue}
+              onChange={(e) => {
+                const val = e.target.value.replace(/\D/g, "");
+                setAddPointsOrderValue(val ? Number(val).toLocaleString('vi-VN') : "");
+              }}
+            />
+            {addPointsOrderValue && (
+              <Box className="mt-2 bg-green-50 p-3 rounded-lg border border-green-100">
+                <Text size="xSmall" className="text-green-800 mb-1">Dự kiến tích điểm:</Text>
+                {(() => {
+                  const orderVal = Number(addPointsOrderValue.replace(/\D/g, ''));
+                  const finalVal = Math.max(0, orderVal - addPointsVoucherDiscount);
+                  const pPromo = Math.floor((finalVal * 0.1) / 10000);
+                  const pInteract = Math.floor((finalVal * 0.05) / 100);
+                  return (
+                    <>
+                      {addPointsVoucherDiscount > 0 && <Text size="xxxxSmall" className="text-gray-500 line-through mb-0.5">Tổng tiền: {orderVal.toLocaleString('vi-VN')}đ</Text>}
+                      {addPointsVoucherDiscount > 0 && <Text size="xSmall" className="text-green-700 font-bold mb-1">Thanh toán: {finalVal.toLocaleString('vi-VN')}đ</Text>}
+                      <Text size="xSmall" className="text-green-700 font-bold">• +{pPromo.toLocaleString('vi-VN')} Ví ưu đãi (10%)</Text>
+                      <Text size="xSmall" className="text-green-700 font-bold">• +{pInteract.toLocaleString('vi-VN')} Ví tương tác (5%)</Text>
+                    </>
+                  );
+                })()}
+              </Box>
+            )}
+          </Box>
+          <Button 
+            className="w-full mt-2" 
+            onClick={handleAddPoints}
+            disabled={isAddingPoints || !addPointsCustomerId}
+            loading={isAddingPoints}
+          >
+            Xác nhận & Tích điểm
+          </Button>
+        </Box>
+      </Modal>
 
       {/* Modal Liên hệ hỗ trợ */}
       <Modal

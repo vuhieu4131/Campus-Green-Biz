@@ -154,6 +154,15 @@ export const productsState = selector<Product[]>({
 
 Feel free to create another `service` layer and put the network fetching logics inside. This template provides only the UI layer, so you can customize the logic in any way you want.
 
+## Danh mục tài liệu tham khảo (References)
+
+- [Tài liệu Zalo Mini App (Zalo Mini App Documentation)](https://mini.zalo.me/docs/)
+- [Hệ thống thiết kế ZaUI (Zalo Mini App Design System)](https://mini.zalo.me/docs/zaui/)
+- [Zalo Mini App Studio](https://mini.zalo.me/docs/dev-tools/)
+- [Tài liệu React](https://react.dev/)
+- [Tài liệu Recoil](https://recoiljs.org/)
+- [Tài liệu Tailwind CSS](https://tailwindcss.com/docs)
+
 ## License
 
 Copyright (c) Zalo Group. and its affiliates. All rights reserved.

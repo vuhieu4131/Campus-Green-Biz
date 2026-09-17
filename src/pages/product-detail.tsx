@@ -2,7 +2,7 @@ import CustomIcon from '../components/custom-icon';
 import React, { FC, useState, useEffect } from "react";
 import { Page, Box, Text, Icon, Button, useSnackbar, Spinner, Modal } from "zmp-ui";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { db } from "../firebase";
+import { db, auth } from "../firebase";
 import { doc, getDoc, collection, query, where, getDocs, onSnapshot } from "firebase/firestore";
 import { useSetRecoilState } from "recoil";
 import { cartState } from "../state";
@@ -72,33 +72,8 @@ const ProductDetailPage: FC = () => {
             }
           });
           
-          // Lấy thông tin avatar mới nhất từ collection "users"
           const authors = Array.from(uniqueAuthors.values());
-          const updatedAuthors = await Promise.all(authors.map(async (author) => {
-            try {
-              // Thử tìm theo phone (ID của user thường là số điện thoại)
-              let userSnap = await getDoc(doc(db, "users", author.id));
-              let userData = userSnap.exists() ? userSnap.data() : null;
-              
-              if (!userData) {
-                // Thử tìm bằng query where phone
-                const qUsers = query(collection(db, "users"), where("phone", "==", author.id));
-                const snapUsers = await getDocs(qUsers);
-                if (!snapUsers.empty) {
-                  userData = snapUsers.docs[0].data();
-                }
-              }
-              
-              if (userData && userData.avatar) {
-                return { ...author, avatar: userData.avatar, name: userData.name || userData.fullName || author.name };
-              }
-            } catch (err) {
-              console.error("Lỗi khi tải thông tin user:", err);
-            }
-            return author;
-          }));
-
-          setCollaborators(updatedAuthors);
+          setCollaborators(authors);
           setCollaboratorCount(uniqueAuthors.size);
         }
       } catch (err) {
@@ -126,42 +101,50 @@ const ProductDetailPage: FC = () => {
           const productData = snap.data();
           let finalShopName = productData.shopName;
           
-          // Lấy Tên Shop mới nhất từ DB để tránh trường hợp tên bị cũ
+          // Render product immediately to reduce Time-To-First-Meaningful-Paint
+          setProduct({ id: snap.id, ...productData, shopName: finalShopName });
+          setLoading(false); // Stop loading spinner early
+          
+          // Asynchronously fetch latest shop name from DB
           const shopId = productData.ownerPhone || productData.providerId || productData.shopId;
           if (shopId) {
-            let shopSnap = await getDoc(doc(db, "shops", shopId));
-            if (!shopSnap.exists()) {
-              shopSnap = await getDoc(doc(db, "users", shopId));
-            }
+            getDoc(doc(db, "shops", shopId)).then(async (shopSnap) => {
+              if (!shopSnap.exists()) {
+                shopSnap = await getDoc(doc(db, "users", shopId));
+              }
 
-            let shopData: any = null;
-            if (shopSnap.exists()) {
-              shopData = shopSnap.data();
-            } else {
-              // Fallback query by phone
-              const qShops = query(collection(db, "shops"), where("phone", "==", shopId));
-              const snapShops = await getDocs(qShops);
-              if (!snapShops.empty) {
-                shopData = snapShops.docs[0].data();
+              let shopData: any = null;
+              if (shopSnap.exists()) {
+                shopData = shopSnap.data();
               } else {
-                const qUsers = query(collection(db, "users"), where("phone", "==", shopId));
-                const snapUsers = await getDocs(qUsers);
-                if (!snapUsers.empty) {
-                  shopData = snapUsers.docs[0].data();
+                // Fallback query by phone
+                const qShops = query(collection(db, "shops"), where("phone", "==", shopId));
+                const snapShops = await getDocs(qShops);
+                if (!snapShops.empty) {
+                  shopData = snapShops.docs[0].data();
+                } else {
+                  const qUsers = query(collection(db, "users"), where("phone", "==", shopId));
+                  const snapUsers = await getDocs(qUsers);
+                  if (!snapUsers.empty) {
+                    shopData = snapUsers.docs[0].data();
+                  }
                 }
               }
-            }
 
-            if (shopData) {
-              finalShopName = shopData.name || shopData.shopName || shopData.fullName || finalShopName;
-            }
+              if (shopData) {
+                finalShopName = shopData.name || shopData.shopName || shopData.fullName || finalShopName;
+                if (finalShopName !== productData.shopName) {
+                  setProduct((prev: any) => prev ? { ...prev, shopName: finalShopName } : prev);
+                }
+              }
+            }).catch(console.error);
           }
-          
-          setProduct({ id: snap.id, ...productData, shopName: finalShopName });
+        } else {
+          setProduct((prev: any) => prev ? { ...prev, isDeleted: true } : { isDeleted: true });
+          setLoading(false);
         }
       } catch (error) {
         console.error("Lỗi khi tải thông tin sản phẩm:", error);
-      } finally {
         setLoading(false);
       }
     };
@@ -214,7 +197,7 @@ const ProductDetailPage: FC = () => {
       return;
     }
     
-    const userPhone = localStorage.getItem("user_phone");
+    const userPhone = localStorage.getItem("user_phone") || (auth.currentUser?.email || "").replace("@campus.com", "");
     if (!userPhone) {
       openSnackbar({
         text: "Vui lòng đăng ký/đăng nhập để mua hàng!",
@@ -223,6 +206,10 @@ const ProductDetailPage: FC = () => {
       });
       setAuthVisible(true);
       return;
+    }
+
+    if (userPhone && !localStorage.getItem("user_phone")) {
+        localStorage.setItem("user_phone", userPhone);
     }
 
     if (!validateOptions()) return;
@@ -271,7 +258,7 @@ const ProductDetailPage: FC = () => {
       return;
     }
 
-    const userPhone = localStorage.getItem("user_phone");
+    const userPhone = localStorage.getItem("user_phone") || (auth.currentUser?.email || "").replace("@campus.com", "");
     if (!userPhone) {
       openSnackbar({
         text: "Vui lòng đăng ký/đăng nhập để mua hàng!",
@@ -280,6 +267,10 @@ const ProductDetailPage: FC = () => {
       });
       setAuthVisible(true);
       return;
+    }
+
+    if (userPhone && !localStorage.getItem("user_phone")) {
+        localStorage.setItem("user_phone", userPhone);
     }
 
     if (!validateOptions()) return;
@@ -322,11 +313,11 @@ const ProductDetailPage: FC = () => {
     );
   }
 
-  if (!product) {
+  if (!product || product.isDeleted) {
     return (
       <Page className="bg-gray-50 flex flex-col items-center justify-center h-screen p-4">
-        <Text className="text-gray-400 mb-4">Không tìm thấy sản phẩm!</Text>
-        <Button onClick={() => navigate('/store')}>Quay lại cửa hàng</Button>
+        <Text className="text-gray-400 mb-4 text-center">Sản phẩm này đã bị xóa hoặc ngưng bán!</Text>
+        <Button onClick={() => navigate(-1)}>Quay lại</Button>
       </Page>
     );
   }
@@ -451,7 +442,14 @@ const ProductDetailPage: FC = () => {
         className="flex items-center px-4 pb-3 bg-white z-50 shadow-sm border-b border-gray-100"
         style={{ paddingTop: "calc(var(--zaui-safe-area-inset-top, 24px) + 8px)" }}
       >
-        <CustomIcon icon="zi-arrow-left" className="text-2xl mr-4 cursor-pointer text-gray-800" onClick={() => navigate(-1)} />
+        <CustomIcon icon="zi-arrow-left" className="text-2xl mr-4 cursor-pointer text-gray-800" onClick={() => {
+          const shopId = product.ownerPhone || product.providerId || product.shopId;
+          if (shopId) {
+            navigate(`/shop-details/${shopId}`, { replace: true });
+          } else {
+            navigate(-1);
+          }
+        }} />
         <Text.Title className="font-bold text-[17px] text-gray-800 flex-1 truncate">
           {product.title || product.name}
         </Text.Title>

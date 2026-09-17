@@ -4,7 +4,7 @@ import { Box, Text, Input, Button, Switch, Avatar, Icon, useNavigate, useSnackba
 import { useRecoilValueLoadable } from "recoil";
 import { userState } from "state";
 import { auth, db } from "../firebase"; 
-import { getDefaultAvatar } from "../utils/avatar"; 
+import { getDefaultAvatar, getRandomAvatar } from "../utils/avatar"; 
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, deleteUser, updatePassword } from "firebase/auth";
 // 👉 ĐÃ BỔ SUNG: Thêm collection, query, where, getDocs để hỗ trợ quét dữ liệu ngoại lệ
 import { doc, setDoc, getDoc, collection, query, where, getDocs, updateDoc, addDoc, serverTimestamp, increment } from "firebase/firestore"; 
@@ -22,8 +22,8 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
   const { openSnackbar } = useSnackbar();
 
   const [formType, setFormType] = useState<"login" | "register">("login");
-  const [phone, setPhone] = useState("0000869131");
-  const [password, setPassword] = useState("123456");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [referralCode, setReferralCode] = useState(localStorage.getItem('referral_code') || "");
@@ -139,6 +139,7 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
       const shopSnap = await getDoc(shopRef);
 
       if (shopSnap.exists()) {
+        localStorage.setItem("user_phone", phone);
         alert("Chào mừng Nhà phân phối quay trở lại!");
         onClose(); 
         navigate("/profile"); 
@@ -167,10 +168,12 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
         const userData = userSnap.data();
         if (userData.role === "admin") {
             localStorage.setItem("isAdminBypass", "true");
+            localStorage.setItem("user_phone", phone);
             onClose();
             navigate("/admin-dashboard");
             return;
         }
+        localStorage.setItem("user_phone", phone);
         alert(`Đăng nhập thành công! Chào ${userData.fullName || userData.name || "bạn"}`);
         onClose(); 
         return;
@@ -180,12 +183,14 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
       const qShop = query(collection(db, "shops"), where("phone", "==", phone));
       const shopByPhoneSnap = await getDocs(qShop);
       if (!shopByPhoneSnap.empty) {
+        localStorage.setItem("user_phone", phone);
         alert("Chào mừng Nhà phân phối quay trở lại!");
         onClose(); 
         navigate("/profile"); 
         return;
       }
 
+      localStorage.setItem("user_phone", phone);
       alert("Đăng nhập thành công!");
       onClose(); 
 
@@ -291,6 +296,7 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
         referralCode: referralCode,
         isShopConfig: isShopConfig, 
         zaloName: userInfo?.name || "",
+        avatar: getRandomAvatar(),
         spendingPoints: initialSpendingPoints,
         rankPoints: initialRankPoints,
         createdAt: new Date().toISOString(),
@@ -323,6 +329,7 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
         alert("Đăng ký thành viên thành công!");
       }
       
+      localStorage.setItem("user_phone", phone);
       onClose(); 
     } catch (error: any) {
       console.error("LỖI CHI TIẾT CỦA FIREBASE:", error);
