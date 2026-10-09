@@ -28,13 +28,15 @@ interface UserPersonalMenuProps {
   onSupportClick: () => void;
   onMyOrdersClick: () => void;
   unreadNotifCount?: number;
+  unreadChatCount?: number;
   activeOrderCount?: number;
   showPrice?: boolean;
   isShopOwner?: boolean;
   onAddPointsClick?: () => void;
+  showChatTab?: boolean;
 }
 
-const UserPersonalMenu: FC<UserPersonalMenuProps> = ({ onReferralClick, onShareClick, onChangePasswordClick, onSupportClick, onMyOrdersClick, onAddPointsClick, unreadNotifCount = 0, activeOrderCount = 0, showPrice = false, isShopOwner = false }) => {
+const UserPersonalMenu: FC<UserPersonalMenuProps> = ({ onReferralClick, onShareClick, onChangePasswordClick, onSupportClick, onMyOrdersClick, onAddPointsClick, unreadNotifCount = 0, unreadChatCount = 0, activeOrderCount = 0, showPrice = false, isShopOwner = false, showChatTab = true }) => {
   const navigate = useNavigate();
   return (
     <SectionBox title="Cá nhân">
@@ -44,11 +46,14 @@ const UserPersonalMenu: FC<UserPersonalMenuProps> = ({ onReferralClick, onShareC
           <List.Item onClick={onAddPointsClick} title="Tích điểm cho khách" prefix={<CustomIcon icon="zi-plus-circle" className="text-green-500" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
         )}
         <List.Item onClick={() => navigate('/notification')} title="Thông báo" prefix={<Box className="relative"><CustomIcon icon="zi-notif" className="text-blue-500" />{unreadNotifCount > 0 && <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1 shadow-sm border-2 border-white">{unreadNotifCount > 99 ? '99+' : unreadNotifCount}</span>}</Box>} suffix={<CustomIcon icon="zi-chevron-right" />} />
+        {showChatTab && (
+          <List.Item onClick={() => navigate('/chat-list')} title="Tin nhắn" prefix={<Box className="relative"><CustomIcon icon="zi-chat" className="text-green-500" />{unreadChatCount > 0 && <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1 shadow-sm border-2 border-white">{unreadChatCount > 99 ? '99+' : unreadChatCount}</span>}</Box>} suffix={<CustomIcon icon="zi-chevron-right" />} />
+        )}
         {showPrice && <List.Item onClick={onMyOrdersClick} title="Đơn hàng của tôi" prefix={<Box className="relative"><CustomIcon icon="zi-note" className="text-orange-500" />{activeOrderCount > 0 && <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1 shadow-sm border-2 border-white">{activeOrderCount > 99 ? '99+' : activeOrderCount}</span>}</Box>} suffix={<CustomIcon icon="zi-chevron-right" />} />}
         <List.Item onClick={onReferralClick} title="Người được giới thiệu" prefix={<CustomIcon icon="zi-group" className="text-gray-700" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
         <List.Item onClick={onShareClick} title="Chia sẻ ứng dụng" prefix={<CustomIcon icon="zi-share" className="text-gray-700" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
         <List.Item onClick={onChangePasswordClick} title="Đổi mật khẩu" prefix={<CustomIcon icon="zi-key" className="text-gray-700" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
-        <List.Item onClick={onSupportClick} title="Gửi phản hồi / Hỗ trợ" prefix={<CustomIcon icon="zi-chat" className="text-gray-700" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
+        <List.Item onClick={onSupportClick} title="Báo cáo gian dối" prefix={<CustomIcon icon="zi-warning" className="text-red-500" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
       </List>
     </SectionBox>
   );
@@ -111,12 +116,14 @@ const SettingsPage: FC = () => {
   const [voucherHistoryList, setVoucherHistoryList] = useState<any[]>([]);
 
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [activeOrderCount, setActiveOrderCount] = useState(0);
   const [voucherPrograms, setVoucherPrograms] = useState<any[]>([]);
   const [expandedCampaignId, setExpandedCampaignId] = useState<string | null>(null);
   const [allServices, setAllServices] = useState<any[]>([]);
   const [showPrice, setShowPrice] = useState(false);
   const [allowShopAddPoints, setAllowShopAddPoints] = useState(false);
+  const [showChatTab, setShowChatTab] = useState(true);
 
   const [showAddPointsModal, setShowAddPointsModal] = useState(false);
   const [addPointsPhone, setAddPointsPhone] = useState("");
@@ -141,6 +148,7 @@ const SettingsPage: FC = () => {
           const data = docSnap.data();
           if (data.showPrice !== undefined) setShowPrice(data.showPrice);
           if (data.allowShopAddPoints !== undefined) setAllowShopAddPoints(data.allowShopAddPoints);
+          if (data.showChatTab !== undefined) setShowChatTab(data.showChatTab);
         }
       } catch (err) {
         console.error("Lỗi lấy admin_settings:", err);
@@ -295,9 +303,9 @@ const SettingsPage: FC = () => {
     }
   };
 
-  const [redeemConfirm, setRedeemConfirm] = useState<{value: number, promoCost: number, interactionCost: number, applicableProducts: string[]} | null>(null);
+  const [redeemConfirm, setRedeemConfirm] = useState<{value: number, promoCost: number, interactionCost: number, minOrderValue: number, applicableProducts: string[], campaignId?: string, isSpecial?: boolean} | null>(null);
 
-  const handleRedeemVoucher = async (amount: number, pointCost: number, walletType: 'promo' | 'interaction', applicableProducts: string[]) => {
+  const handleRedeemVoucher = async (amount: number, pointCost: number, walletType: 'promo' | 'interaction', applicableProducts: string[], minOrderValue?: number, campaignId?: string, isSpecial?: boolean) => {
     if (!userData || (!userData.id && !userData.phone)) return;
     const userId = userData.id || userData.phone;
 
@@ -316,6 +324,20 @@ const SettingsPage: FC = () => {
         await updateDoc(userRef, { spendingPoints: increment(-pointCost) });
       } else if (walletType === 'interaction') {
         await updateDoc(userRef, { interactionPoints: increment(-pointCost) });
+      }
+
+      // Ghi nhận lượt đổi Voucher Đặc Biệt và Cập nhật số lượng còn lại
+      if (campaignId) {
+        const campRef = doc(db, "voucher_campaigns", campaignId);
+        const campSnap = await getDoc(campRef);
+        if (campSnap.exists()) {
+          const cData = campSnap.data();
+          const updateData: any = { redeemedCount: increment(1) };
+          if (isSpecial && cData.customQuantity !== undefined && cData.customQuantity !== null && cData.customQuantity > 0) {
+             updateData.customQuantity = increment(-1);
+          }
+          await updateDoc(campRef, updateData);
+        }
       }
 
       // 2. Ghi nhận lịch sử giao dịch
@@ -348,7 +370,7 @@ const SettingsPage: FC = () => {
         title: `Giảm ${amount.toLocaleString('vi-VN')}đ`,
         discountType: "amount",
         value: amount,
-        minOrderValue: amount * 10,
+        minOrderValue: minOrderValue !== undefined ? minOrderValue : amount * 10,
         expiryDate: expiryDate.toISOString(),
         createdAt: serverTimestamp(),
         isUsed: false,
@@ -528,6 +550,7 @@ const SettingsPage: FC = () => {
       await updateDoc(orderRef, {
         status: "cancelled",
         cancelReason: cancelReason.trim(),
+        cancelledBy: "customer",
         cancelledAt: new Date().toISOString()
       });
 
@@ -654,7 +677,7 @@ const SettingsPage: FC = () => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user && user.email !== "guest@campus.com") {
         // Cố gắng lấy thông tin
-        const phoneFromEmail = user.email ? user.email.replace("@campus.com", "") : "";
+        const phoneFromEmail = user.email ? user.email.split("@")[0] : "";
         const localPhone = localStorage.getItem("user_phone");
         const finalPhone = phoneFromEmail || localPhone;
 
@@ -710,6 +733,21 @@ const SettingsPage: FC = () => {
         if (foundData.id) {
           fetchEligiblePoints(foundData.id);
         }
+
+        const chatQuery = query(
+          collection(db, "chats"),
+          where("participants", "array-contains", user.uid)
+        );
+        const unsubChats = onSnapshot(chatQuery, (snap) => {
+          let count = 0;
+          snap.forEach(docSnap => {
+            const data = docSnap.data();
+            if (data.unreadCount && data.unreadCount[user.uid]) {
+              count += data.unreadCount[user.uid];
+            }
+          });
+          setUnreadChatCount(count);
+        });
 
         // 👉 ĐÃ BỔ SUNG: Đồng bộ điểm thưởng quá khứ (Retroactive points sync)
         const syncRetroactivePoints = async (userId: string, userPhone: string, userRole: string, currentData: any) => {
@@ -1649,41 +1687,63 @@ const SettingsPage: FC = () => {
                     </Box>
 
                     <Box className="flex flex-col space-y-3">
-                      {[
-                        { value: 10000, promoCost: 20, interactionCost: 200, min: '100k' },
-                        { value: 30000, promoCost: 60, interactionCost: 600, min: '300k' },
-                        { value: 50000, promoCost: 100, interactionCost: 1000, min: '500k' },
-                        { value: 100000, promoCost: 200, interactionCost: 2000, min: '1000k' },
-                      ].map((tier, tIdx) => (
-                        <Box key={tIdx} className="bg-gray-50 border border-gray-100 p-3 rounded-xl flex justify-between items-center">
-                          <Box flex className="items-start flex-1">
-                            <Box className="w-8 h-8 bg-blue-100 rounded-full mr-3 shrink-0 flex items-center justify-center">
-                              <Icon icon="zi-star-solid" size={16} className="text-blue-500" />
-                            </Box>
-                            <Box>
-                              <Text bold size="normal" className="text-gray-800 mb-0.5">Giảm {(tier.value/1000)}k</Text>
-                              <Text size="xxxxSmall" className="text-gray-500 mb-1">Đơn tối thiểu {tier.min} - HSD: 30 ngày</Text>
-                              <Box flex className="space-x-2 mt-1">
-                                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">{tier.promoCost} Ưu Đãi</span>
-                                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">{tier.interactionCost} Tương Tác</span>
+                      {(() => {
+                        let displayTiers = [];
+                        
+                        if (vp.hasCustomTier && vp.customVoucherValue > 0) {
+                          displayTiers = [{
+                            value: vp.customVoucherValue,
+                            promoCost: Math.floor((vp.customVoucherValue * 20) / 10000),
+                            interactionCost: Math.floor((vp.customVoucherValue * 200) / 10000),
+                            min: `${vp.customMinOrderValue / 1000}k`,
+                            minNum: vp.customMinOrderValue,
+                            isSpecial: true,
+                            quantity: vp.customQuantity
+                          }];
+                        } else {
+                          displayTiers = [
+                            { value: 10000, promoCost: 20, interactionCost: 200, min: '100k', minNum: 100000, isSpecial: false },
+                            { value: 30000, promoCost: 60, interactionCost: 600, min: '300k', minNum: 300000, isSpecial: false },
+                            { value: 50000, promoCost: 100, interactionCost: 1000, min: '500k', minNum: 500000, isSpecial: false },
+                            { value: 100000, promoCost: 200, interactionCost: 2000, min: '1000k', minNum: 1000000, isSpecial: false },
+                          ];
+                        }
+                        
+                        return displayTiers.map((tier, tIdx) => (
+                          <Box key={tIdx} className={`mb-3 last:mb-0 p-3 rounded-xl flex justify-between items-center border ${tier.isSpecial ? 'bg-purple-50 border-purple-200 shadow-md' : 'bg-gray-50 border-gray-100'}`}>
+                            <Box flex className="items-start flex-1">
+                              <Box className={`w-8 h-8 rounded-full mr-3 shrink-0 flex items-center justify-center ${tier.isSpecial ? 'bg-purple-200' : 'bg-blue-100'}`}>
+                                <Icon icon="zi-star-solid" size={16} className={tier.isSpecial ? 'text-purple-600' : 'text-blue-500'} />
+                              </Box>
+                              <Box>
+                                <Text bold size="normal" className={`${tier.isSpecial ? 'text-purple-900' : 'text-gray-800'} mb-0.5`}>Giảm {(tier.value/1000)}k</Text>
+                                <Text size="xxxxSmall" className="text-gray-500 mb-1">Đơn tối thiểu {tier.min} - HSD: 30 ngày</Text>
+                                <Box flex className="space-x-2 mt-1">
+                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${tier.isSpecial ? 'text-purple-700 bg-purple-100 border-purple-200' : 'text-blue-600 bg-blue-50 border-blue-100'}`}>{tier.promoCost} Ưu Đãi</span>
+                                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">{tier.interactionCost} Tương Tác</span>
+                                </Box>
                               </Box>
                             </Box>
+                            <button 
+                              className="bg-[#8b1a1a] text-white font-bold text-xs px-3.5 py-2.5 rounded-xl active:opacity-80 shrink-0 self-center shadow-sm"
+                              onClick={() => {
+                                setRedeemConfirm({
+                                  value: tier.value,
+                                  promoCost: tier.promoCost,
+                                  interactionCost: tier.interactionCost,
+                                  minOrderValue: tier.minNum,
+                                  applicableProducts: vp.applicableProducts || [],
+                                  campaignId: vp.id,
+                                  isSpecial: tier.isSpecial
+                                });
+                              }}
+                              disabled={tier.isSpecial && tier.quantity !== undefined && tier.quantity !== null && tier.quantity <= 0}
+                            >
+                              {tier.isSpecial && tier.quantity !== undefined && tier.quantity !== null && tier.quantity <= 0 ? 'Đã hết' : 'Đổi ngay'}
+                            </button>
                           </Box>
-                          <button 
-                            className="bg-[#8b1a1a] text-white font-bold text-xs px-3.5 py-2.5 rounded-xl active:opacity-80 shrink-0 self-center shadow-sm"
-                            onClick={() => {
-                              setRedeemConfirm({
-                                value: tier.value,
-                                promoCost: tier.promoCost,
-                                interactionCost: tier.interactionCost,
-                                applicableProducts: vp.applicableProducts || []
-                              });
-                            }}
-                          >
-                            Đổi ngay
-                          </button>
-                        </Box>
-                      ))}
+                        ));
+                      })()}
                     </Box>
                   </Box>
                 )}
@@ -1706,6 +1766,10 @@ const SettingsPage: FC = () => {
         showPrice={showPrice}
         isShopOwner={(userData?.role === 'provider' || userData?.role === 'admin') && allowShopAddPoints}
         onAddPointsClick={() => setShowAddPointsModal(true)}
+        unreadNotifCount={unreadNotifCount}
+        unreadChatCount={unreadChatCount}
+        activeOrderCount={activeOrderCount}
+        showChatTab={showChatTab}
       />
       <UserUtilities onLogout={handleLogout} />
 
@@ -1966,10 +2030,10 @@ const SettingsPage: FC = () => {
         </Box>
       </Modal>
 
-      {/* Modal Phản hồi & Hỗ trợ */}
+      {/* Modal Báo cáo gian dối */}
       <Modal
         visible={showSupportModal}
-        title="Phản hồi & Hỗ trợ"
+        title="Báo cáo gian dối"
         onClose={() => setShowSupportModal(false)}
       >
         <Box className="flex flex-col mt-2">
@@ -1992,7 +2056,7 @@ const SettingsPage: FC = () => {
           {supportTab === 'send' ? (
             <Box>
               <Text size="small" className="text-gray-600 mb-4 leading-relaxed">
-                Gửi các ý kiến góp ý hoặc yêu cầu hỗ trợ kỹ thuật đến Admin hệ thống.
+                Gửi báo cáo, thông tin, hoặc bằng chứng gian dối về cho Admin hệ thống.
               </Text>
               
               <Text size="small" className="text-gray-600 mb-2">Nội dung</Text>
@@ -2003,21 +2067,21 @@ const SettingsPage: FC = () => {
               ></textarea>
 
               <Box 
-                className="w-full bg-[#14502e] text-black py-3 rounded-xl flex items-center justify-center font-bold cursor-pointer shadow-md"
+                className="w-full bg-red-600 text-white py-3 rounded-xl flex items-center justify-center font-bold cursor-pointer shadow-md"
                 onClick={() => {
-                  alert("Gửi yêu cầu thành công!");
+                  alert("Gửi báo cáo thành công!");
                   setShowSupportModal(false);
                 }}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" className="mr-2">
                   <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
                 </svg>
-                Gửi yêu cầu
+                Gửi báo cáo
               </Box>
             </Box>
           ) : (
             <Box className="py-8 text-center">
-              <Text size="small" className="text-gray-400">Chưa có yêu cầu hỗ trợ nào.</Text>
+              <Text size="small" className="text-gray-400">Chưa có báo cáo nào.</Text>
             </Box>
           )}
 
@@ -2950,7 +3014,7 @@ const SettingsPage: FC = () => {
               className="w-full py-3.5 rounded-xl bg-blue-50 text-blue-600 border border-blue-200 font-bold active:bg-blue-100 flex items-center justify-center transition-colors"
               onClick={() => {
                 if (redeemConfirm) {
-                  handleRedeemVoucher(redeemConfirm.value, redeemConfirm.promoCost, 'promo', redeemConfirm.applicableProducts);
+                  handleRedeemVoucher(redeemConfirm.value, redeemConfirm.promoCost, 'promo', redeemConfirm.applicableProducts, redeemConfirm.minOrderValue, redeemConfirm.campaignId, redeemConfirm.isSpecial);
                 }
               }}
             >
@@ -2961,7 +3025,7 @@ const SettingsPage: FC = () => {
               className="w-full py-3.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold active:bg-emerald-100 flex items-center justify-center transition-colors"
               onClick={() => {
                 if (redeemConfirm) {
-                  handleRedeemVoucher(redeemConfirm.value, redeemConfirm.interactionCost, 'interaction', redeemConfirm.applicableProducts);
+                  handleRedeemVoucher(redeemConfirm.value, redeemConfirm.interactionCost, 'interaction', redeemConfirm.applicableProducts, redeemConfirm.minOrderValue, redeemConfirm.campaignId, redeemConfirm.isSpecial);
                 }
               }}
             >

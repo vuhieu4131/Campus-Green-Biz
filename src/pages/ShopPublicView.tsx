@@ -7,6 +7,8 @@ import { db, auth, storage } from "../firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { onAuthStateChanged } from "firebase/auth";
 import { openPhone, openChat } from "zmp-sdk/apis";
+import { PostItem } from "../components/post-item";
+import { RawPost } from "../utils/edgeRanker";
 
 const ShopPublicView: FC = () => {
   const { id } = useParams(); // SĐT hoặc ID của Shop
@@ -25,6 +27,8 @@ const ShopPublicView: FC = () => {
   });
   const [services, setServices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [posts, setPosts] = useState<RawPost[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(false);
   const [activeTab, setActiveTab] = useState(stateData.tab || "services");
   
   // States cho Thông tin chuyển khoản
@@ -44,7 +48,7 @@ const ShopPublicView: FC = () => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        const phoneFromEmail = user.email ? user.email.replace("@campus.com", "") : "";
+        const phoneFromEmail = user.email ? user.email.split("@")[0] : "";
         const localPhone = localStorage.getItem("user_phone");
         setCurrentUserPhone(phoneFromEmail || localPhone || user.uid);
       } else {
@@ -206,8 +210,36 @@ const ShopPublicView: FC = () => {
     type: 'call'
   });
 
-  // 3. FETCH DỮ LIỆU TỪ FIREBASE
   // 3. FETCH DỮ LIỆU TỪ FIREBASE (ĐÃ TỐI ƯU THEO CẤU TRÚC DATABASE)
+  useEffect(() => {
+    if (!shop.id && !id) return;
+    const fetchShopPosts = async () => {
+      setLoadingPosts(true);
+      try {
+        const q = query(
+          collection(db, "posts"),
+          where("authorId", "==", shop.id || id)
+        );
+        const snapshot = await getDocs(q);
+        const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as RawPost[];
+        
+        list.sort((a, b) => {
+          if (a.isPinned && !b.isPinned) return -1;
+          if (!a.isPinned && b.isPinned) return 1;
+          const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
+          const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
+          return timeB - timeA;
+        });
+        
+        setPosts(list);
+      } catch (error) {
+        console.error("Lỗi lấy bài viết:", error);
+      } finally {
+        setLoadingPosts(false);
+      }
+    };
+    fetchShopPosts();
+  }, [shop.id, id]);
   useEffect(() => {
     if (!id) return;
     const fetchData = async () => {
@@ -501,21 +533,31 @@ const ShopPublicView: FC = () => {
           </Box>
 
           <Box className="px-4 -mt-12 flex items-end justify-between relative z-10">
-              <img src={getValidAvatar(shop.avatar, shop.id)} style={{ width: 88, height: 88, objectFit: "cover" }} className="border-4 border-white shadow-lg rounded-2xl bg-white" alt="Shop Avatar" />
-              <Box className="flex gap-2 mb-1">
+              <img 
+                src={getValidAvatar(shop.avatar, shop.id)} 
+                style={{ width: 88, height: 88, objectFit: "cover" }} 
+                className="border-4 border-white shadow-lg rounded-2xl bg-white cursor-pointer active:scale-95 transition-transform" 
+                alt="Shop Avatar" 
+                onClick={() => navigate(`/profile?id=${shop.id || id}`)}
+              />
+              <Box className="flex gap-1.5 mb-1">
+                  <Button 
+                    size="small" variant="secondary" className="px-2 bg-white text-gray-700 border border-gray-300"
+                    onClick={() => navigate(`/profile?id=${shop.id || id}`)}>
+                    <Icon icon="zi-user" size={16} />
+                  </Button>
                   {/* ĐÃ SỬA LỖI TS: Thêm 'as any' */}
                   <Button
-                    size="small" variant="secondary" prefix={<Icon icon="zi-chat" /> as any}
+                    size="small" variant="secondary" className="px-2 bg-white text-blue-600 border border-blue-600"
                     onClick={handleChatDirect}
-                    className="bg-white text-blue-600 border border-blue-600"
                   >
-                    Chat
+                    <Icon icon="zi-chat" size={16} />
                   </Button>
                   <Button
-                    size="small" prefix={<Icon icon="zi-call" /> as any}
+                    size="small" className="px-3"
                     onClick={handleCallDirect}
                   >
-                    Gọi
+                    <Icon icon="zi-call" size={16} className="mr-1 inline-block" /> Gọi
                   </Button>
               </Box>
           </Box>
@@ -538,6 +580,7 @@ const ShopPublicView: FC = () => {
       <Box className="bg-white mt-2 px-4 border-b border-gray-100 sticky top-0 z-20">
           <Tabs activeKey={activeTab} onChange={setActiveTab}>
               <Tabs.Tab key="services" label="Dịch vụ & Sản phẩm" />
+              <Tabs.Tab key="news" label="Tin tức" />
               <Tabs.Tab key="info" label="Thông tin" />
               {isOwner && showPrice && <Tabs.Tab key="payment" label="Thông tin chuyển khoản" />}
           </Tabs>
@@ -752,6 +795,20 @@ const ShopPublicView: FC = () => {
                     <Icon icon="zi-note" size={40} className="text-gray-200 mb-2" />
                     <Text size="small" className="text-gray-400 italic">Cửa hàng chưa có bài đăng nào.</Text>
                 </Box>
+              )
+          ) : activeTab === "news" ? (
+              loadingPosts ? <Box flex justifyContent="center" py={10}><Spinner /></Box> :
+              posts.length > 0 ? (
+                  <Box className="flex flex-col gap-3 pb-6">
+                      {posts.map(post => (
+                          <PostItem key={post.id} data={post} />
+                      ))}
+                  </Box>
+              ) : (
+                  <Box py={10} className="text-center bg-white rounded-xl border border-dashed border-gray-200">
+                      <Icon icon="zi-note" size={40} className="text-gray-200 mb-2" />
+                      <Text size="small" className="text-gray-400 italic">Cửa hàng chưa có tin tức nào.</Text>
+                  </Box>
               )
           ) : activeTab === "info" ? (
               // TAB 2: THÔNG TIN CỬA HÀNG VÀ CƠ SỞ

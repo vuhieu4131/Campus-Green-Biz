@@ -5,7 +5,7 @@ import { useRecoilValueLoadable } from "recoil";
 import { userState } from "state";
 import { auth, db } from "../firebase"; 
 import { getDefaultAvatar, getRandomAvatar } from "../utils/avatar"; 
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, deleteUser, updatePassword } from "firebase/auth";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, deleteUser, updatePassword, sendPasswordResetEmail } from "firebase/auth";
 // 👉 ĐÃ BỔ SUNG: Thêm collection, query, where, getDocs để hỗ trợ quét dữ liệu ngoại lệ
 import { doc, setDoc, getDoc, collection, query, where, getDocs, updateDoc, addDoc, serverTimestamp, increment } from "firebase/firestore"; 
 import { openChat } from "zmp-sdk/apis";
@@ -23,14 +23,98 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
 
   const [formType, setFormType] = useState<"login" | "register">("login");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [referralCode, setReferralCode] = useState(localStorage.getItem('referral_code') || "");
   const [isShopConfig, setIsShopConfig] = useState(false);
-  const [showForgotPwdModal, setShowForgotPwdModal] = useState(false);
+  const [showForgotEmailModal, setShowForgotEmailModal] = useState(false);
+  const [maskedEmail, setMaskedEmail] = useState("");
+  const [actualResetEmail, setActualResetEmail] = useState("");
+  const [inputResetEmail, setInputResetEmail] = useState("");
+  const [showRequireEmailModal, setShowRequireEmailModal] = useState(false);
+  const [redirectPath, setRedirectPath] = useState("");
 
   if (!visible) return null;
+
+  const handleForgotPasswordFirebase = async () => {
+    if (!phone) {
+      alert("Vui lòng nhập số điện thoại hoặc email để khôi phục mật khẩu!");
+      return;
+    }
+    try {
+      let resetEmail = phone;
+      if (!resetEmail.includes("@")) {
+          const qUser = query(collection(db, "users"), where("phone", "==", phone));
+          const userSnap = await getDocs(qUser);
+          if (!userSnap.empty && userSnap.docs[0].data().email) {
+              resetEmail = userSnap.docs[0].data().email;
+          } else {
+              const qShop = query(collection(db, "shops"), where("phone", "==", phone));
+              const shopSnap = await getDocs(qShop);
+              if (!shopSnap.empty && shopSnap.docs[0].data().email) {
+                  resetEmail = shopSnap.docs[0].data().email;
+              } else {
+                  resetEmail = `${phone}@campus.com`;
+              }
+          }
+      }
+      
+      if (resetEmail.includes("@campus.com")) {
+         alert("Tài khoản của bạn chưa được liên kết email thật nên không thể nhận link khôi phục. Vui lòng liên hệ Admin!");
+         return;
+      }
+
+      // Tạo chuỗi mask email (ẩn ở giữa, hiện vài ký tự đầu và cuối)
+      const parts = resetEmail.split("@");
+      let masked = resetEmail;
+      if (parts.length === 2) {
+          const namePart = parts[0];
+          const len = namePart.length;
+          if (len > 5) {
+              masked = namePart.substring(0, 3) + "****" + namePart.substring(len - 2) + "@" + parts[1];
+          } else if (len > 3) {
+              masked = namePart.substring(0, 2) + "****" + namePart.substring(len - 1) + "@" + parts[1];
+          } else if (len > 1) {
+              masked = namePart.substring(0, 1) + "****" + namePart.substring(len - 1) + "@" + parts[1];
+          } else {
+              masked = namePart.substring(0, 1) + "****@" + parts[1];
+          }
+      }
+
+      setActualResetEmail(resetEmail);
+      setMaskedEmail(masked);
+      setInputResetEmail("");
+      setShowForgotEmailModal(true);
+
+    } catch (error: any) {
+      console.error("Lỗi quên mật khẩu:", error);
+      alert("Lỗi kiểm tra thông tin: " + error.message);
+    }
+  };
+
+  const handleConfirmEmailToReset = async () => {
+      if (inputResetEmail.trim().toLowerCase() !== actualResetEmail.toLowerCase()) {
+          alert("Email không khớp! Vui lòng nhập đúng email bảo mật của bạn.");
+          return;
+      }
+      
+      try {
+          await sendPasswordResetEmail(auth, actualResetEmail);
+          alert(`Đã gửi liên kết khôi phục mật khẩu tới email: ${actualResetEmail}! Vui lòng kiểm tra hộp thư.`);
+          setShowForgotEmailModal(false);
+      } catch (error: any) {
+          console.error("Lỗi gửi email khôi phục:", error);
+          if (error.code === 'auth/user-not-found') {
+            alert("Không tìm thấy tài khoản với thông tin này.");
+          } else if (error.code === 'auth/invalid-email') {
+            alert("Email không hợp lệ.");
+          } else {
+            alert("Lỗi gửi yêu cầu khôi phục mật khẩu: " + error.message);
+          }
+      }
+  };
 
   const handleLoginSubmit = async () => {
     // Luồng cho Admin cứng
@@ -109,26 +193,57 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
     }
 
     try {
-      const email = `${phone}@campus.com`;
+      let loginEmail = phone;
+      if (!loginEmail.includes("@")) {
+          const qUser = query(collection(db, "users"), where("phone", "==", phone));
+          const userSnap = await getDocs(qUser);
+          if (!userSnap.empty && userSnap.docs[0].data().email) {
+              loginEmail = userSnap.docs[0].data().email;
+          } else {
+              const qShop = query(collection(db, "shops"), where("phone", "==", phone));
+              const shopSnap = await getDocs(qShop);
+              if (!shopSnap.empty && shopSnap.docs[0].data().email) {
+                  loginEmail = shopSnap.docs[0].data().email;
+              } else {
+                  loginEmail = `${phone}@campus.com`;
+              }
+          }
+      }
+
       let userCredential;
       try {
-        userCredential = await signInWithEmailAndPassword(auth, email, password);
+        userCredential = await signInWithEmailAndPassword(auth, loginEmail, password);
       } catch (signInErr: any) {
-        // Lớp cứu cánh 1: Nếu user được tạo thủ công hoặc là Admin phụ (lưu trong Firestore bằng phone)
-        const userByPhoneRef = doc(db, "users", phone);
-        const userByPhoneSnap = await getDoc(userByPhoneRef);
-        if (userByPhoneSnap.exists() && userByPhoneSnap.data().password === password) {
-            userCredential = await createUserWithEmailAndPassword(auth, email, password);
-            const newUid = userCredential.user.uid;
-            // Migrate document sang UID
-            await setDoc(doc(db, "users", newUid), {
-                ...userByPhoneSnap.data(),
-                id: newUid,
-                uid: newUid
-            });
-            await deleteDoc(userByPhoneRef);
-        } else {
-            throw signInErr;
+        let isFallbackSuccess = false;
+        // Xử lý trường hợp người dùng đã cập nhật email Firestore nhưng chưa bấm link xác nhận Firebase Auth
+        if (loginEmail !== `${phone}@campus.com` && !phone.includes('@')) {
+            try {
+                const fallbackEmail = `${phone}@campus.com`;
+                userCredential = await signInWithEmailAndPassword(auth, fallbackEmail, password);
+                isFallbackSuccess = true;
+                loginEmail = fallbackEmail; // Để các logic phía sau biết đang dùng email ảo
+            } catch (fallbackErr) {
+                // Bỏ qua lỗi fallback, tiếp tục xử lý lớp cứu cánh 1
+            }
+        }
+
+        if (!isFallbackSuccess) {
+            // Lớp cứu cánh 1: Nếu user được tạo thủ công hoặc là Admin phụ (lưu trong Firestore bằng phone)
+            const userByPhoneRef = doc(db, "users", phone);
+            const userByPhoneSnap = await getDoc(userByPhoneRef);
+            if (userByPhoneSnap.exists() && userByPhoneSnap.data().password === password) {
+                userCredential = await createUserWithEmailAndPassword(auth, loginEmail, password);
+                const newUid = userCredential.user.uid;
+                // Migrate document sang UID
+                await setDoc(doc(db, "users", newUid), {
+                    ...userByPhoneSnap.data(),
+                    id: newUid,
+                    uid: newUid
+                });
+                await deleteDoc(userByPhoneRef);
+            } else {
+                throw signInErr;
+            }
         }
       }
 
@@ -140,6 +255,11 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
 
       if (shopSnap.exists()) {
         localStorage.setItem("user_phone", phone);
+        if (loginEmail.includes("@campus.com")) {
+            setRedirectPath("/profile");
+            setShowRequireEmailModal(true);
+            return;
+        }
         alert("Chào mừng Nhà phân phối quay trở lại!");
         onClose(); 
         navigate("/profile"); 
@@ -169,11 +289,21 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
         if (userData.role === "admin") {
             localStorage.setItem("isAdminBypass", "true");
             localStorage.setItem("user_phone", phone);
+            if (loginEmail.includes("@campus.com")) {
+                setRedirectPath("/admin-dashboard");
+                setShowRequireEmailModal(true);
+                return;
+            }
             onClose();
             navigate("/admin-dashboard");
             return;
         }
         localStorage.setItem("user_phone", phone);
+        if (loginEmail.includes("@campus.com")) {
+            setRedirectPath("");
+            setShowRequireEmailModal(true);
+            return;
+        }
         alert(`Đăng nhập thành công! Chào ${userData.fullName || userData.name || "bạn"}`);
         onClose(); 
         return;
@@ -184,6 +314,11 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
       const shopByPhoneSnap = await getDocs(qShop);
       if (!shopByPhoneSnap.empty) {
         localStorage.setItem("user_phone", phone);
+        if (loginEmail.includes("@campus.com")) {
+            setRedirectPath("/profile");
+            setShowRequireEmailModal(true);
+            return;
+        }
         alert("Chào mừng Nhà phân phối quay trở lại!");
         onClose(); 
         navigate("/profile"); 
@@ -191,6 +326,11 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
       }
 
       localStorage.setItem("user_phone", phone);
+      if (loginEmail.includes("@campus.com")) {
+          setRedirectPath("");
+          setShowRequireEmailModal(true);
+          return;
+      }
       alert("Đăng nhập thành công!");
       onClose(); 
 
@@ -210,12 +350,36 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
       alert("Số điện thoại không hợp lệ!");
       return;
     }
+    
+    if (!email || !email.includes("@")) {
+      alert("Vui lòng nhập Email hợp lệ để nhận link khôi phục mật khẩu!");
+      return;
+    }
 
     try {
-      const email = `${phone}@campus.com`;
+      let registerEmail = email.trim();
       
       // 1. Tạo tài khoản đăng nhập bên Xác thực (Auth)
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      let userCredential;
+      try {
+        userCredential = await createUserWithEmailAndPassword(auth, registerEmail, password);
+      } catch (authErr: any) {
+        if (authErr.code === 'auth/email-already-in-use') {
+          const qUser = query(collection(db, "users"), where("phone", "==", phone));
+          const userSnap = await getDocs(qUser);
+          const qShop = query(collection(db, "shops"), where("phone", "==", phone));
+          const shopSnap = await getDocs(qShop);
+          
+          if (userSnap.empty && shopSnap.empty) {
+            registerEmail = `${phone}@${Date.now()}.campus.com`;
+            userCredential = await createUserWithEmailAndPassword(auth, registerEmail, password);
+          } else {
+            throw authErr;
+          }
+        } else {
+          throw authErr;
+        }
+      }
       // 👉 LẤY MÃ UID VỪA TẠO
       const uid = userCredential.user.uid; 
 
@@ -292,6 +456,7 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
       // 2. LƯU DỮ LIỆU BẰNG MÃ UID
       await setDoc(doc(db, collectionName, uid), {
         phone: phone,
+        email: registerEmail,
         fullName: fullName,
         referralCode: referralCode,
         isShopConfig: isShopConfig, 
@@ -367,12 +532,16 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
         </Box>
 
         <Box className="w-full space-y-4">
-          <Input type="text" placeholder="Số điện thoại" value={phone} onChange={(e) => setPhone(e.target.value)}
+          <Input type="text" placeholder={formType === "login" ? "Số điện thoại hoặc Email" : "Số điện thoại"} value={phone} onChange={(e) => setPhone(e.target.value)}
             className="bg-gray-100 border-none rounded-xl py-3 px-4" />
           
           {formType === "register" && (
-            <Input type="text" placeholder={isShopConfig ? "Họ và tên (Người quản lý)" : "Họ và tên"} value={fullName} onChange={(e) => setFullName(e.target.value)}
-              className="bg-gray-100 border-none rounded-xl py-3 px-4" />
+            <>
+              <Input type="email" placeholder="Email thực (để lấy lại mật khẩu)" value={email} onChange={(e) => setEmail(e.target.value)}
+                className="bg-gray-100 border-none rounded-xl py-3 px-4" />
+              <Input type="text" placeholder={isShopConfig ? "Họ và tên (Người quản lý)" : "Họ và tên"} value={fullName} onChange={(e) => setFullName(e.target.value)}
+                className="bg-gray-100 border-none rounded-xl py-3 px-4" />
+            </>
           )}
 
           <Input.Password placeholder="Mật khẩu" value={password} onChange={(e) => setPassword(e.target.value)}
@@ -399,25 +568,7 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
             <Box className="flex justify-end">
               <Text 
                 className="text-blue-500 text-sm cursor-pointer"
-                onClick={() => {
-                  try {
-                    openChat({
-                      type: 'oa',
-                      id: '1234567890', // Default Zalo OA ID placeholder
-                      message: `Xin chào, tôi cần hỗ trợ khôi phục mật khẩu cho số điện thoại: ${phone}`,
-                      success: () => {
-                        console.log("Mở Zalo OA thành công");
-                      },
-                      fail: (err) => {
-                        console.error("openChat fail callback:", err);
-                        setShowForgotPwdModal(true);
-                      }
-                    });
-                  } catch (err) {
-                    console.error("openChat try-catch failed:", err);
-                    setShowForgotPwdModal(true);
-                  }
-                }}
+                onClick={handleForgotPasswordFirebase}
               >
                 Quên mật khẩu?
               </Text>
@@ -447,18 +598,66 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
         </Box>
       </Box>
 
-      {/* MODAL HƯỚNG DẪN QUÊN MẬT KHẨU */}
-      {showForgotPwdModal && (
+      {/* MODAL XÁC NHẬN EMAIL ĐỂ QUÊN MẬT KHẨU */}
+      {showForgotEmailModal && (
         <Box className="fixed inset-0 bg-black/50 z-[999999] flex items-center justify-center p-4">
           <Box className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl flex flex-col items-center animate-fade-in text-center">
-            <Box className="w-16 h-16 rounded-full bg-orange-100 flex items-center justify-center mb-4">
-              <Icon icon="zi-info-circle" className="text-orange-500 text-3xl" />
+            <Box className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center mb-4">
+              <Icon icon="zi-lock" className="text-blue-500 text-3xl" />
             </Box>
             <Text.Title className="text-lg font-bold mb-2 text-gray-800">
-              Hỗ trợ khôi phục mật khẩu
+              Xác nhận Email khôi phục
+            </Text.Title>
+            <Text className="text-gray-600 text-sm mb-4 leading-relaxed">
+              Vui lòng điền đầy đủ Email bạn đã đăng ký để nhận link khôi phục mật khẩu.
+              <br/><br/>
+              Gợi ý: <strong className="text-blue-600">{maskedEmail}</strong>
+            </Text>
+            
+            <Box className="w-full mb-6 text-left">
+              <Input
+                type="text"
+                placeholder="Nhập email của bạn..."
+                value={inputResetEmail}
+                onChange={(e) => setInputResetEmail(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-all"
+              />
+            </Box>
+            
+            <Box className="flex space-x-3 w-full">
+              <Button 
+                variant="secondary"
+                fullWidth 
+                className="py-2.5 rounded-xl font-medium"
+                onClick={() => setShowForgotEmailModal(false)}
+              >
+                Hủy
+              </Button>
+              <Button 
+                fullWidth 
+                className="py-2.5 rounded-xl font-medium text-white border-none"
+                style={{ backgroundColor: "#8b191b" }}
+                onClick={handleConfirmEmailToReset}
+              >
+                Xác nhận
+              </Button>
+            </Box>
+          </Box>
+        </Box>
+      )}
+
+      {/* MODAL YÊU CẦU CẬP NHẬT EMAIL */}
+      {showRequireEmailModal && (
+        <Box className="fixed inset-0 bg-black/50 z-[999999] flex items-center justify-center p-4">
+          <Box className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl flex flex-col items-center animate-fade-in text-center">
+            <Box className="w-16 h-16 rounded-full bg-yellow-100 flex items-center justify-center mb-4">
+              <Icon icon="zi-warning" className="text-yellow-500 text-3xl" />
+            </Box>
+            <Text.Title className="text-lg font-bold mb-2 text-gray-800">
+              Cập nhật Email
             </Text.Title>
             <Text className="text-gray-600 text-sm mb-6 leading-relaxed">
-              Bạn vui lòng gửi email về địa chỉ <strong className="text-blue-600">campusgreenbiz@gmail.com</strong> với tiêu đề "Hỗ trợ khôi phục mật khẩu" và cung cấp số điện thoại của bạn để được ban quản trị hỗ trợ.
+              Tài khoản của bạn chưa liên kết Email thực. Vui lòng cập nhật Email để có thể khôi phục mật khẩu khi cần thiết!
             </Text>
             
             <Box className="flex space-x-3 w-full">
@@ -466,20 +665,25 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
                 variant="secondary"
                 fullWidth 
                 className="py-2.5 rounded-xl font-medium"
-                onClick={() => setShowForgotPwdModal(false)}
+                onClick={() => {
+                  setShowRequireEmailModal(false);
+                  onClose();
+                  if (redirectPath) navigate(redirectPath);
+                }}
               >
-                Đóng
+                Để sau
               </Button>
               <Button 
                 fullWidth 
                 className="py-2.5 rounded-xl font-medium text-white border-none"
                 style={{ backgroundColor: "#8b191b" }}
                 onClick={() => {
-                  navigator.clipboard?.writeText("campusgreenbiz@gmail.com");
-                  openSnackbar({ text: "Đã copy email", type: "success" });
+                  setShowRequireEmailModal(false);
+                  onClose();
+                  navigate("/account-info");
                 }}
               >
-                Copy Email
+                Cập nhật ngay
               </Button>
             </Box>
           </Box>

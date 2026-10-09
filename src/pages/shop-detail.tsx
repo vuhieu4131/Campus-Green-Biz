@@ -6,6 +6,8 @@ import { doc, getDoc, collection, query, where, getDocs, deleteDoc } from "fireb
 import { getValidAvatar } from "../utils/avatar";
 import { db } from "../firebase";
 import { openPhone, openChat } from "zmp-sdk/apis";
+import { PostItem } from "../components/post-item";
+import { RawPost } from "../utils/edgeRanker";
 
 const ShopDetailPage: React.FunctionComponent = () => {
   const { id } = useParams(); 
@@ -24,6 +26,8 @@ const ShopDetailPage: React.FunctionComponent = () => {
   
   const [services, setServices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [posts, setPosts] = useState<RawPost[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(false);
   const [activeTab, setActiveTab] = useState("services");
   // 👇 STATE QUẢN LÝ ẨN/HIỆN GIÁ TIỀN & ĐIỂM 👇
   const [showPrice, setShowPrice] = useState(false);
@@ -48,6 +52,7 @@ const ShopDetailPage: React.FunctionComponent = () => {
   useEffect(() => {
     if (shop.id || shop.name) {
       fetchShopServices();
+      fetchShopPosts();
     }
   }, [shop]);
   // 👉 BƯỚC 2: LOGIC NHẬN DIỆN CHỦ SHOP & HÀM XÓA BÀI ĐĂNG
@@ -160,6 +165,34 @@ setCategories(['Tất cả', ...extractedCategories as string[]]);
     }
   };
 
+  const fetchShopPosts = async () => {
+    if (!shop.id && !id) return;
+    setLoadingPosts(true);
+    try {
+      const q = query(
+        collection(db, "posts"),
+        where("authorId", "==", shop.id || id)
+      );
+      const snapshot = await getDocs(q);
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as RawPost[];
+      
+      // Sắp xếp bài ghim lên đầu, sau đó theo thời gian tạo
+      list.sort((a, b) => {
+        if (a.isPinned && !b.isPinned) return -1;
+        if (!a.isPinned && b.isPinned) return 1;
+        const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
+        const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
+        return timeB - timeA;
+      });
+      
+      setPosts(list);
+    } catch (error) {
+      console.error("Lỗi lấy bài viết:", error);
+    } finally {
+      setLoadingPosts(false);
+    }
+  };
+
   const handleChatDirect = () => {
     const targetId = shop.phone || shop.id || id; 
     if (targetId) {
@@ -199,19 +232,30 @@ const filteredServices = selectedCategory === 'Tất cả'
           </Box>
 
           <Box className="px-4 -mt-12 flex items-end justify-between relative z-10">
-              <img src={getValidAvatar(shop.avatar, shop.id)} style={{ width: 88, height: 88, objectFit: "cover" }} className="border-4 border-white shadow-lg rounded-2xl bg-white" alt="Shop Avatar" />
+              <img 
+                src={getValidAvatar(shop.avatar, shop.id)} 
+                style={{ width: 88, height: 88, objectFit: "cover" }} 
+                className="border-4 border-white shadow-lg rounded-2xl bg-white cursor-pointer active:scale-95 transition-transform" 
+                alt="Shop Avatar" 
+                onClick={() => navigate(`/profile?id=${shop.id || id}`)}
+              />
               
-              {/* 👉 ĐÃ CẬP NHẬT: Sửa 2 nút bấm để mở Pop-up thay vì gọi ngay lập tức */}
-              <Box className="flex gap-2 mb-1">
+              {/* 👉 ĐÃ CẬP NHẬT: Thêm nút Hồ sơ */}
+              <Box className="flex gap-1.5 mb-1">
                   <Button 
-                    size="small" variant="secondary" prefix={<Icon icon="zi-chat" /> as any} 
-                    onClick={handleChatDirect}>
-                    Chat
+                    size="small" variant="secondary" className="px-2"
+                    onClick={() => navigate(`/profile?id=${shop.id || id}`)}>
+                    <Icon icon="zi-user" size={16} />
                   </Button>
                   <Button 
-                    size="small" prefix={<Icon icon="zi-call" /> as any} 
+                    size="small" variant="secondary" className="px-2"
+                    onClick={handleChatDirect}>
+                    <Icon icon="zi-chat" size={16} />
+                  </Button>
+                  <Button 
+                    size="small" className="px-3"
                     onClick={handleCallDirect}>
-                    Gọi
+                    <Icon icon="zi-call" size={16} className="mr-1 inline-block" /> Gọi
                   </Button>
               </Box>
           </Box>
@@ -230,6 +274,7 @@ const filteredServices = selectedCategory === 'Tất cả'
       <Box className="bg-white mt-2 px-4 border-b">
           <Tabs activeKey={activeTab} onChange={setActiveTab}>
               <Tabs.Tab key="services" label="Dịch vụ & Sản phẩm" />
+              <Tabs.Tab key="news" label="Tin tức" />
               <Tabs.Tab key="info" label="Thông tin" />
           </Tabs>
       </Box>
@@ -365,6 +410,20 @@ const filteredServices = selectedCategory === 'Tất cả'
                     <Icon icon="zi-note" size={40} className="text-gray-200 mb-2" />
                     <Text size="small" className="text-gray-400 italic">Cửa hàng chưa có bài đăng nào.</Text>
                 </Box>
+              )
+          ) : activeTab === "news" ? (
+              loadingPosts ? <Box flex justifyContent="center" py={10}><Spinner /></Box> :
+              posts.length > 0 ? (
+                  <Box className="flex flex-col gap-3 pb-6">
+                      {posts.map(post => (
+                          <PostItem key={post.id} data={post} />
+                      ))}
+                  </Box>
+              ) : (
+                  <Box py={10} className="text-center bg-white rounded-xl border border-dashed border-gray-200">
+                      <Icon icon="zi-note" size={40} className="text-gray-200 mb-2" />
+                      <Text size="small" className="text-gray-400 italic">Cửa hàng chưa có tin tức nào.</Text>
+                  </Box>
               )
           ) : (
               <Box className="flex flex-col gap-3">

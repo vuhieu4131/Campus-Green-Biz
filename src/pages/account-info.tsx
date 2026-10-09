@@ -1,22 +1,26 @@
 import CustomIcon from '../components/custom-icon';
 import React, { FC, useState, useEffect } from "react";
-import { Page, Header, Box, Input, Button, useSnackbar, Text, Icon } from "zmp-ui";
+import { Page, Header, Box, Input, Button, useSnackbar, Text, Icon, useNavigate } from "zmp-ui";
 import { getDefaultAvatar } from "../utils/avatar";
 import { auth, db, storage } from "../firebase";
-import { onAuthStateChanged, User } from "firebase/auth";
+import { onAuthStateChanged, User, verifyBeforeUpdateEmail } from "firebase/auth";
 import { doc, getDoc, updateDoc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { compressImage } from "../utils/compression";
 
 const AccountInfoPage: FC = () => {
   const { openSnackbar } = useSnackbar();
+  const navigate = useNavigate();
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [avatar, setAvatar] = useState("");
   const [role, setRole] = useState("Thành viên");
   const [isUploading, setIsUploading] = useState(false);
+  const [showVerifyEmailModal, setShowVerifyEmailModal] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState("");
   const [docId, setDocId] = useState("");
   const [collectionName, setCollectionName] = useState("users");
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -100,16 +104,19 @@ const AccountInfoPage: FC = () => {
           const data = docSnap.data();
           setName(data.fullName || data.name || finalPhone);
           setPhone(data.phone || finalPhone);
+          setEmail(data.email || user.email || "");
           setAvatar(data.avatar || "");
         } else {
           setName(finalPhone);
           setPhone(finalPhone);
+          setEmail(user.email || "");
           setAvatar("");
         }
       } else {
         setCurrentUser(null);
         setName("Vũ Hoàng Hiệp (Mẫu)");
         setPhone("0782431949");
+        setEmail("");
         setAvatar("");
         setRole("Thành viên");
         setCollectionName("users");
@@ -134,6 +141,29 @@ const AccountInfoPage: FC = () => {
       const targetColl = collectionName || "users";
       const targetId = docId || currentUser.uid;
       const docRef = doc(db, targetColl, targetId);
+
+      // Cập nhật email trong Firebase Auth nếu người dùng có thay đổi và có nhập email
+      if (email && email.includes("@") && !email.includes("@campus.com")) {
+        if (currentUser.email !== email) {
+          try {
+            await verifyBeforeUpdateEmail(currentUser, email);
+            setPendingEmail(email);
+            setShowVerifyEmailModal(true);
+          } catch (e: any) {
+            console.error("Lỗi cập nhật email Auth:", e);
+            if (e.code === 'auth/requires-recent-login') {
+              openSnackbar({ text: "Vui lòng đăng xuất và đăng nhập lại để thay đổi Email!", type: "error" });
+              return;
+            } else if (e.code === 'auth/email-already-in-use') {
+              openSnackbar({ text: "Email này đã được sử dụng cho tài khoản khác!", type: "error" });
+              return;
+            } else {
+              openSnackbar({ text: "Lỗi hệ thống: Vui lòng liên hệ Admin. " + e.message, type: "error" });
+              return;
+            }
+          }
+        }
+      }
       
       await setDoc(docRef, {
         fullName: name,
@@ -141,6 +171,7 @@ const AccountInfoPage: FC = () => {
         shopName: name, // Đồng bộ luôn cho trường hợp là Shop
         managerName: name, // Đồng bộ luôn cho người quản lý
         phone: phone,
+        email: email,
         avatar: avatar
       }, { merge: true });
 
@@ -214,13 +245,24 @@ const AccountInfoPage: FC = () => {
           />
         </Box>
 
-        <Box className="mb-6">
+        <Box className="mb-4">
           <Text className="mb-2 text-sm text-gray-700">Số điện thoại</Text>
           <Input 
             value={phone} 
             onChange={(e) => setPhone(e.target.value)} 
             placeholder="Nhập số điện thoại" 
             type="text"
+            className="bg-gray-100 border-none rounded-xl px-4 py-2"
+          />
+        </Box>
+
+        <Box className="mb-6">
+          <Text className="mb-2 text-sm text-gray-700">Email (Dùng để khôi phục mật khẩu)</Text>
+          <Input 
+            value={email.includes("@campus.com") ? "" : email} 
+            onChange={(e) => setEmail(e.target.value)} 
+            placeholder="Nhập Email thực của bạn" 
+            type="email"
             className="bg-gray-100 border-none rounded-xl px-4 py-2"
           />
         </Box>
@@ -234,6 +276,49 @@ const AccountInfoPage: FC = () => {
           Lưu thay đổi
         </Button>
       </Box>
+
+      {/* MODAL XÁC THỰC EMAIL */}
+      {showVerifyEmailModal && (
+        <Box className="fixed inset-0 bg-black/50 z-[999999] flex items-center justify-center p-4">
+          <Box className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl flex flex-col items-center animate-fade-in text-center">
+            <Box className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center mb-4">
+              <Icon icon="zi-mail" className="text-blue-500 text-3xl" />
+            </Box>
+            <Text.Title className="text-lg font-bold mb-2 text-gray-800">
+              Xác thực Email
+            </Text.Title>
+            <Text className="text-gray-600 text-sm mb-6 leading-relaxed">
+              Một email chứa link xác nhận vừa được gửi đến <strong className="text-blue-600">{pendingEmail}</strong>. 
+              Vui lòng kiểm tra hộp thư và bấm vào link để hoàn tất việc đổi email!
+            </Text>
+            
+            <Box className="flex space-x-3 w-full">
+              <Button 
+                variant="secondary"
+                fullWidth 
+                className="py-2.5 rounded-xl font-medium"
+                onClick={() => {
+                  setShowVerifyEmailModal(false);
+                  navigate("/store");
+                }}
+              >
+                Xác minh sau
+              </Button>
+              <Button 
+                fullWidth 
+                className="py-2.5 rounded-xl font-medium text-white border-none"
+                style={{ backgroundColor: "#8b191b" }}
+                onClick={() => {
+                  window.location.href = `mailto:${pendingEmail}`;
+                  setShowVerifyEmailModal(false);
+                }}
+              >
+                Mở hòm thư
+              </Button>
+            </Box>
+          </Box>
+        </Box>
+      )}
     </Page>
   );
 };

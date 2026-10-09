@@ -197,7 +197,7 @@ const ProductDetailPage: FC = () => {
       return;
     }
     
-    const userPhone = localStorage.getItem("user_phone") || (auth.currentUser?.email || "").replace("@campus.com", "");
+    const userPhone = localStorage.getItem("user_phone") || (auth.currentUser?.email || "").split("@")[0];
     if (!userPhone) {
       openSnackbar({
         text: "Vui lòng đăng ký/đăng nhập để mua hàng!",
@@ -258,7 +258,7 @@ const ProductDetailPage: FC = () => {
       return;
     }
 
-    const userPhone = localStorage.getItem("user_phone") || (auth.currentUser?.email || "").replace("@campus.com", "");
+    const userPhone = localStorage.getItem("user_phone") || (auth.currentUser?.email || "").split("@")[0];
     if (!userPhone) {
       openSnackbar({
         text: "Vui lòng đăng ký/đăng nhập để mua hàng!",

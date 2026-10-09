@@ -570,7 +570,7 @@ const NewMemberView: FC<{
             {posts.filter(post => !post.attachedProduct).length + linkedPosts.length + sharedPosts.length}
           </Text.Title>
           <Text size="small" className="text-gray-600">
-            bài viết
+            lưu bút
           </Text>
         </Box>
         <Box className="text-center cursor-pointer active:opacity-70" onClick={handleShowFollowers}>
@@ -643,6 +643,16 @@ const NewMemberView: FC<{
             </span>
           </Box>
         </Box>
+        
+        {/* Nút Viết Bài (+) chỉ hiện ở profile của chính mình */}
+        {!isOtherProfile && (
+          <Box 
+            className="w-12 flex justify-center items-center cursor-pointer border-l border-gray-100 text-[#14502e] active:bg-gray-50 transition-colors"
+            onClick={() => navigate('/create-post')}
+          >
+            <Icon icon="zi-plus" className="text-2xl font-bold" />
+          </Box>
+        )}
       </Box>
 
       {/* 7. Nội dung Tab */}
@@ -655,7 +665,7 @@ const NewMemberView: FC<{
           ) : posts.filter(post => !post.attachedProduct).length === 0 ? (
             <Box className="col-span-3 py-10 flex justify-center flex-col items-center">
               <span className="text-gray-300 mb-2 inline-flex" style={{fontSize: "36px"}}><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg></span>
-              <Text className="text-gray-500">Chưa có bài viết nào</Text>
+              <Text className="text-gray-500">Chưa có lưu bút nào</Text>
             </Box>
           ) : (
             posts.filter(post => !post.attachedProduct).map((post) => (
@@ -733,7 +743,7 @@ const NewMemberView: FC<{
                   <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
                 </svg>
               </span>
-              <Text className="text-gray-500">Chưa có bài viết gắn link nào</Text>
+              <Text className="text-gray-500">Chưa có lưu bút gắn link nào</Text>
             </Box>
           ) : (
             linkedPosts.map((post) => (
@@ -812,7 +822,7 @@ const NewMemberView: FC<{
                   <line x1="12" y1="2" x2="12" y2="15"></line>
                 </svg>
               </span>
-              <Text className="text-gray-500">Chưa có bài viết đã chia sẻ nào</Text>
+              <Text className="text-gray-500">Chưa có lưu bút đã chia sẻ nào</Text>
             </Box>
           ) : (
             sharedPosts.map((post) => (
@@ -883,11 +893,11 @@ const NewMemberView: FC<{
         <Box className="p-2 pb-6">
           <Box className="flex items-center p-4 cursor-pointer active:bg-gray-100 rounded-xl text-gray-700" onClick={() => { 
             setNotificationsEnabled(!notificationsEnabled);
-            openSnackbar({ text: notificationsEnabled ? "Đã tắt thông báo" : "Đã bật thông báo nhận bài viết mới", type: "success" });
+            openSnackbar({ text: notificationsEnabled ? "Đã tắt thông báo" : "Đã bật thông báo nhận lưu bút mới", type: "success" });
             setShowFollowingOptions(false);
           }}>
             <span className="mr-3 inline-flex text-2xl">{notificationsEnabled ? <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M13.73 21a2 2 0 0 1-3.46 0"></path><path d="M18.63 13A17.89 17.89 0 0 1 18 8"></path><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"></path><path d="M18 8a6 6 0 0 0-9.33-5"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg> : <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>}</span>
-            <Text className="text-[16px] font-medium">{notificationsEnabled ? "Tắt thông báo bài viết mới" : "Nhận thông báo bài viết mới"}</Text>
+            <Text className="text-[16px] font-medium">{notificationsEnabled ? "Tắt thông báo lưu bút mới" : "Nhận thông báo lưu bút mới"}</Text>
           </Box>
           <Box className="flex items-center p-4 cursor-pointer active:bg-gray-100 rounded-xl text-red-500 border-t border-gray-100" onClick={() => {
             if (onFollowToggle) onFollowToggle();
@@ -1103,7 +1113,7 @@ const ProfilePage: FC = () => {
         setCurrentUser(user);
         
         // Lấy SĐT từ email
-        const phoneFromEmail = user.email ? user.email.replace("@campus.com", "") : "";
+        const phoneFromEmail = user.email ? user.email.split("@")[0] : "";
         const localPhone = localStorage.getItem("user_phone");
         const finalPhone = phoneFromEmail || localPhone;
 
@@ -1268,7 +1278,7 @@ const ProfilePage: FC = () => {
                     : "user_name",
                   name: (userData?.role === "provider" || userData?.collectionName === "shops")
                     ? (userData?.name || userData?.shopName || userData?.fullName || "Shop")
-                    : (userData?.fullName || currentUser.email?.replace("@campus.com", "") || "Thành viên Campus"),
+                    : (userData?.fullName || currentUser.email?.split("@")[0] || "Thành viên Campus"),
                   avatar: userData?.avatar || "",
                   cover: userData?.cover,
                   phone: userData?.phone

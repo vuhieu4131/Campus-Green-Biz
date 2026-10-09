@@ -192,8 +192,10 @@ const CartPage: FC = () => {
   useEffect(() => {
     const user = auth.currentUser;
     if (user && user.email !== "guest@campus.com") {
-      setRecipientName(user.displayName || "Thành viên");
-      setRecipientPhone((user.email || "").replace("@campus.com", ""));
+      const storedName = localStorage.getItem("user_name") || user.displayName || "Khách hàng";
+      const storedPhone = localStorage.getItem("user_phone") || (user.email || "").split("@")[0];
+      setRecipientName(storedName);
+      setRecipientPhone(storedPhone);
     }
   }, []);
 
@@ -201,24 +203,31 @@ const CartPage: FC = () => {
   useEffect(() => {
     const fetchVouchers = async () => {
       try {
-        const userPhone = localStorage.getItem("user_phone") || (auth.currentUser?.email || "").replace("@campus.com", "");
+        const userPhone = localStorage.getItem("user_phone") || (auth.currentUser?.email || "").split("@")[0];
         if (!userPhone && !auth.currentUser?.uid) return;
 
         let userId = auth.currentUser?.uid || userPhone;
+        let displayName = localStorage.getItem("user_name") || auth.currentUser?.displayName || "Khách hàng";
+
         if (userPhone) {
             const qShop = query(collection(db, "shops"), where("phone", "==", userPhone));
             const shopSnap = await getDocs(qShop);
             if (!shopSnap.empty) {
                 userId = shopSnap.docs[0].id;
+                if (shopSnap.docs[0].data().name) displayName = shopSnap.docs[0].data().name;
             } else {
                 const qUser = query(collection(db, "users"), where("phone", "==", userPhone));
                 const userSnap = await getDocs(qUser);
                 if (!userSnap.empty) {
                     const uidMatch = userSnap.docs.find(d => d.id === auth.currentUser?.uid);
-                    userId = uidMatch ? uidMatch.id : userSnap.docs[0].id;
+                    const userDoc = uidMatch || userSnap.docs[0];
+                    userId = userDoc.id;
+                    if (userDoc.data().name) displayName = userDoc.data().name;
                 }
             }
         }
+        
+        setRecipientName(displayName);
 
         const q = query(collection(db, `users/${userId}/my_vouchers`), where("isUsed", "==", false));
         const snap = await getDocs(q);
@@ -455,7 +464,7 @@ const CartPage: FC = () => {
         return `${year}${suffix}`;
       };
 
-      const userPhone = localStorage.getItem("user_phone") || recipientPhone.trim() || (auth.currentUser?.email || "").replace("@campus.com", "");
+      const userPhone = localStorage.getItem("user_phone") || recipientPhone.trim() || (auth.currentUser?.email || "").split("@")[0];
 
       const targetProduct = activeCartItems[0]?.product;
       let orderShopId = (targetProduct as any)?.providerId || (targetProduct as any)?.shopId || (targetProduct as any)?.ownerPhone || "";

@@ -158,7 +158,7 @@ const CreatePostPage: FC = () => {
         return;
       }
 
-      const phoneFromEmail = user.email ? user.email.replace("@campus.com", "") : "";
+      const phoneFromEmail = user.email ? user.email.split("@")[0] : "";
       const localPhone = localStorage.getItem("user_phone");
       const finalPhone = phoneFromEmail || localPhone;
 
@@ -374,7 +374,7 @@ const CreatePostPage: FC = () => {
         >
           <Icon icon="zi-close" className="text-2xl text-gray-700" />
         </Box>
-        <Text.Title className="font-bold text-lg text-[#14502e] flex-1 text-center">Tạo bài quảng bá</Text.Title>
+        <Text.Title className="font-bold text-lg text-[#14502e] flex-1 text-center">Viết lưu bút</Text.Title>
         <Box className="w-10" />
       </Box>
 
@@ -554,7 +554,7 @@ const CreatePostPage: FC = () => {
       {/* Bottom Action Bar */}
       <Box className="border-t border-gray-100 bg-white pb-safe px-4 py-3 flex flex-col space-y-3">
         <Box className="flex items-center justify-between">
-          <Text className="font-medium text-gray-700">Thêm vào bài viết</Text>
+          <Text className="font-medium text-gray-700">Thêm vào lưu bút</Text>
           <Box className="flex space-x-4">
             <input 
               type="file" 
@@ -598,7 +598,7 @@ const CreatePostPage: FC = () => {
           onClick={e => e.stopPropagation()}
         >
           <Box className="p-4 border-b border-gray-100 text-center font-bold relative">
-            <Text>Ai có thể xem bài viết này?</Text>
+            <Text>Ai có thể xem lưu bút này?</Text>
             {/* @ts-ignore */}
 <Icon icon="zi-close" className="absolute right-4 top-4 text-xl cursor-pointer" onClick={() => setShowPrivacySheet(false)} />
           </Box>

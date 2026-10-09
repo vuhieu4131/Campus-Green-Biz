@@ -540,8 +540,8 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
         if (snippet.length > 50) snippet = snippet.slice(0, 50) + "...";
         await addDoc(collection(db, "notifications"), {
           userId: data.authorId,
-          title: "Bình luận mới 💬",
-          content: `${profileName} đã bình luận: "${snippet}"`,
+          title: "Góp ý mới 💬",
+          content: `${profileName} đã góp ý: "${snippet}"`,
           type: "comment",
           postId: data.id,
           isRead: false,
@@ -553,7 +553,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
       setReplyingTo(null);
     } catch (error) {
       console.error("Lỗi gửi bình luận:", error);
-      openSnackbar({ text: "Không thể gửi bình luận", type: "error" });
+      openSnackbar({ text: "Không thể gửi góp ý", type: "error" });
     }
   };
 
@@ -614,10 +614,10 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
         }
       }
 
-      openSnackbar({ text: "Đã xóa bình luận", type: "success" });
+      openSnackbar({ text: "Đã xóa góp ý", type: "success" });
       setActiveCommentMenu(null);
     } catch (e) {
-      openSnackbar({ text: "Lỗi xóa bình luận", type: "error" });
+      openSnackbar({ text: "Lỗi xóa góp ý", type: "error" });
     }
   };
 
@@ -784,22 +784,32 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
       onMouseUp={handleTouchEnd}
       onMouseLeave={handleTouchEnd}
     >
-      <Avatar src={getValidAvatar(cmt.authorAvatar, cmt.authorId)} size={isReply ? 24 : 32} className="flex-shrink-0 mt-1" />
+      <Avatar 
+        src={getValidAvatar(cmt.authorAvatar, cmt.authorId)} 
+        size={isReply ? 24 : 32} 
+        className="flex-shrink-0 mt-1 cursor-pointer active:opacity-80" 
+        onClick={() => cmt.authorId && navigate(`/profile?id=${cmt.authorId}`)}
+      />
       <Box className="flex-1 flex flex-col">
-        <Box className="bg-gray-100 px-3 py-2 rounded-2xl w-fit max-w-[100%] active:bg-gray-200 transition-colors">
-          <Text className="font-bold text-[14px] text-gray-800">{cmt.authorName || "Người dùng"}</Text>
+        <Box className="bg-gray-100 px-3 py-2 rounded-2xl w-fit max-w-[100%] transition-colors">
+          <Text 
+            className="font-bold text-[14px] text-gray-800 cursor-pointer active:text-[#14502e]"
+            onClick={() => cmt.authorId && navigate(`/profile?id=${cmt.authorId}`)}
+          >
+            {cmt.authorName || "Người dùng"}
+          </Text>
           <Text className="text-[14px] text-gray-800">{cmt.content}</Text>
         </Box>
         <Box className="flex items-center space-x-4 mt-1.5 ml-2">
           <Box className="flex items-center space-x-1 cursor-pointer" onClick={(e) => handleLikeComment(cmt, e)}>
-            <Text size="xSmall" className={`font-semibold ${cmt.likedBy?.includes(currentUser?.uid) ? "text-[#14502e]" : "text-gray-500"}`}>Thích</Text>
+            <Text size="xSmall" className={`font-semibold ${cmt.likedBy?.includes(currentUser?.uid) ? "text-[#14502e]" : "text-gray-500"}`}>Hữu ích</Text>
             {cmt.likesCount > 0 && <Text size="xSmall" className="text-gray-500">{cmt.likesCount}</Text>}
           </Box>
           <Box className="flex items-center space-x-1 cursor-pointer" onClick={(e) => handleDislikeComment(cmt, e)}>
-            <Text size="xSmall" className={`font-semibold ${cmt.dislikedBy?.includes(currentUser?.uid) ? "text-red-600" : "text-gray-500"}`}>Không thích</Text>
+            <Text size="xSmall" className={`font-semibold ${cmt.dislikedBy?.includes(currentUser?.uid) ? "text-red-600" : "text-gray-500"}`}>Không hữu ích</Text>
             {cmt.dislikesCount > 0 && <Text size="xSmall" className="text-gray-500">{cmt.dislikesCount}</Text>}
           </Box>
-          <Text size="xSmall" className="text-gray-500 font-semibold cursor-pointer" onClick={() => setReplyingTo(cmt)}>Trả lời</Text>
+          <Text size="xSmall" className="text-gray-500 font-semibold cursor-pointer" onClick={() => setReplyingTo(cmt)}>Phản hồi</Text>
         </Box>
       </Box>
     </Box>
@@ -1200,7 +1210,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
         </Box>
         <Box className="flex flex-1 justify-center items-center space-x-1.5 py-1.5 rounded-lg cursor-pointer active:bg-gray-50" onClick={() => setShowComments(!showComments)}>
           <CustomIcon icon="zi-chat" className="text-gray-500 text-lg" />
-          <Text size="small" className="font-medium text-gray-500">Bình luận {commentsCount > 0 ? `(${commentsCount})` : ''}</Text>
+          <Text size="small" className="font-medium text-gray-500">Góp ý {commentsCount > 0 ? `(${commentsCount})` : ''}</Text>
         </Box>
         <Box className="flex flex-1 justify-center items-center space-x-1.5 py-1.5 rounded-lg cursor-pointer active:bg-gray-50" onClick={() => currentUser ? setShowShare(true) : setShowAuth(true)}>
           <CustomIcon icon="zi-share" className="text-gray-500 text-lg" />
@@ -1259,7 +1269,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
                     </Box>
                     <Box className="flex flex-1 justify-center items-center space-x-2 py-2 cursor-pointer active:bg-white/10 rounded-lg" onClick={(e) => { e.stopPropagation(); setShowImageViewer(false); setShowComments(true); }}>
                       <CustomIcon icon="zi-chat" className="text-white text-xl" />
-                      <Text size="small" className="font-medium text-white">Bình luận</Text>
+                      <Text size="small" className="font-medium text-white">Góp ý</Text>
                     </Box>
                     <Box className="flex flex-1 justify-center items-center space-x-2 py-2 cursor-pointer active:bg-white/10 rounded-lg" onClick={(e) => { e.stopPropagation(); currentUser ? setShowShare(true) : setShowAuth(true); }}>
                       <CustomIcon icon="zi-share" className="text-white text-xl" />
@@ -1276,7 +1286,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
       {/* Comment section */}
       {showComments && (
         <Box className="px-4 py-3 border-t border-gray-100 bg-gray-50/50">
-          <Text className="font-bold text-[15px] text-gray-800 mb-3">Bình luận ({commentsCount})</Text>
+          <Text className="font-bold text-[15px] text-gray-800 mb-3">Góp ý ({commentsCount})</Text>
           <Box className="space-y-3 mb-4">
             {rootComments.map(cmt => (
               <Box key={cmt.id}>
@@ -1301,7 +1311,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
               <textarea
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
-                placeholder={replyingTo ? "Viết câu trả lời..." : "Viết bình luận..."}
+                placeholder={replyingTo ? "Viết câu trả lời..." : "Viết góp ý..."}
                 className="w-full border-none text-[14px] px-3 py-2.5 outline-none bg-transparent resize-none min-h-[40px]"
                 rows={1}
                 style={{ height: 'auto', minHeight: '40px' }}
@@ -1311,12 +1321,7 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
                   target.style.height = target.scrollHeight + 'px';
                 }}
               />
-              <Box className="flex items-center justify-between px-2 pb-2">
-                <Box className="flex items-center space-x-2">
-                  <CustomIcon icon="zi-photo" className="text-gray-400 text-lg cursor-pointer p-1 active:text-[#14502e]" onClick={() => openSnackbar({ text: "Tính năng đăng ảnh đang cập nhật", type: "info" })} />
-                  <CustomIcon icon="zi-video" className="text-gray-400 text-lg cursor-pointer p-1 active:text-[#14502e]" onClick={() => openSnackbar({ text: "Tính năng đăng video đang cập nhật", type: "info" })} />
-                  <Icon icon="zi-shop" className="text-gray-400 text-lg cursor-pointer p-1 active:text-[#14502e]" onClick={() => openSnackbar({ text: "Tính năng gắn sản phẩm đang cập nhật", type: "info" })} />
-                </Box>
+              <Box className="flex items-center justify-end px-2 pb-2">
                 <Icon 
                   icon="zi-send-solid" 
                   className={`text-2xl cursor-pointer p-1 transition-colors ${commentText.trim() ? "text-[#14502e]" : "text-gray-300"}`}

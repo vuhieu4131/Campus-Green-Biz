@@ -25,7 +25,7 @@ export const Welcome: FC = () => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         try {
-          const phoneFromEmail = user.email ? user.email.replace("@campus.com", "") : "";
+          const phoneFromEmail = user.email ? user.email.split("@")[0] : "";
           const localPhone = localStorage.getItem("user_phone");
           const finalPhone = phoneFromEmail || localPhone;
 

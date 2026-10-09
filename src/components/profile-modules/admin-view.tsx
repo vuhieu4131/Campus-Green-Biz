@@ -81,6 +81,7 @@ export const AdminView: FC<AdminProps> = ({ userData, onLogout }) => {
   const [pendingCounts, setPendingCounts] = useState({
     providers: 0, posts: 0, community_posts: 0, feedbacks: 0, requests: 0, members: 0, banners: 0, create_admin: 0, fee_reconciliation: 0, vip_requests: 0
   });
+  const [totalCounts, setTotalCounts] = useState({ members: 0, providers: 0 });
 
   const [bannerInput, setBannerInput] = useState("");      
   const [bannerLinkInput, setBannerLinkInput] = useState(""); 
@@ -201,6 +202,20 @@ export const AdminView: FC<AdminProps> = ({ userData, onLogout }) => {
   const [notifyLoading, setNotifyLoading] = useState(false);
   const [userNotifs, setUserNotifs] = useState<any[]>([]);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
+  const [notifyTab, setNotifyTab] = useState("compose");
+
+  // 👉 STATE CHO TÍNH NĂNG XỬ PHẠT VI PHẠM
+  const [showPenaltyModal, setShowPenaltyModal] = useState(false);
+  const [penaltyType, setPenaltyType] = useState("rankPoints");
+  const [penaltyAmount, setPenaltyAmount] = useState("");
+  const [penaltyReason, setPenaltyReason] = useState("");
+  const [penaltyModalTab, setPenaltyModalTab] = useState("form");
+
+  // 👉 STATE CHO TÍNH NĂNG THƯỞNG ĐIỂM ƯU ĐÃI
+  const [showRewardModal, setShowRewardModal] = useState(false);
+  const [rewardAmount, setRewardAmount] = useState("");
+  const [rewardReason, setRewardReason] = useState("");
+  const [rewardModalTab, setRewardModalTab] = useState("form");
 
   const [providerTab, setProviderTab] = useState("pending");
   const [postTab, setPostTab] = useState("pending");
@@ -316,8 +331,10 @@ export const AdminView: FC<AdminProps> = ({ userData, onLogout }) => {
   // 👉 BƯỚC 2: State cho Chiến dịch Voucher
   const [voucherConfig, setVoucherConfig] = useState<{
     title: string; startTime: string; endTime: string; isOpen: boolean; applicableProducts: string[];
+    hasCustomTier?: boolean; customVoucherValue?: number; customMinOrderValue?: number; customQuantity?: number | null;
   }>({
-    title: "", startTime: "", endTime: "", isOpen: false, applicableProducts: [] // Mảng chứa ID sản phẩm được chọn
+    title: "", startTime: "", endTime: "", isOpen: false, applicableProducts: [],
+    hasCustomTier: false, customVoucherValue: 0, customMinOrderValue: 0, customQuantity: null
   });
   const [allServices, setAllServices] = useState<any[]>([]); 
 const [allProvidersList, setAllProvidersList] = useState<any[]>([]); // 👉 THÊM: Lưu danh sách Shop
@@ -326,11 +343,14 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
   const [savingVoucher, setSavingVoucher] = useState(false);
   const [voucherTab, setVoucherTab] = useState("current");
   const [isEditingVoucher, setIsEditingVoucher] = useState(false);
+  const [editingVoucherId, setEditingVoucherId] = useState<string | null>(null);
   const [completedOrders, setCompletedOrders] = useState<any[]>([]);
   const [shopNamesMap, setShopNamesMap] = useState<Record<string, string>>({});
   const [statsShopFilter, setStatsShopFilter] = useState("all");
   const [showStatsDetail, setShowStatsDetail] = useState(false);
   const [statsTab, setStatsTab] = useState("all"); // 'all', 'collected', 'unpaid'
+  const [selectedOrderForDetail, setSelectedOrderForDetail] = useState<any>(null); // 👉 THÊM: Modal chi tiết đơn hàng
+  const [showUserCancelledOrders, setShowUserCancelledOrders] = useState<any[] | null>(null);
 
   useEffect(() => {
     const fetchAdminDashboard = async () => {
@@ -354,7 +374,10 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                 startTime: data.voucherStartTime || "",
                 endTime: data.voucherEndTime || "",
                 isOpen: data.isVoucherOpen || false,
-                applicableProducts: data.applicableProducts || [] // 👉 Thêm dòng này vào là hết đỏ
+                applicableProducts: data.applicableProducts || [],
+                hasCustomTier: data.hasCustomTier || false,
+                customVoucherValue: data.customVoucherValue || 0,
+                customMinOrderValue: data.customMinOrderValue || 0
             });
               
               // 👉 BƯỚC 2 (BỔ SUNG): TẢI THÊM THÔNG TIN NGÂN HÀNG ĐÃ LƯU
@@ -486,21 +509,45 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
             voucherStartTime: voucherConfig.startTime,
             voucherEndTime: voucherConfig.endTime,
             isVoucherOpen: voucherConfig.isOpen,
-            applicableProducts: voucherConfig.applicableProducts // 👉 LƯU MẢNG ID VÀO CẤU HÌNH CHUNG
+            applicableProducts: voucherConfig.applicableProducts,
+            hasCustomTier: voucherConfig.hasCustomTier || false,
+            customVoucherValue: voucherConfig.customVoucherValue || 0,
+            customMinOrderValue: voucherConfig.customMinOrderValue || 0,
+            customQuantity: voucherConfig.customQuantity || 0
         }, { merge: true });
 
-        await addDoc(collection(db, "voucher_campaigns"), {
-            title: voucherConfig.title,
-            startTime: voucherConfig.startTime,
-            endTime: voucherConfig.endTime,
-            isOpen: voucherConfig.isOpen,
-            applicableProducts: voucherConfig.applicableProducts, // 👉 LƯU MẢNG ID VÀO LỊCH SỬ CHIẾN DỊCH
-            createdAt: serverTimestamp()
-        });
+        if (editingVoucherId) {
+            await updateDoc(doc(db, "voucher_campaigns", editingVoucherId), {
+                title: voucherConfig.title,
+                startTime: voucherConfig.startTime,
+                endTime: voucherConfig.endTime,
+                isOpen: voucherConfig.isOpen,
+                applicableProducts: voucherConfig.applicableProducts,
+                hasCustomTier: voucherConfig.hasCustomTier || false,
+                customVoucherValue: voucherConfig.customVoucherValue || 0,
+                customMinOrderValue: voucherConfig.customMinOrderValue || 0,
+                customQuantity: voucherConfig.customQuantity !== undefined && voucherConfig.customQuantity !== null ? voucherConfig.customQuantity : null
+            });
+            openSnackbar({ text: "Cập nhật chiến dịch thành công!", type: "success" });
+        } else {
+            await addDoc(collection(db, "voucher_campaigns"), {
+                title: voucherConfig.title,
+                startTime: voucherConfig.startTime,
+                endTime: voucherConfig.endTime,
+                isOpen: voucherConfig.isOpen,
+                applicableProducts: voucherConfig.applicableProducts,
+                hasCustomTier: voucherConfig.hasCustomTier || false,
+                customVoucherValue: voucherConfig.customVoucherValue || 0,
+                customMinOrderValue: voucherConfig.customMinOrderValue || 0,
+                customQuantity: voucherConfig.customQuantity !== undefined && voucherConfig.customQuantity !== null ? voucherConfig.customQuantity : null,
+                createdAt: serverTimestamp()
+            });
+            openSnackbar({ text: "Lưu đợt Voucher thành công!", type: "success" });
+        }
 
-        openSnackbar({ text: "Lưu đợt Voucher thành công!", type: "success" });
         fetchData("vouchers"); 
-        setIsEditingVoucher(false); 
+        setIsEditingVoucher(false);
+        setEditingVoucherId(null);
     } catch (error) { 
         openSnackbar({ text: "Lỗi lưu cấu hình", type: "error" }); 
     }
@@ -511,6 +558,10 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
     const unsubProviders = onSnapshot(collection(db, "shops"), (snap) => {
       const pendingCount = snap.docs.filter(doc => doc.data().status === "pending" || !doc.data().status).length;
       setPendingCounts(prev => ({ ...prev, providers: pendingCount }));
+      setTotalCounts(prev => ({ ...prev, providers: snap.size }));
+    });
+    const unsubUsers = onSnapshot(collection(db, "users"), (snap) => {
+      setTotalCounts(prev => ({ ...prev, members: snap.size }));
     });
     const unsubPosts = onSnapshot(query(collection(db, "services"), where("status", "==", "pending")), (snap) => setPendingCounts(prev => ({ ...prev, posts: snap.size })));
     const unsubCommunityPosts = onSnapshot(query(collection(db, "posts"), where("status", "==", "pending")), (snap) => setPendingCounts(prev => ({ ...prev, community_posts: snap.size })));
@@ -531,7 +582,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
         }
     );
 
-    return () => { unsubProviders(); unsubPosts(); unsubCommunityPosts(); unsubFeedbacks(); unsubRequests(); unsubFees(); unsubVip(); };
+    return () => { unsubProviders(); unsubUsers(); unsubPosts(); unsubCommunityPosts(); unsubFeedbacks(); unsubRequests(); unsubFees(); unsubVip(); };
   }, []);
 
   // 👉 BƯỚC 2: STATE CHO TÍNH NĂNG ĐỐI SOÁT & CẤU HÌNH NGÂN HÀNG ADMIN
@@ -650,6 +701,62 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
             rawData = validShops;
         }
         
+        // 👉 XỬ LÝ RIÊNG: ĐẾM SỐ LƯỢNG ĐƠN HÀNG HỦY CHO THÀNH VIÊN VÀ SHOP
+        if (featureId === "members" || featureId === "providers") {
+            try {
+                const ordersSnap = await getDocs(collection(db, "orders"));
+                const orderCounts: Record<string, { cancelled: number, total: number, cancelledThisMonth: number, cancelledOrders: any[] }> = {};
+                
+                const now = new Date();
+                const currentMonth = now.getMonth();
+                const currentYear = now.getFullYear();
+
+                ordersSnap.docs.forEach(d => {
+                    const data = d.data();
+                    const uId = data.userId || data.userPhone || data.customerPhone || data.phone || data.receiverPhone;
+                    const sId = data.shopId || data.providerId || data.ownerPhone || data.shopPhone;
+                    
+                    const recordOrder = (id: string) => {
+                        if (!id) return;
+                        if (!orderCounts[id]) orderCounts[id] = { cancelled: 0, total: 0, cancelledThisMonth: 0, cancelledOrders: [] };
+                        orderCounts[id].total++;
+                        if (data.status === 'cancelled') {
+                            orderCounts[id].cancelled++;
+                            orderCounts[id].cancelledOrders.push({...data, id: d.id});
+                            
+                            let cancelDate = new Date();
+                            if (data.cancelledAt) cancelDate = new Date(data.cancelledAt);
+                            else if (data.createdAt) {
+                                cancelDate = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt.seconds ? data.createdAt.seconds * 1000 : data.createdAt);
+                            }
+
+                            if (cancelDate.getMonth() === currentMonth && cancelDate.getFullYear() === currentYear) {
+                                orderCounts[id].cancelledThisMonth++;
+                            }
+                        }
+                    };
+                    
+                    if (featureId === "members") recordOrder(uId);
+                    if (featureId === "providers") recordOrder(sId);
+                });
+
+                rawData.forEach(item => {
+                    const byId = orderCounts[item.id];
+                    const byPhone = item.phone ? orderCounts[item.phone] : null;
+                    if (byId && byPhone && item.id !== item.phone) {
+                        item.orderStats = {
+                            cancelled: byId.cancelled + byPhone.cancelled,
+                            total: byId.total + byPhone.total,
+                            cancelledThisMonth: byId.cancelledThisMonth + byPhone.cancelledThisMonth,
+                            cancelledOrders: [...byId.cancelledOrders, ...byPhone.cancelledOrders]
+                        };
+                    } else {
+                        item.orderStats = byId || byPhone || { cancelled: 0, total: 0, cancelledThisMonth: 0, cancelledOrders: [] };
+                    }
+                });
+            } catch(e) { console.error("Lỗi đếm đơn hàng:", e); }
+        }
+
         // 👉 XỬ LÝ RIÊNG: LỌC VÀ GOM NHÓM CHO TÍNH NĂNG ĐỐI SOÁT PHÍ
         // 👉 XỬ LÝ RIÊNG: LỌC VÀ GOM NHÓM CHO TÍNH NĂNG ĐỐI SOÁT PHÍ
         // 👉 XỬ LÝ RIÊNG: LỌC, PHÁT HIỆN BÁO CÁO CK VÀ GOM NHÓM ĐỐI SOÁT PHÍ
@@ -1038,7 +1145,143 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
     } finally {
         setNotifyLoading(false);
     }
-};
+  };
+
+  // 👉 HÀM XỬ PHẠT VI PHẠM (TRỪ ĐIỂM)
+  const handlePenalty = async () => {
+    if (loading) return;
+    if (!detailUser || !penaltyAmount || !penaltyReason) {
+        openSnackbar({ text: "Vui lòng nhập số điểm và lý do phạt!", type: "warning" });
+        return;
+    }
+    
+    const amount = Number(penaltyAmount);
+    if (isNaN(amount) || amount <= 0) {
+        openSnackbar({ text: "Số điểm không hợp lệ!", type: "error" });
+        return;
+    }
+
+    try {
+        setLoading(true);
+        let updateData: any = {};
+        let currentPoints = 0;
+        let walletName = "";
+        
+        let txWalletType = "main";
+        if (penaltyType === "rankPoints") {
+            currentPoints = detailUser.rankPoints || 0;
+            walletName = "Tổng tích lũy";
+            updateData.rankPoints = Math.max(0, currentPoints - amount);
+            txWalletType = "main";
+        } else if (penaltyType === "interactionPoints") {
+            currentPoints = detailUser.interactionPoints || 0;
+            walletName = "Ví tương tác";
+            updateData.interactionPoints = Math.max(0, currentPoints - amount);
+            txWalletType = "interaction";
+        } else if (penaltyType === "spendingPoints") {
+            currentPoints = detailUser.spendingPoints || 0;
+            walletName = "Ví ưu đãi";
+            updateData.spendingPoints = Math.max(0, currentPoints - amount);
+            txWalletType = "promo";
+        } else if (penaltyType === "voucher") {
+            openSnackbar({ text: "Tính năng trừ Ví Voucher chưa khả dụng!", type: "warning" });
+            return;
+        }
+        
+        await updateDoc(doc(db, "users", detailUser.id), updateData);
+        
+        // Ghi nhận lịch sử giao dịch để đồng bộ hiển thị phía Client
+        await addDoc(collection(db, "point_transactions"), {
+            userId: detailUser.id,
+            userPhone: detailUser.phone || detailUser.id,
+            amount: amount,
+            type: "minus",
+            walletType: txWalletType,
+            description: `Bị hệ thống xử phạt: ${penaltyReason.trim()}`,
+            createdAt: serverTimestamp()
+        });
+        
+        // Gửi thông báo cho user
+        await addDoc(collection(db, "notifications"), {
+            userId: detailUser.id,
+            title: "Thông báo Xử phạt vi phạm",
+            content: `Hệ thống đã trừ ${amount.toLocaleString('vi-VN')} điểm trong ${walletName} của bạn. Lý do: ${penaltyReason.trim()}.\nVui lòng tuân thủ quy định để tránh bị khóa tài khoản!`,
+            type: "system",
+            createdAt: serverTimestamp(),
+            isRead: false
+        });
+
+        // Update local state
+        setDetailUser({ ...detailUser, ...updateData });
+        setDataList((prev: any) => prev.map((u: any) => u.id === detailUser.id ? { ...u, ...updateData } : u));
+        
+        openSnackbar({ text: "Xử phạt thành công!", type: "success" });
+        setShowPenaltyModal(false);
+        setPenaltyAmount("");
+        setPenaltyReason("");
+    } catch (e) {
+        openSnackbar({ text: "Lỗi xử phạt", type: "error" });
+    } finally {
+        setLoading(false);
+    }
+  };
+
+  // 👉 HÀM THƯỞNG ĐIỂM (CỘNG ĐIỂM ƯU ĐÃI)
+  const handleReward = async () => {
+    if (loading) return;
+    if (!detailUser || !rewardAmount || !rewardReason) {
+        openSnackbar({ text: "Vui lòng nhập đủ thông tin!", type: "warning" });
+        return;
+    }
+    
+    const amount = parseInt(rewardAmount);
+    if (isNaN(amount) || amount <= 0) {
+        openSnackbar({ text: "Số điểm phải lớn hơn 0", type: "warning" });
+        return;
+    }
+
+    try {
+        setLoading(true);
+        let currentPoints = detailUser.spendingPoints || 0;
+        let updateData = { spendingPoints: currentPoints + amount };
+        
+        await updateDoc(doc(db, "users", detailUser.id), updateData);
+        
+        // Ghi nhận lịch sử giao dịch để đồng bộ hiển thị phía Client
+        await addDoc(collection(db, "point_transactions"), {
+            userId: detailUser.id,
+            userPhone: detailUser.phone || detailUser.id,
+            amount: amount,
+            type: "plus",
+            walletType: "promo",
+            description: `Được hệ thống thưởng: ${rewardReason.trim()}`,
+            createdAt: serverTimestamp()
+        });
+        
+        // Gửi thông báo cho user
+        await addDoc(collection(db, "notifications"), {
+            userId: detailUser.id,
+            title: "Thông báo Thưởng điểm",
+            content: `Chúc mừng! Bạn đã được hệ thống tặng ${amount.toLocaleString('vi-VN')} điểm vào Ví ưu đãi. Lý do: ${rewardReason.trim()}.`,
+            type: "system",
+            createdAt: serverTimestamp(),
+            isRead: false
+        });
+
+        // Update local state
+        setDetailUser({ ...detailUser, ...updateData });
+        setDataList((prev: any) => prev.map((u: any) => u.id === detailUser.id ? { ...u, ...updateData } : u));
+        
+        openSnackbar({ text: "Thưởng điểm thành công!", type: "success" });
+        setShowRewardModal(false);
+        setRewardAmount("");
+        setRewardReason("");
+    } catch (e) {
+        openSnackbar({ text: "Lỗi thưởng điểm", type: "error" });
+    } finally {
+        setLoading(false);
+    }
+  };
   const handleCreateAdmin = async () => {
     if (!newAdminPhone || !newAdminName || !newAdminPassword) return openSnackbar({ text: "Thiếu thông tin!", type: "warning" });
     setCreatingAdmin(true);
@@ -1373,7 +1616,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
     );
 
     if (loading) return <Box flex justifyContent="center" p={4}><Spinner /></Box>;
-    if (dataList.length === 0 && !["banners", "posts", "community_posts", "providers", "settings", "vouchers"].includes(selectedFeature || "")) return <Box p={4}><Text className="text-center text-gray">Không có dữ liệu.</Text></Box>;
+    if (dataList.length === 0 && !["banners", "posts", "community_posts", "providers", "settings", "vouchers", "fee_reconciliation"].includes(selectedFeature || "")) return <Box p={4}><Text className="text-center text-gray">Không có dữ liệu.</Text></Box>;
 
     switch (selectedFeature) {
       case "members": {
@@ -1397,6 +1640,13 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
             processedList.sort((a, b) => (b.interactionPoints || 0) - (a.interactionPoints || 0));
         } else if (sortFilter === 'top_voucher') {
             processedList.sort((a, b) => (b.voucherCount || 0) - (a.voucherCount || 0));
+        } else {
+            // Sắp xếp thành viên mới nhất lên trên
+            processedList.sort((a, b) => {
+                const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
+                const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
+                return timeB - timeA;
+            });
         }
 
         return (
@@ -1456,6 +1706,12 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                   <CustomIcon icon={calculateMemberRankInfo(m.rankPoints || 0).icon as any} size={10} className="mr-1 inline-flex" />
                                   <span>{calculateMemberRankInfo(m.rankPoints || 0).name}</span>
                               </Box>
+                              {m.orderStats?.cancelled > 0 && (
+                                  <Box className="flex flex-col items-center justify-center mr-2 text-red-500 shrink-0 bg-red-50 px-2 py-1 rounded-lg">
+                                      <CustomIcon icon="zi-warning-solid" size={12} />
+                                      <Text size="xxxxSmall" className="font-bold">{m.orderStats.cancelled}/{m.orderStats.total}</Text>
+                                  </Box>
+                              )}
                           </Box>
                           <Box className="p-2 ml-1 cursor-pointer active:opacity-50" onClick={(e) => { e.stopPropagation(); handleDeleteItem("users", m.id); }}>
                               <CustomIcon icon="zi-delete" className="text-red-500" />
@@ -1568,6 +1824,12 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                  p.status === "rejected" ? "Bị từ chối" :
                                  "Chưa nộp HS"}
                             </Text>
+                            {p.orderStats?.cancelled > 0 && (
+                                <Box className="flex flex-col items-center justify-center ml-2 text-red-500 shrink-0 bg-red-50 px-2 py-1 rounded-lg">
+                                    <CustomIcon icon="zi-warning-solid" size={12} />
+                                    <Text size="xxxxSmall" className="font-bold">{p.orderStats.cancelled}/{p.orderStats.total}</Text>
+                                </Box>
+                            )}
                         </Box>
 
                         {/* 👉 Khu vực hiển thị thông số Doanh thu (Chỉ hiện khi Shop đã duyệt) */}
@@ -2175,6 +2437,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                       <Text size="small" bold className="text-gray-800">Chiến dịch đang diễn ra</Text>
                                       <Button size="small" className="bg-blue-600 px-3 h-8 text-[12px]" onClick={() => {
                                           setVoucherConfig({ title: "", startTime: "", endTime: "", isOpen: false, applicableProducts: [] });
+                                          setEditingVoucherId(null);
                                           setIsEditingVoucher(true);
                                       }}>
                                           + Mở chiến dịch mới
@@ -2214,6 +2477,12 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                                           Bắt đầu: {camp.startTime ? new Date(camp.startTime).toLocaleString('vi-VN') : 'Không rõ'}<br/>
                                                           Kết thúc: {camp.endTime ? new Date(camp.endTime).toLocaleString('vi-VN') : 'Không rõ'}
                                                       </Text>
+                                                      <Text size="xxxxSmall" className="text-gray-500 mt-1">
+                                                          Đã đổi: <span className="font-bold text-blue-600">{camp.redeemedCount || 0}</span>
+                                                          {camp.hasCustomTier && (
+                                                              <> | Còn lại: <span className="font-bold text-purple-600">{camp.customQuantity !== null && camp.customQuantity !== undefined ? camp.customQuantity : 'Không giới hạn'}</span></>
+                                                          )}
+                                                      </Text>
                                                   </Box>
                                                   <Box flex flexDirection="column" className="space-y-1.5 shrink-0 ml-2">
                                                       <Button size="small" variant="secondary" className="h-7 text-[11px] px-3 w-20" onClick={() => {
@@ -2222,11 +2491,33 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                                               startTime: camp.startTime, 
                                                               endTime: camp.endTime, 
                                                               isOpen: false,
-                                                              applicableProducts: camp.applicableProducts || []
+                                                              applicableProducts: camp.applicableProducts || [],
+                                                              hasCustomTier: camp.hasCustomTier || false,
+                                                              customVoucherValue: camp.customVoucherValue || 0,
+                                                              customMinOrderValue: camp.customMinOrderValue || 0,
+                                                              customQuantity: camp.customQuantity !== undefined ? camp.customQuantity : null
                                                           });
+                                                          setEditingVoucherId(null);
                                                           setIsEditingVoucher(true);
                                                       }}>
-                                                          Dùng lại
+                                                          Sao chép
+                                                      </Button>
+                                                      <Button size="small" variant="secondary" className="h-7 text-[11px] px-3 w-20 bg-blue-50 text-blue-600 border-blue-200" onClick={() => {
+                                                          setVoucherConfig({ 
+                                                              title: camp.title, 
+                                                              startTime: camp.startTime, 
+                                                              endTime: camp.endTime, 
+                                                              isOpen: camp.isOpen || false,
+                                                              applicableProducts: camp.applicableProducts || [],
+                                                              hasCustomTier: camp.hasCustomTier || false,
+                                                              customVoucherValue: camp.customVoucherValue || 0,
+                                                              customMinOrderValue: camp.customMinOrderValue || 0,
+                                                              customQuantity: camp.customQuantity !== undefined ? camp.customQuantity : null
+                                                          });
+                                                          setEditingVoucherId(camp.id);
+                                                          setIsEditingVoucher(true);
+                                                      }}>
+                                                          Sửa
                                                       </Button>
                                                       <Button size="small" variant="secondary" className="h-7 text-[11px] px-3 w-20 bg-orange-50 text-orange-600 border-orange-200" onClick={async () => {
                                                           try {
@@ -2235,7 +2526,10 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                                               fetchData("vouchers");
                                                           } catch(e) {}
                                                       }}>
-                                                          Stop
+                                                          Kết thúc
+                                                      </Button>
+                                                      <Button size="small" variant="secondary" className="h-7 text-[11px] px-3 w-20 bg-red-50 text-red-600 border-red-200" onClick={() => handleDeleteItem("voucher_campaigns", camp.id)}>
+                                                          Xóa
                                                       </Button>
                                                   </Box>
                                               </Box>
@@ -2247,7 +2541,18 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                               /* 👉 NẾU ĐANG Ở CHẾ ĐỘ NHẬP LIỆU (FORM) */
                               <Box className="animate-fade-in-up">
                                   <Box flex justifyContent="space-between" alignItems="center" className="mb-3">
-                                      <Text size="small" bold className="text-gray-800">Thiết lập cấu hình</Text>
+                                      <Box flex alignItems="center">
+                                          <Box 
+                                              className="mr-3 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center cursor-pointer active:bg-gray-200 transition-colors"
+                                              onClick={() => {
+                                                  setIsEditingVoucher(false);
+                                                  setEditingVoucherId(null);
+                                              }}
+                                          >
+                                              <Icon icon="zi-chevron-left" size={20} className="text-gray-600" />
+                                          </Box>
+                                          <Text size="small" bold className="text-gray-800">{editingVoucherId ? "Chỉnh sửa chiến dịch" : "Thiết lập cấu hình mới"}</Text>
+                                      </Box>
                                       <Box className={`px-2 py-1 rounded border text-[10px] font-bold ${statusColor}`}>
                                           {currentStatus}
                                       </Box>
@@ -2275,6 +2580,33 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                           </Box>
                                           <input type="checkbox" className="w-5 h-5 accent-blue-600" checked={voucherConfig.isOpen} onChange={(e) => setVoucherConfig({...voucherConfig, isOpen: e.target.checked})} />
                                       </Box>
+                                      
+                                      {/* 👉 SETUP VOUCHER ĐẶC BIỆT */}
+                                      <Box className="flex items-center justify-between p-3 bg-purple-50 rounded-lg border border-purple-200 mt-4">
+                                          <Box>
+                                              <Text bold size="small" className="text-purple-800">Voucher Đặc Biệt</Text>
+                                              <Text size="xxxxSmall" className="text-purple-600">Áp dụng cho Sự kiện (Tuỳ chỉnh mệnh giá)</Text>
+                                          </Box>
+                                          <input type="checkbox" className="w-5 h-5 accent-purple-600" checked={voucherConfig.hasCustomTier} onChange={(e) => setVoucherConfig({...voucherConfig, hasCustomTier: e.target.checked})} />
+                                      </Box>
+                                      
+                                      {voucherConfig.hasCustomTier && (
+                                          <Box className="bg-purple-50 p-3 rounded-lg border border-purple-200 mt-2">
+                                              <Box mb={2}>
+                                                  <Text size="xSmall" bold className="text-purple-800 mb-1">Giá trị Voucher (VNĐ)</Text>
+                                                  <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-purple-500" placeholder="VD: 30000" value={voucherConfig.customVoucherValue || ''} onChange={(e) => setVoucherConfig({...voucherConfig, customVoucherValue: Number(e.target.value)})} />
+                                              </Box>
+                                              <Box>
+                                                  <Text size="xSmall" bold className="text-purple-800 mb-1">Giá trị Đơn tối thiểu áp dụng (VNĐ)</Text>
+                                                  <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-purple-500" placeholder="VD: 50000" value={voucherConfig.customMinOrderValue || ''} onChange={(e) => setVoucherConfig({...voucherConfig, customMinOrderValue: Number(e.target.value)})} />
+                                              </Box>
+                                              <Box mt={2}>
+                                                  <Text size="xSmall" bold className="text-purple-800 mb-1">Số lượng Voucher (Để trống = Không giới hạn)</Text>
+                                                  <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-purple-500" placeholder="VD: 100" value={voucherConfig.customQuantity === null || voucherConfig.customQuantity === undefined ? '' : voucherConfig.customQuantity} onChange={(e) => setVoucherConfig({...voucherConfig, customQuantity: e.target.value === '' ? null : Number(e.target.value)})} />
+                                              </Box>
+                                              <Text size="xxxxSmall" className="text-purple-600 mt-2 italic">* Tỷ lệ đổi điểm sẽ tự động tính theo mệnh giá voucher (ví dụ: 10k = 20 điểm ưu đãi).</Text>
+                                          </Box>
+                                      )}
                                       
                                       {/* 👉 KHUNG TÍCH CHỌN SẢN PHẨM / DỊCH VỤ GIỚI HẠN */}
                                       <Box className="mt-4 pt-4 border-t border-gray-100">
@@ -2391,6 +2723,12 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                               Bắt đầu: {camp.startTime ? new Date(camp.startTime).toLocaleString('vi-VN') : 'Không rõ'}<br/>
                                               Kết thúc: {camp.endTime ? new Date(camp.endTime).toLocaleString('vi-VN') : 'Không rõ'}
                                           </Text>
+                                          <Text size="xxxxSmall" className="text-gray-500 mt-1">
+                                              Đã đổi: <span className="font-bold text-blue-600">{camp.redeemedCount || 0}</span>
+                                              {camp.hasCustomTier && (
+                                                  <> | Còn lại: <span className="font-bold text-purple-600">{camp.customQuantity !== null && camp.customQuantity !== undefined ? camp.customQuantity : 'Không giới hạn'}</span></>
+                                              )}
+                                          </Text>
                                       </Box>
                                       <Box flex flexDirection="column" className="space-y-1.5 shrink-0 ml-2">
                                           <Button size="small" variant="secondary" className="h-7 text-[11px] px-3 w-20" onClick={() => {
@@ -2399,12 +2737,35 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                                   startTime: camp.startTime, 
                                                   endTime: camp.endTime, 
                                                   isOpen: false,
-                                                  applicableProducts: camp.applicableProducts || []
+                                                  applicableProducts: camp.applicableProducts || [],
+                                                  hasCustomTier: camp.hasCustomTier || false,
+                                                  customVoucherValue: camp.customVoucherValue || 0,
+                                                  customMinOrderValue: camp.customMinOrderValue || 0,
+                                                  customQuantity: camp.customQuantity !== undefined ? camp.customQuantity : null
                                               });
+                                              setEditingVoucherId(null);
                                               setVoucherTab("current");
                                               setIsEditingVoucher(true);
                                           }}>
-                                              Dùng lại
+                                              Sao chép
+                                          </Button>
+                                          <Button size="small" variant="secondary" className="h-7 text-[11px] px-3 w-20 bg-blue-50 text-blue-600 border-blue-200" onClick={() => {
+                                              setVoucherConfig({ 
+                                                  title: camp.title, 
+                                                  startTime: camp.startTime, 
+                                                  endTime: camp.endTime, 
+                                                  isOpen: camp.isOpen || false,
+                                                  applicableProducts: camp.applicableProducts || [],
+                                                  hasCustomTier: camp.hasCustomTier || false,
+                                                  customVoucherValue: camp.customVoucherValue || 0,
+                                                  customMinOrderValue: camp.customMinOrderValue || 0,
+                                                  customQuantity: camp.customQuantity !== undefined ? camp.customQuantity : null
+                                              });
+                                              setEditingVoucherId(camp.id);
+                                              setVoucherTab("current");
+                                              setIsEditingVoucher(true);
+                                          }}>
+                                              Sửa
                                           </Button>
                                           {campStatus !== "Đã kết thúc" && (
                                               <Button size="small" variant="secondary" className="h-7 text-[11px] px-3 w-20 bg-orange-50 text-orange-600 border-orange-200" onClick={async () => {
@@ -2414,7 +2775,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                                       fetchData("vouchers");
                                                   } catch(e) {}
                                               }}>
-                                                  Stop
+                                                  Kết thúc
                                               </Button>
                                           )}
                                           <Button size="small" variant="secondary" className="h-7 text-[11px] px-3 w-20 bg-red-50 text-red-600 border-red-200" onClick={() => handleDeleteItem("voucher_campaigns", camp.id)}>
@@ -2776,13 +3137,13 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
           {/* THANH TAB CHUYỂN ĐỔI */}
           <Box flex className="border-b border-gray-200 px-2 pt-2 bg-white shrink-0">
               <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${allOrdersTab==="pending"?"border-yellow-600 text-yellow-600 font-bold":"border-transparent text-gray-500"}`} onClick={()=>setAllOrdersTab("pending")}>
-                  Đang chờ
+                  Đang chờ ({dataList.filter(order => order.status !== "completed" && order.status !== "success" && order.status !== "cancelled").length})
               </Box>
               <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${allOrdersTab==="completed"?"border-green-600 text-green-600 font-bold":"border-transparent text-gray-500"}`} onClick={()=>setAllOrdersTab("completed")}>
-                  Hoàn thành
+                  Hoàn thành ({dataList.filter(order => order.status === "completed" || order.status === "success").length})
               </Box>
               <Box className={`flex-1 text-center py-2 border-b-2 cursor-pointer ${allOrdersTab==="cancelled"?"border-red-600 text-red-600 font-bold":"border-transparent text-gray-500"}`} onClick={()=>setAllOrdersTab("cancelled")}>
-                  Đã hủy
+                  Đã hủy ({dataList.filter(order => order.status === "cancelled").length})
               </Box>
           </Box>
           <Box p={4} className="flex-1 bg-white hide-scroll overflow-y-auto">
@@ -2796,7 +3157,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                   <Box key={order.id} className="mb-3 p-3 bg-white rounded-xl border border-gray-200 shadow-md animate-fade-in-up">
                       {/* Mã đơn & Trạng thái */}
                       <Box flex justifyContent="space-between" className="border-b border-gray-100 pb-2 mb-2">
-                          <Text size="small" bold className="text-blue-600">#{order.orderCode || order.id?.slice(0,6).toUpperCase() || "UNK"}</Text>
+                          <Text size="small" bold className="text-blue-600 cursor-pointer hover:underline" onClick={() => setSelectedOrderForDetail(order)}>#{order.orderCode || order.id?.slice(0,6).toUpperCase() || "UNK"}</Text>
                           <Text size="xSmall" bold className={
                               order.status === 'completed' || order.status === 'success' ? "text-green-500" :
                               order.status === 'cancelled' ? "text-red-500" : "text-yellow-500"
@@ -2809,9 +3170,9 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                       {/* Thông tin Dịch vụ & Đối tác */}
                       <Box mb={2}>
                           <Text size="small" bold className="text-gray-800">{order.productName}</Text>
-                          <Box flex alignItems="center" mt={1}>
-                              <CustomIcon icon={"zi-store" as any} size={14} className="text-gray-400 mr-1" />
-                              <Text size="xxSmall" className="text-gray-600 line-clamp-1">{shopNamesMap[order.providerId || order.shopId] || order.shopName || order.location?.name || "Chi nhánh"}</Text>
+                          <Box flex alignItems="center" mt={1} className="cursor-pointer hover:opacity-80 active:opacity-50" onClick={() => navigate(`/shop-details/${order.providerId || order.shopId}`)}>
+                              <CustomIcon icon={"zi-store" as any} size={14} className="text-gray-400 mr-1 shrink-0" />
+                              <Text size="xxSmall" className="text-blue-600 font-medium underline line-clamp-1">{shopNamesMap[order.providerId || order.shopId] || order.shopName || order.location?.name || "Chi nhánh"}</Text>
                           </Box>
                           <Box flex alignItems="center" mt={0.5}>
                               <CustomIcon icon="zi-user" size={14} className="text-gray-400 mr-1" />
@@ -2830,14 +3191,41 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                   <Text size="xxxxSmall" className="text-gray-400 italic mt-0.5">Chưa thu phí</Text>
                               )}
                           </Box>
-                          <Button 
-                              size="small" 
-                              onClick={() => handleShareOrder(order)}
-                              className="bg-[#14502e] text-white flex items-center space-x-1 h-7 px-3 rounded-lg"
-                          >
-                              <CustomIcon icon="zi-share" size={12} />
-                              <span className="text-[11px]">Chia sẻ Zalo</span>
-                          </Button>
+                          {order.status === 'cancelled' && (
+                              <Box className="text-right flex flex-col justify-end">
+                                  {(() => {
+                                      const isCustomer = order.cancelledBy === 'customer' || (order.cancelReason && order.cancelReason.toLowerCase().includes('khách'));
+                                      const isShop = order.cancelledBy === 'shop' || (order.cancelReason && order.cancelReason.toLowerCase().includes('shop'));
+                                      const cancelLabel = isShop ? 'Shop huỷ' : (isCustomer ? 'Khách huỷ' : 'Đã huỷ');
+                                      const cancelColor = isShop ? 'text-blue-600' : 'text-red-600'; // Xanh cho Shop, Đỏ cho Khách
+                                      
+                                      return (
+                                          <>
+                                              <Text size="xxxxSmall" className={`${cancelColor} font-bold mb-0.5`}>
+                                                  [{cancelLabel}]
+                                              </Text>
+                                              {order.cancelReason && (
+                                                  <Text size="xxxxSmall" className={`${cancelColor} font-medium max-w-[120px] line-clamp-2`}>
+                                                      Lý do: {order.cancelReason}
+                                                  </Text>
+                                              )}
+                                          </>
+                                      );
+                                  })()}
+                                  <Text size="xxxxSmall" className="text-gray-400 mt-0.5">
+                                      {(() => {
+                                          const t = order.cancelledAt || order.updatedAt;
+                                          if (!t) return "";
+                                          try {
+                                              if (typeof t === 'string') return new Date(t).toLocaleString('vi-VN');
+                                              if (t.seconds) return new Date(t.seconds * 1000).toLocaleString('vi-VN');
+                                              if (t.toDate) return t.toDate().toLocaleString('vi-VN');
+                                          } catch(e) { return "" }
+                                          return "";
+                                      })()}
+                                  </Text>
+                              </Box>
+                          )}
                       </Box>
                   </Box>
               );
@@ -2911,7 +3299,11 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
         ).map((item) => (
           <Box key={item.id} className="bg-white p-4 rounded-xl flex flex-col items-center shadow-md border border-gray-50 relative cursor-pointer active:opacity-80" onClick={() => setSelectedFeature(item.id)}>
             <CustomIcon icon={item.icon as any} className={`${item.color} text-3xl mb-2`} />
-            <Text bold size="small" className="text-center">{item.label}</Text>
+            <Text bold size="small" className="text-center">
+              {item.label}
+              {item.id === 'members' && totalCounts.members > 0 ? ` (${totalCounts.members})` : ''}
+              {item.id === 'providers' && totalCounts.providers > 0 ? ` (${totalCounts.providers})` : ''}
+            </Text>
             {pendingCounts[item.id as keyof typeof pendingCounts] > 0 && (<Box className="absolute top-2 right-2 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold shadow-md">{pendingCounts[item.id as keyof typeof pendingCounts]}</Box>)}
           </Box>
         ))}
@@ -2966,10 +3358,18 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                         <span>{calculateMemberRankInfo(detailUser.rankPoints || 0).name}</span>
                     </Box>
                 </Box>
-                <Text size="small" className="text-gray mb-2 mt-1">{detailUser.phone}</Text>
-
-
-{/* 👉 Khối hiển thị Quản lý shop */}
+                <Text size="small" className="text-gray mb-1 mt-1">{detailUser.phone}</Text>
+                {detailUser.createdAt && (
+                    <Text size="xSmall" className="text-gray-500 mb-3 italic">
+                        Tham gia: {
+                            detailUser.createdAt?.toDate 
+                                ? detailUser.createdAt.toDate().toLocaleString('vi-VN') 
+                                : (detailUser.createdAt?.seconds 
+                                    ? new Date(detailUser.createdAt.seconds * 1000).toLocaleString('vi-VN') 
+                                    : new Date(detailUser.createdAt).toLocaleString('vi-VN'))
+                        }
+                    </Text>
+                )}{/* 👉 Khối hiển thị Quản lý shop */}
 {selectedFeature === 'providers' && (detailUser.managerName || detailUser.fullName || detailUser.ownerName) && (
     <Box className="w-full bg-blue-50 p-3 rounded-lg border border-blue-100 mb-3 flex flex-col relative">
         <Box flex alignItems="center" mb={1}>
@@ -3010,8 +3410,26 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                     <Box className="bg-gray-50 p-3 rounded-lg text-center border border-gray-100 flex flex-col justify-center items-center"><CustomIcon icon="zi-star-solid" className="text-purple-600 mb-1" /><Text size="xxSmall" className="text-gray">Ví ưu đãi</Text><Text size="large" bold className="text-purple-700">{(detailUser.spendingPoints || 0).toLocaleString()}</Text></Box>
                 </Box>
                 
-                {/* 👉 BƯỚC 3: NÚT GỬI THÔNG BÁO CHO NGƯỜI NÀY */}
-                <Box mt={4} className="w-full">
+                {detailUser.orderStats && detailUser.orderStats.cancelled > 0 && (
+                    <Box 
+                        className="w-full mt-3 bg-red-50 p-3 rounded-xl border border-red-200 flex justify-between items-center cursor-pointer active:opacity-50"
+                        onClick={() => setShowUserCancelledOrders(detailUser.orderStats.cancelledOrders)}
+                    >
+                        <Box flex alignItems="center">
+                            <CustomIcon icon="zi-warning-solid" size={24} className="text-red-500 mr-3" />
+                            <Box flex flexDirection="column">
+                                <Text size="small" bold className="text-red-700">Đơn huỷ trong tháng</Text>
+                                <Text size="xxSmall" className="text-red-500 italic">Kích vào để xem chi tiết</Text>
+                            </Box>
+                        </Box>
+                        <Text size="xLarge" bold className="text-red-600">
+                            {detailUser.orderStats.cancelledThisMonth} <span className="text-sm font-normal">/ {detailUser.orderStats.cancelled}</span>
+                        </Text>
+                    </Box>
+                )}
+                
+                {/* 👉 BƯỚC 3: NÚT GỬI THÔNG BÁO VÀ XỬ PHẠT */}
+                <Box mt={4} className="w-full flex flex-col gap-2">
                     <Button 
                         fullWidth 
                         variant="secondary" 
@@ -3022,8 +3440,35 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                             setShowNotifyModal(true);
                         }}
                     >
-                        <CustomIcon icon="zi-chat" className="mr-1" /> Gửi thông báo riêng
+                        <CustomIcon icon="zi-chat" className="mr-1" /> Gửi TB
                     </Button>
+                    <Box className="flex gap-2 w-full">
+                        <Button 
+                            fullWidth 
+                            variant="secondary" 
+                            className="bg-green-50 text-green-600 border border-green-200 shadow-md font-bold flex-1"
+                            onClick={() => {
+                                setRewardAmount("");
+                                setRewardReason("");
+                                setShowRewardModal(true);
+                            }}
+                        >
+                            <CustomIcon icon="zi-star-solid" className="mr-1" /> Thưởng
+                        </Button>
+                        <Button 
+                            fullWidth 
+                            variant="secondary" 
+                            className="bg-red-50 text-red-600 border border-red-200 shadow-md font-bold flex-1"
+                            onClick={() => {
+                                setPenaltyType("rankPoints");
+                                setPenaltyAmount("");
+                                setPenaltyReason("");
+                                setShowPenaltyModal(true);
+                            }}
+                        >
+                            <CustomIcon icon="zi-warning-solid" className="mr-1" /> Xử phạt
+                        </Button>
+                    </Box>
                 </Box>
 
             </Box>
@@ -3134,31 +3579,54 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
           title={`Gửi tin đến: ${detailUser?.name || 'Thành viên'}`} 
           onClose={() => setShowNotifyModal(false)}
       >
-          <Box p={4}>
-              <Text size="xSmall" className="text-gray-500 mb-4 italic leading-relaxed">
-                  Thông báo này sẽ được gửi trực tiếp vào mục "Thông báo" trên ứng dụng của người dùng.
-              </Text>
-              <Box mb={4}>
-                  <Input 
-                      label="Tiêu đề thông báo" 
-                      value={notifyTitle} 
-                      onChange={(e) => setNotifyTitle(e.target.value)} 
-                      placeholder="Nhập tiêu đề..."
-                  />
+          <Box p={4} className="text-left">
+              <Box className="flex border-b border-gray-200 mb-4">
+                  <Box className={`flex-1 text-center py-2 cursor-pointer ${notifyTab === 'compose' ? 'border-b-2 border-blue-600 text-blue-600 font-bold' : 'text-gray-500'}`} onClick={() => setNotifyTab('compose')}>Soạn tin</Box>
+                  <Box className={`flex-1 text-center py-2 cursor-pointer ${notifyTab === 'history' ? 'border-b-2 border-blue-600 text-blue-600 font-bold' : 'text-gray-500'}`} onClick={() => setNotifyTab('history')}>Lịch sử</Box>
               </Box>
-              <Box mb={4}>
-                  <Input.TextArea 
-                      label="Nội dung chi tiết" 
-                      value={notifyContent} 
-                      onChange={(e) => setNotifyContent(e.target.value)} 
-                      placeholder="Ví dụ: Chúc mừng bạn đã nâng hạng! Bạn được tặng 1 Voucher..."
-                      rows={4}
-                  />
-              </Box>
-              <Box flex className="gap-3 mt-2">
-                  <Button variant="secondary" className="flex-1 bg-gray-100 text-gray-600 border-none" onClick={() => setShowNotifyModal(false)}>Hủy</Button>
-                  <Button className="flex-1 bg-blue-600" loading={notifyLoading} onClick={handleSendPrivateNotification}>Gửi ngay</Button>
-              </Box>
+
+              {notifyTab === 'compose' ? (
+                <Box>
+                  <Text size="xSmall" className="text-gray-500 mb-4 italic leading-relaxed">
+                      Thông báo này sẽ được gửi trực tiếp vào mục "Thông báo" trên ứng dụng của người dùng.
+                  </Text>
+                  <Box mb={4}>
+                      <Input 
+                          label="Tiêu đề thông báo" 
+                          value={notifyTitle} 
+                          onChange={(e) => setNotifyTitle(e.target.value)} 
+                          placeholder="Nhập tiêu đề..."
+                      />
+                  </Box>
+                  <Box mb={4}>
+                      <Input.TextArea 
+                          label="Nội dung chi tiết" 
+                          value={notifyContent} 
+                          onChange={(e) => setNotifyContent(e.target.value)} 
+                          placeholder="Ví dụ: Chúc mừng bạn đã nâng hạng! Bạn được tặng 1 Voucher..."
+                          rows={4}
+                      />
+                  </Box>
+                  <Box flex className="gap-3 mt-2">
+                      <Button variant="secondary" className="flex-1 bg-gray-100 text-gray-600 border-none" onClick={() => setShowNotifyModal(false)}>Hủy</Button>
+                      <Button className="flex-1 bg-blue-600" loading={notifyLoading} onClick={handleSendPrivateNotification}>Gửi ngay</Button>
+                  </Box>
+                </Box>
+              ) : (
+                <Box className="max-h-64 overflow-y-auto hide-scroll">
+                    {loadingNotifs ? <Box className="flex justify-center p-4"><Spinner /></Box> : userNotifs.filter(n => n.type === "admin_message").length === 0 ? <Text size="small" className="text-gray-400 text-center py-4">Chưa có lịch sử gửi tin</Text> : (
+                        userNotifs.filter(n => n.type === "admin_message").map((n, i) => (
+                            <Box key={i} className="mb-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                <Box flex justifyContent="space-between" mb={1}>
+                                    <Text size="small" bold>{n.title}</Text>
+                                    <Text size="xSmall" className="text-gray-500 shrink-0 ml-2">{n.createdAt?.seconds ? new Date(n.createdAt.seconds * 1000).toLocaleString('vi-VN') : new Date().toLocaleString('vi-VN')}</Text>
+                                </Box>
+                                <Text size="small" className="text-gray-600 whitespace-pre-wrap">{n.content}</Text>
+                            </Box>
+                        ))
+                    )}
+                </Box>
+              )}
           </Box>
       </Modal>
       <Modal visible={replyModalVisible} title="Xử lý" onClose={() => setReplyModalVisible(false)} actions={[{ text: "Hủy", onClick: () => setReplyModalVisible(false) }, { text: "Xác nhận", onClick: handleProcessFeedback, highLight: true }]}><Box p={4}><Input.TextArea placeholder="Ghi chú xử lý..." value={adminNote} onChange={(e) => setAdminNote(e.target.value)} /></Box></Modal>
@@ -3427,7 +3895,350 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
         )}
       </Modal>
 
-    </Box>
+      {/* Modal Chi tiết đơn hàng */}
+      <Modal 
+        visible={!!selectedOrderForDetail} 
+        title="Chi tiết đơn hàng" 
+        onClose={() => setSelectedOrderForDetail(null)}
+      >
+        {selectedOrderForDetail && (() => {
+          const order = selectedOrderForDetail;
+          const orderCode = order.orderCode || order.id.slice(0, 8).toUpperCase();
+          const totalAmount = order.totalAmount || order.totalPrice || order.total || 0;
+          const dateObj = order.createdAt?.toDate ? order.createdAt.toDate() : 
+                         (order.createdAt?.seconds ? new Date(order.createdAt.seconds * 1000) : new Date(order.createdAt || Date.now()));
+          
+          return (
+            <Box p={4} className="max-h-[70vh] overflow-y-auto hide-scroll space-y-4 text-left">
+              {/* Header Info */}
+              <Box className="bg-gray-50 p-3 rounded-xl border border-gray-200">
+                <Box flex justifyContent="space-between" className="mb-2">
+                  <Text size="small" className="text-gray-500">Mã đơn hàng:</Text>
+                  <Text size="small" bold className="text-blue-600">#{orderCode}</Text>
+                </Box>
+                <Box flex justifyContent="space-between" className="mb-2">
+                  <Text size="small" className="text-gray-500">Trạng thái:</Text>
+                  <Text size="small" bold className={
+                      order.status === 'completed' || order.status === 'success' ? "text-green-500" :
+                      order.status === 'cancelled' ? "text-red-500" : "text-yellow-500"
+                  }>
+                      {order.status === 'completed' || order.status === 'success' ? "Hoàn thành" : 
+                       order.status === 'cancelled' ? "Đã hủy" : "Đang chờ"}
+                  </Text>
+                </Box>
+                <Box flex justifyContent="space-between" className="mb-2">
+                  <Text size="small" className="text-gray-500">Thời gian đặt:</Text>
+                  <Text size="small" bold className="text-gray-800">
+                    {dateObj ? dateObj.toLocaleString('vi-VN') : "Gần đây"}
+                  </Text>
+                </Box>
+                {(shopNamesMap[order.providerId || order.shopId] || order.shopName) && (
+                  <Box flex justifyContent="space-between">
+                    <Text size="small" className="text-gray-500">Cửa hàng:</Text>
+                    <Text 
+                      size="small" 
+                      bold 
+                      className="text-[#14502e] underline cursor-pointer"
+                      onClick={() => {
+                        setSelectedOrderForDetail(null);
+                        const shopPhone = order.shopId || order.providerId || order.ownerPhone;
+                        if (shopPhone) {
+                          setTimeout(() => navigate("/shop-details/" + shopPhone), 200);
+                        }
+                      }}
+                    >
+                      {shopNamesMap[order.providerId || order.shopId] || order.shopName}
+                    </Text>
+                  </Box>
+                )}
+              </Box>
+
+              {/* Customer Delivery Info */}
+              <Box className="bg-white p-3 rounded-xl border border-gray-150 space-y-2">
+                <Text bold size="small" className="text-gray-800 border-b border-gray-100 pb-1.5 block">Thông tin khách hàng</Text>
+                <Box flex justifyContent="space-between">
+                  <Text size="xSmall" className="text-gray-500">Người nhận:</Text>
+                  <Text size="xSmall" bold className="text-gray-800">{order.recipientName || order.customerName || order.fullName || order.userName || "Khách hàng"}</Text>
+                </Box>
+                <Box flex justifyContent="space-between">
+                  <Text size="xSmall" className="text-gray-500">Số điện thoại:</Text>
+                  <Text size="xSmall" bold className="text-gray-800">{order.recipientPhone || order.customerPhone || order.phone || order.userPhone || "Không có"}</Text>
+                </Box>
+                <Box flex justifyContent="space-between" className="items-start">
+                  <Text size="xSmall" className="text-gray-500 shrink-0">Địa chỉ:</Text>
+                  <Text size="xSmall" bold className="text-gray-800 text-right max-w-[70%]">{order.customerAddress || order.address || "Nhận tại cửa hàng"}</Text>
+                </Box>
+                {order.note && (
+                  <Box flex justifyContent="space-between" className="items-start">
+                    <Text size="xSmall" className="text-gray-500 shrink-0">Ghi chú:</Text>
+                    <Text size="xSmall" className="text-gray-600 text-right max-w-[70%] italic">"{order.note}"</Text>
+                  </Box>
+                )}
+              </Box>
+
+              {/* Products List */}
+              <Box className="bg-white p-3 rounded-xl border border-gray-150 space-y-3">
+                <Text bold size="small" className="text-gray-800 border-b border-gray-100 pb-1.5 block">Danh sách sản phẩm / Dịch vụ</Text>
+                {(order.items || order.cartItems) && (order.items || order.cartItems).length > 0 ? (
+                  (order.items || order.cartItems).map((item: any, i: number) => {
+                    const imgUrl = item.product?.image || item.product?.images?.[0] || "";
+                    return (
+                      <Box key={i} flex className="items-start space-x-3 py-2 border-b border-dashed border-gray-100 last:border-none last:pb-0">
+                        <Box className="w-12 h-12 rounded bg-gray-100 overflow-hidden shrink-0 border border-gray-200 flex items-center justify-center">
+                          {imgUrl ? (
+                            <img src={imgUrl} className="w-full h-full object-cover" alt="" />
+                          ) : (
+                            <Icon icon="zi-photo" size={20} className="text-gray-400" />
+                          )}
+                        </Box>
+                        <Box className="flex-1 min-w-0">
+                          <Text size="small" bold className="text-gray-800 line-clamp-2">
+                            {item.product?.title || item.product?.name || item.name}
+                          </Text>
+                          {item.options && Object.keys(item.options).length > 0 && (
+                            <Text size="xSmall" className="text-gray-500 italic mt-0.5">
+                              {Object.entries(item.options).map(([k, v]) => `${k}: ${v}`).join(' | ')}
+                            </Text>
+                          )}
+                          <Box flex justifyContent="space-between" className="mt-1 items-center">
+                            <Text size="xSmall" className="text-gray-500">Số lượng: {item.quantity}</Text>
+                            <Text size="xSmall" bold className="text-gray-800">{(item.product?.price || item.price || 0).toLocaleString('vi-VN')}đ</Text>
+                          </Box>
+                        </Box>
+                      </Box>
+                    );
+                  })
+                ) : (
+                  (() => {
+                    const singleImg = order.productImage || order.product?.image || order.product?.images?.[0] || "";
+                    return (
+                      <Box flex className="items-start space-x-3 py-2">
+                        <Box className="w-12 h-12 rounded bg-gray-100 overflow-hidden shrink-0 border border-gray-200 flex items-center justify-center">
+                          {singleImg ? (
+                            <img src={singleImg} className="w-full h-full object-cover" alt="" />
+                          ) : (
+                            <Icon icon="zi-photo" size={20} className="text-gray-400" />
+                          )}
+                        </Box>
+                        <Box className="flex-1 min-w-0">
+                          <Text size="small" bold className="text-gray-800 line-clamp-2">{order.productName}</Text>
+                          {order.selectedVariants && Object.keys(order.selectedVariants).length > 0 ? (
+                            <Text size="xSmall" className="text-gray-500 italic mt-0.5">
+                              {Object.entries(order.selectedVariants).map(([k, v]) => `${k}: ${v}`).join(' | ')}
+                            </Text>
+                          ) : (order.bookingTime || order.bookingDate) ? (
+                            <Text size="xSmall" className="text-gray-500 mt-0.5">⏰ Lịch: {order.bookingTime} {order.bookingDate}</Text>
+                          ) : null}
+                          <Box flex justifyContent="space-between" className="mt-1 items-center">
+                            <Text size="xSmall" className="text-gray-500">Số lượng: 1</Text>
+                            <Text size="xSmall" bold className="text-gray-800">{(order.originalAmount || totalAmount).toLocaleString('vi-VN')}đ</Text>
+                          </Box>
+                        </Box>
+                      </Box>
+                    );
+                  })()
+                )}
+                
+                <Box className="pt-3 border-t border-gray-100 mt-2">
+                    <Box flex justifyContent="space-between" className="mb-1">
+                        <Text size="small" className="text-gray-600">Tổng tiền hàng:</Text>
+                        <Text size="small" bold className="text-gray-800">{(order.originalAmount || totalAmount).toLocaleString('vi-VN')}đ</Text>
+                    </Box>
+                    {(order.discountAmount > 0) && (
+                        <Box flex justifyContent="space-between" className="mb-1">
+                            <Text size="small" className="text-green-600">Voucher giảm:</Text>
+                            <Text size="small" bold className="text-green-600">-{order.discountAmount.toLocaleString('vi-VN')}đ</Text>
+                        </Box>
+                    )}
+                    <Box flex justifyContent="space-between" className="mt-2 pt-2 border-t border-dashed border-gray-200">
+                        <Text size="normal" bold className="text-gray-900">Tổng cộng:</Text>
+                        <Text size="normal" bold className="text-red-600">{totalAmount.toLocaleString('vi-VN')}đ</Text>
+                    </Box>
+                </Box>
+              </Box>
+
+              <Box className="pb-6">
+                <Button 
+                    className="w-full bg-blue-50 text-blue-600 font-bold border border-blue-200"
+                    onClick={() => setSelectedOrderForDetail(null)}
+                >
+                    Đóng
+                </Button>
+              </Box>
+            </Box>
+          );
+        })()}
+      </Modal>
+
+      {/* Modal Danh sách đơn huỷ chi tiết */}
+      <Modal visible={!!showUserCancelledOrders} title="Chi tiết đơn hủy" onClose={() => setShowUserCancelledOrders(null)}>
+          <Box p={4} className="max-h-[70vh] overflow-y-auto hide-scroll text-left">
+              {showUserCancelledOrders?.map((order: any, idx: number) => {
+                  let orderDateStr = "Không rõ";
+                  try {
+                      if (order.cancelledAt) {
+                          orderDateStr = new Date(order.cancelledAt).toLocaleString('vi-VN');
+                      } else if (order.createdAt) {
+                          orderDateStr = new Date(order.createdAt.seconds ? order.createdAt.seconds * 1000 : order.createdAt).toLocaleString('vi-VN');
+                      }
+                  } catch (e) {}
+
+                  return (
+                  <Box 
+                      key={idx} 
+                      className="bg-white p-3 rounded-xl border border-gray-150 shadow-sm mb-3 cursor-pointer active:opacity-70"
+                      onClick={() => {
+                          setShowUserCancelledOrders(null);
+                          setSelectedOrderForDetail(order);
+                      }}
+                  >
+                      <Box flex justifyContent="space-between" mb={1}>
+                          <Text size="small" bold className="text-blue-600">#{order.orderCode || order.id?.slice(0,6).toUpperCase()}</Text>
+                          <Text size="xSmall" className="text-gray-500">{orderDateStr}</Text>
+                      </Box>
+                      <Text size="small" bold className="text-gray-800">{order.productName}</Text>
+                      <Text size="xSmall" className="text-red-600 italic mt-1">Lý do: {order.cancelReason || "Không rõ"}</Text>
+                      <Text size="small" bold className="text-gray-800 text-right mt-2">{Number(order.totalAmount || order.totalPrice || order.total || 0).toLocaleString()}đ</Text>
+                  </Box>
+              )})}
+          </Box>
+      </Modal>
+
+      {/* Modal Xử phạt vi phạm */}
+      <Modal 
+          visible={showPenaltyModal} 
+          title="Xử phạt vi phạm" 
+          onClose={() => setShowPenaltyModal(false)}
+      >
+          <Box p={4} className="text-left">
+              <Box className="flex border-b border-gray-200 mb-4">
+                  <Box className={`flex-1 text-center py-2 cursor-pointer ${penaltyModalTab === 'form' ? 'border-b-2 border-red-600 text-red-600 font-bold' : 'text-gray-500'}`} onClick={() => setPenaltyModalTab('form')}>Xử phạt</Box>
+                  <Box className={`flex-1 text-center py-2 cursor-pointer ${penaltyModalTab === 'history' ? 'border-b-2 border-red-600 text-red-600 font-bold' : 'text-gray-500'}`} onClick={() => setPenaltyModalTab('history')}>Lịch sử</Box>
+              </Box>
+
+              {penaltyModalTab === 'form' ? (
+                <Box className="space-y-4">
+                    <Box>
+                        <Text size="small" bold className="mb-2 block">Chọn ví để trừ điểm</Text>
+                        <select 
+                            className="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none focus:border-blue-500 bg-white"
+                            value={penaltyType}
+                            onChange={(e) => setPenaltyType(e.target.value)}
+                        >
+                            <option value="rankPoints">Tổng tích lũy (Hiện tại: {detailUser?.rankPoints?.toLocaleString() || 0})</option>
+                            <option value="interactionPoints">Ví tương tác (Hiện tại: {detailUser?.interactionPoints?.toLocaleString() || 0})</option>
+                            <option value="spendingPoints">Ví ưu đãi (Hiện tại: {detailUser?.spendingPoints?.toLocaleString() || 0})</option>
+                            <option value="voucher">Ví voucher (Tính năng đang phát triển)</option>
+                        </select>
+                    </Box>
+                    
+                    <Box>
+                        <Text size="small" bold className="mb-2 block">Số điểm trừ</Text>
+                        <input 
+                            type="number"
+                            placeholder="Nhập số điểm..."
+                            value={penaltyAmount}
+                            onChange={(e) => setPenaltyAmount(e.target.value)}
+                            className="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none focus:border-blue-500"
+                        />
+                    </Box>
+
+                    <Box>
+                        <Text size="small" bold className="mb-2 block">Lý do xử phạt (sẽ gửi cho User)</Text>
+                        <textarea 
+                            placeholder="Ví dụ: Cố tình huỷ nhiều đơn hàng liên tục..."
+                            value={penaltyReason}
+                            onChange={(e) => setPenaltyReason(e.target.value)}
+                            className="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none focus:border-blue-500 h-24 resize-none"
+                        />
+                    </Box>
+
+                    <Box flex className="gap-2 pt-2">
+                        <Button variant="secondary" className="flex-1 bg-gray-100 text-gray-600 border-none" onClick={() => setShowPenaltyModal(false)}>Hủy</Button>
+                        <Button className="flex-1 bg-red-600 border-red-600" loading={loading} onClick={handlePenalty}>Thực hiện Phạt</Button>
+                    </Box>
+                </Box>
+              ) : (
+                <Box className="max-h-64 overflow-y-auto hide-scroll">
+                    {loadingNotifs ? <Box className="flex justify-center p-4"><Spinner /></Box> : userNotifs.filter(n => n.title === "Thông báo Xử phạt vi phạm").length === 0 ? <Text size="small" className="text-gray-400 text-center py-4">Chưa có lịch sử xử phạt</Text> : (
+                        userNotifs.filter(n => n.title === "Thông báo Xử phạt vi phạm").map((n, i) => (
+                            <Box key={i} className="mb-3 p-3 bg-red-50 rounded-lg border border-red-100">
+                                <Box flex justifyContent="space-between" mb={1}>
+                                    <Text size="small" bold className="text-red-700">{n.title}</Text>
+                                    <Text size="xSmall" className="text-red-500 shrink-0 ml-2">{n.createdAt?.seconds ? new Date(n.createdAt.seconds * 1000).toLocaleString('vi-VN') : new Date().toLocaleString('vi-VN')}</Text>
+                                </Box>
+                                <Text size="small" className="text-gray-700 whitespace-pre-wrap">{n.content}</Text>
+                            </Box>
+                        ))
+                    )}
+                </Box>
+              )}
+          </Box>
+      </Modal>
+
+      {/* Modal Thưởng điểm */}
+      <Modal 
+          visible={showRewardModal} 
+          title="Thưởng điểm" 
+          onClose={() => setShowRewardModal(false)}
+      >
+          <Box p={4} className="text-left">
+              <Box className="flex border-b border-gray-200 mb-4">
+                  <Box className={`flex-1 text-center py-2 cursor-pointer ${rewardModalTab === 'form' ? 'border-b-2 border-green-600 text-green-600 font-bold' : 'text-gray-500'}`} onClick={() => setRewardModalTab('form')}>Thưởng điểm</Box>
+                  <Box className={`flex-1 text-center py-2 cursor-pointer ${rewardModalTab === 'history' ? 'border-b-2 border-green-600 text-green-600 font-bold' : 'text-gray-500'}`} onClick={() => setRewardModalTab('history')}>Lịch sử</Box>
+              </Box>
+
+              {rewardModalTab === 'form' ? (
+                <Box className="space-y-4">
+                    <Box className="bg-green-50 border border-green-200 p-3 rounded-lg flex items-center justify-between">
+                        <Text size="small" bold className="text-green-800">Ví ưu đãi hiện tại</Text>
+                        <Text size="large" bold className="text-green-700">{(detailUser?.spendingPoints || 0).toLocaleString()} điểm</Text>
+                    </Box>
+                    
+                    <Box>
+                        <Text size="small" bold className="mb-2 block">Số điểm thưởng</Text>
+                        <input 
+                            type="number"
+                            placeholder="Nhập số điểm cần thưởng..."
+                            value={rewardAmount}
+                            onChange={(e) => setRewardAmount(e.target.value)}
+                            className="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none focus:border-green-500"
+                        />
+                    </Box>
+
+                    <Box>
+                        <Text size="small" bold className="mb-2 block">Lý do thưởng (sẽ gửi cho User)</Text>
+                        <textarea 
+                            placeholder="Ví dụ: Tích cực tham gia hoạt động cộng đồng..."
+                            value={rewardReason}
+                            onChange={(e) => setRewardReason(e.target.value)}
+                            className="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none focus:border-green-500 h-24 resize-none"
+                        />
+                    </Box>
+
+                    <Box flex className="gap-2 pt-2">
+                        <Button variant="secondary" className="flex-1 bg-gray-100 text-gray-600 border-none" onClick={() => setShowRewardModal(false)}>Hủy</Button>
+                        <Button className="flex-1 bg-green-600 border-green-600" loading={loading} onClick={handleReward}>Thực hiện Thưởng</Button>
+                    </Box>
+                </Box>
+              ) : (
+                <Box className="max-h-64 overflow-y-auto hide-scroll">
+                    {loadingNotifs ? <Box className="flex justify-center p-4"><Spinner /></Box> : userNotifs.filter(n => n.title === "Thông báo Thưởng điểm").length === 0 ? <Text size="small" className="text-gray-400 text-center py-4">Chưa có lịch sử thưởng điểm</Text> : (
+                        userNotifs.filter(n => n.title === "Thông báo Thưởng điểm").map((n, i) => (
+                            <Box key={i} className="mb-3 p-3 bg-green-50 rounded-lg border border-green-100">
+                                <Box flex justifyContent="space-between" mb={1}>
+                                    <Text size="small" bold className="text-green-700">{n.title}</Text>
+                                    <Text size="xSmall" className="text-green-500 shrink-0 ml-2">{n.createdAt?.seconds ? new Date(n.createdAt.seconds * 1000).toLocaleString('vi-VN') : new Date().toLocaleString('vi-VN')}</Text>
+                                </Box>
+                                <Text size="small" className="text-gray-700 whitespace-pre-wrap">{n.content}</Text>
+                            </Box>
+                        ))
+                    )}
+                </Box>
+              )}
+          </Box>
+      </Modal>
+  </Box>
   );
 };
 

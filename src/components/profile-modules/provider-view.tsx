@@ -3105,9 +3105,11 @@ useEffect(() => {
                         try {
                           await updateDoc(doc(db, "orders", selectedOrderDetail.id), {
                             status: "cancelled",
-                            cancelReason: cancelReasonText.trim()
+                            cancelReason: cancelReasonText.trim(),
+                            cancelledBy: "shop",
+                            cancelledAt: new Date().toISOString()
                           });
-                          setOrderList(prev => prev.map(o => o.id === selectedOrderDetail.id ? { ...o, status: "cancelled", cancelReason: cancelReasonText.trim() } : o));
+                          setOrderList(prev => prev.map(o => o.id === selectedOrderDetail.id ? { ...o, status: "cancelled", cancelReason: cancelReasonText.trim(), cancelledBy: "shop" } : o));
                           openSnackbar({ text: "Đã hủy đơn hàng thành công!", type: "success" });
                           setSelectedOrderDetail(null);
                           setShowCancelInput(false);

@@ -48,7 +48,6 @@ export const Navigation: FC = () => {
   const tabsKeys = useMemo(() => {
     const keys = ["/", "/store"];
     if (showCreatePostTab) keys.push("/create-post");
-    if (showChatTab) keys.push("/chat-list");
     keys.push("/profile");
     return keys;
   }, [showCreatePostTab, showChatTab]);
@@ -168,29 +167,6 @@ export const Navigation: FC = () => {
               <line x1="5" y1="12" x2="19" y2="12"></line>
             </svg>
           </div>
-        </div>
-      ),
-    },
-    "/chat-list": {
-      label: "Tin nhắn",
-      icon: (
-        <div className="relative">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-          {unreadChatCount > 0 && (
-            <span className="absolute -top-1.5 -right-2 min-w-[15px] h-3.5 rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center px-1 shadow-[0_1px_4px_rgba(0,0,0,0.2)]">
-              {unreadChatCount > 99 ? '99+' : unreadChatCount}
-            </span>
-          )}
-        </div>
-      ),
-      activeIcon: (
-        <div className="relative">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" /></svg>
-          {unreadChatCount > 0 && (
-            <span className="absolute -top-1.5 -right-2 min-w-[15px] h-3.5 rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center px-1 shadow-[0_1px_4px_rgba(0,0,0,0.2)]">
-              {unreadChatCount > 99 ? '99+' : unreadChatCount}
-            </span>
-          )}
         </div>
       ),
     },
