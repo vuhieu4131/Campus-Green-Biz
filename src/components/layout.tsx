@@ -1,7 +1,8 @@
-import React, { FC, Suspense, useState, useEffect } from "react";
-import { Route, Routes, useNavigate } from "react-router";
+import React, { FC, Suspense, useState, useEffect, useRef } from "react";
+import { Route, Routes, useLocation, useNavigate } from "react-router";
 import { Box, Modal, Button, Text } from "zmp-ui";
 import { Navigation } from "./navigation";
+import { resolvePageTransitionClass, BackToTop } from "./motion";
 import HomePage from "pages/index";
 import CategoryPage from "pages/category";
 import CartPage from "pages/cart";
@@ -44,7 +45,20 @@ if (import.meta.env.DEV) {
 
 export const Layout: FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   useHandlePayment();
+
+  const routeMotionRef = useRef<{ path: string; cls: string }>({
+    path: location.pathname,
+    cls: "page-enter-fade",
+  });
+
+  if (routeMotionRef.current.path !== location.pathname) {
+    routeMotionRef.current = {
+      cls: resolvePageTransitionClass(routeMotionRef.current.path, location.pathname),
+      path: location.pathname,
+    };
+  }
 
   // Xử lý Deep link từ Zalo (khi quét mã QR hoặc bấm link chia sẻ)
   useEffect(() => {
@@ -161,28 +175,33 @@ export const Layout: FC = () => {
             </div>
           }
         >
-          <Routes>
-            <Route path="/" element={<HomePage />}></Route>
-            <Route path="/search" element={<SearchPage />}></Route>
-            <Route path="/category" element={<CategoryPage />}></Route>
-            <Route path="/notification" element={<NotificationPage />}></Route>
-            <Route path="/cart" element={<CartPage />}></Route>
-            <Route path="/profile" element={<ProfilePage />}></Route>
-            <Route path="/result" element={<CheckoutResultPage />}></Route>
-            <Route path="/store" element={<StorePage />} />
-            <Route path="/shop-details/:id" element={<ShopPublicView />} />
-            <Route path="/post-service" element={<PostPage />} />
-            <Route path="/admin-dashboard" element={<AdminDashboardPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/account-info" element={<AccountInfoPage />} />
-            <Route path="/terms" element={<TermsPage />} />
-            <Route path="/wallet" element={<WalletPage />} />
-            <Route path="/create-post" element={<CreatePostPage />} />
-            <Route path="/post-detail" element={<PostDetailPage />} />
-            <Route path="/detail/:id" element={<ProductDetailPage />} />
-            <Route path="/chat-list" element={<ChatListPage />} />
-            <Route path="/chat-detail/:id" element={<ChatDetailPage />} />
-          </Routes>
+          <div
+            key={location.pathname}
+            className={`page-transition-stage ${routeMotionRef.current.cls}`}
+          >
+            <Routes location={location}>
+              <Route path="/" element={<HomePage />}></Route>
+              <Route path="/search" element={<SearchPage />}></Route>
+              <Route path="/category" element={<CategoryPage />}></Route>
+              <Route path="/notification" element={<NotificationPage />}></Route>
+              <Route path="/cart" element={<CartPage />}></Route>
+              <Route path="/profile" element={<ProfilePage />}></Route>
+              <Route path="/result" element={<CheckoutResultPage />}></Route>
+              <Route path="/store" element={<StorePage />} />
+              <Route path="/shop-details/:id" element={<ShopPublicView />} />
+              <Route path="/post-service" element={<PostPage />} />
+              <Route path="/admin-dashboard" element={<AdminDashboardPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/account-info" element={<AccountInfoPage />} />
+              <Route path="/terms" element={<TermsPage />} />
+              <Route path="/wallet" element={<WalletPage />} />
+              <Route path="/create-post" element={<CreatePostPage />} />
+              <Route path="/post-detail" element={<PostDetailPage />} />
+              <Route path="/detail/:id" element={<ProductDetailPage />} />
+              <Route path="/chat-list" element={<ChatListPage />} />
+              <Route path="/chat-detail/:id" element={<ChatDetailPage />} />
+            </Routes>
+          </div>
         </Suspense>
         {/* Kết thúc bọc Suspense */}
       </Box>
@@ -227,6 +246,9 @@ export const Layout: FC = () => {
         </Box>
       </Modal>
 
+      {!location.pathname.startsWith("/chat-detail") && (
+        <BackToTop currentPath={location.pathname} />
+      )}
       <Navigation />
     </Box>
   );

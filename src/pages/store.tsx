@@ -1,4 +1,5 @@
 import CustomIcon from '../components/custom-icon';
+import { Reveal, AnimatedCounter } from '../components/motion';
 import React, { FC, useState, useEffect, useRef } from "react";
 import { useSetRecoilState, useRecoilValue } from 'recoil';
 import {
@@ -151,9 +152,11 @@ const StoreWelcome: FC = () => {
               isLoading ? (
                 <div className="h-4 w-32 bg-white/20 rounded-full animate-pulse" />
               ) : (
-                <Box className="bg-white/25 backdrop-blur-md rounded-full px-2 py-0.5 flex items-center w-fit border border-white/20 shadow-sm">
+                <Box className="bg-white/25 backdrop-blur-md rounded-full px-2 py-0.5 flex items-center w-fit border border-white/20 shadow-sm card-sheen">
                   <CustomIcon icon="zi-star-solid" className="text-yellow-400 text-[10px] mr-1" />
-                  <Text size="xxxxSmall" className="text-white font-bold text-[10px]">{rankName} | {spendingPoints} Điểm ưu đãi</Text>
+                  <Text size="xxxxSmall" className="text-white font-bold text-[10px]">
+                    {rankName} | <AnimatedCounter target={spendingPoints} /> Điểm ưu đãi
+                  </Text>
                 </Box>
               )
             ) : (
@@ -427,9 +430,9 @@ const mockProducts = [
 
 const HotProducts: FC<{ products: any[]; onProductClick: (product: any) => void; showPrice: boolean; adminPlatformFeeRate: number; adminCustomerShareRate: number }> = ({ products, onProductClick, showPrice, adminPlatformFeeRate, adminCustomerShareRate }) => {
   return (
-    <Box className="mt-6 mb-4">
+    <Reveal className="mt-6 mb-4">
       <Text.Title className="font-bold text-base text-[#14502e] mb-3 px-4">Sản phẩm Hot 🔥</Text.Title>
-      <Box className="flex flex-nowrap overflow-x-auto gap-3 pb-3 hide-scrollbar px-4" style={{ WebkitOverflowScrolling: 'touch' }}>
+      <Box className="flex flex-nowrap overflow-x-auto gap-3 pb-3 hide-scrollbar px-4 stagger-grid" style={{ WebkitOverflowScrolling: 'touch' }}>
         <style>{`
           .hide-scrollbar::-webkit-scrollbar { display: none; }
           .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -437,7 +440,7 @@ const HotProducts: FC<{ products: any[]; onProductClick: (product: any) => void;
         {products.map((p) => (
           <Box 
             key={p.id} 
-            className="flex flex-col bg-white rounded-2xl p-3 shadow-md active:scale-95 transition-transform cursor-pointer flex-shrink-0 w-[140px]" 
+            className="flex flex-col bg-white rounded-2xl p-3 shadow-md interactive-card animate-fade-in-up cursor-pointer flex-shrink-0 w-[140px]" 
             onClick={() => onProductClick(p)}
           >
             <Box 
@@ -482,17 +485,17 @@ const HotProducts: FC<{ products: any[]; onProductClick: (product: any) => void;
           </Box>
         ))}
       </Box>
-    </Box>
+    </Reveal>
   );
 };
 
 const ProductsForYou: FC<{ products: any[]; onProductClick: (product: any) => void; showPrice: boolean; adminPlatformFeeRate: number; adminCustomerShareRate: number }> = ({ products, onProductClick, showPrice, adminPlatformFeeRate, adminCustomerShareRate }) => {
   return (
-    <Box className="px-4 mt-4 mb-6">
+    <Reveal className="px-4 mt-4 mb-6">
       <Text.Title className="font-bold text-base text-[#14502e] mb-4">Sản phẩm dành cho bạn ✨</Text.Title>
-      <Box className="grid grid-cols-2 gap-4">
+      <Box className="grid grid-cols-2 gap-4 stagger-grid">
         {products.map((p) => (
-          <Box key={p.id} className="flex flex-col bg-white rounded-2xl p-3 shadow-md active:scale-95 transition-transform cursor-pointer" onClick={() => onProductClick(p)}>
+          <Box key={p.id} className="flex flex-col bg-white rounded-2xl p-3 shadow-md interactive-card animate-fade-in-up cursor-pointer" onClick={() => onProductClick(p)}>
             <Box 
               className="w-full aspect-[4/3] rounded-xl bg-cover bg-center mb-2"
               style={{ backgroundImage: `url('${p.image || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png"}')` }}
@@ -535,7 +538,7 @@ const ProductsForYou: FC<{ products: any[]; onProductClick: (product: any) => vo
           </Box>
         ))}
       </Box>
-    </Box>
+    </Reveal>
   );
 };
 
@@ -668,12 +671,12 @@ const ConsumerStorePage: FC = () => {
       <StoreCategories selectedCategory={selectedCategory} onSelectCategory={setSelectedCategory} />
       
       {selectedCategory ? (
-        <Box className="px-4 mt-6 mb-6">
+        <Box key={selectedCategory} className="px-4 mt-6 mb-6 animate-fade-in-up">
           <Text.Title className="font-bold text-base text-[#14502e] mb-4">Danh mục: {selectedCategory}</Text.Title>
           {filteredServices.length > 0 ? (
-            <Box className="grid grid-cols-2 gap-4">
+            <Box className="grid grid-cols-2 gap-4 stagger-grid">
               {filteredServices.map((p) => (
-                <Box key={p.id} className="flex flex-col bg-white rounded-2xl p-3 shadow-md active:scale-95 transition-transform cursor-pointer" onClick={() => handleProductClick(p)}>
+                <Box key={p.id} className="flex flex-col bg-white rounded-2xl p-3 shadow-md interactive-card animate-fade-in-up cursor-pointer" onClick={() => handleProductClick(p)}>
                   <Box 
                     className="w-full aspect-[4/3] rounded-xl bg-cover bg-center mb-2"
                     style={{ backgroundImage: `url('${p.image || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png"}')` }}

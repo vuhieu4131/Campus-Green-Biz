@@ -1204,15 +1204,15 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
 
       {/* Actions (Affiliate) */}
       <Box className="flex justify-around items-center px-2 py-1 border-t border-gray-100 mt-1">
-        <Box className="flex flex-1 justify-center items-center space-x-1.5 py-1.5 rounded-lg cursor-pointer active:bg-gray-50" onClick={() => isRealUser ? handleLike() : setShowAuth(true)}>
-          <Icon icon={liked ? "zi-heart-solid" : "zi-heart"} className={liked ? "text-red-500 text-lg" : "text-gray-500 text-lg"} />
+        <Box className="flex flex-1 justify-center items-center space-x-1.5 py-1.5 rounded-lg cursor-pointer active:bg-gray-50 interactive-press" onClick={() => isRealUser ? handleLike() : setShowAuth(true)}>
+          <Icon icon={liked ? "zi-heart-solid" : "zi-heart"} className={liked ? "text-red-500 text-lg counter-pop" : "text-gray-500 text-lg"} />
           <Text size="small" className={`font-medium ${liked ? "text-red-500" : "text-gray-500"}`}>Hữu ích {likesCount > 0 ? `(${likesCount})` : ''}</Text>
         </Box>
-        <Box className="flex flex-1 justify-center items-center space-x-1.5 py-1.5 rounded-lg cursor-pointer active:bg-gray-50" onClick={() => setShowComments(!showComments)}>
+        <Box className="flex flex-1 justify-center items-center space-x-1.5 py-1.5 rounded-lg cursor-pointer active:bg-gray-50 interactive-press" onClick={() => setShowComments(!showComments)}>
           <CustomIcon icon="zi-chat" className="text-gray-500 text-lg" />
           <Text size="small" className="font-medium text-gray-500">Góp ý {commentsCount > 0 ? `(${commentsCount})` : ''}</Text>
         </Box>
-        <Box className="flex flex-1 justify-center items-center space-x-1.5 py-1.5 rounded-lg cursor-pointer active:bg-gray-50" onClick={() => currentUser ? setShowShare(true) : setShowAuth(true)}>
+        <Box className="flex flex-1 justify-center items-center space-x-1.5 py-1.5 rounded-lg cursor-pointer active:bg-gray-50 interactive-press" onClick={() => currentUser ? setShowShare(true) : setShowAuth(true)}>
           <CustomIcon icon="zi-share" className="text-gray-500 text-lg" />
           <Text size="small" className="font-medium text-gray-500">Chia sẻ {sharesCount > 0 ? `(${sharesCount})` : ''}</Text>
         </Box>
@@ -1220,8 +1220,8 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
 
       {/* Trình xem ảnh toàn màn hình */}
       {showImageViewer && data.images && (
-        <Box className="fixed inset-0 bg-black z-[90] flex flex-col justify-center items-center" onClick={() => setShowOverlay(!showOverlay)}>
-          <Box className="w-full h-full bg-contain bg-no-repeat bg-center" style={{ backgroundImage: `url('${data.images[activeImageIndex]}')` }} />
+        <Box className="fixed inset-0 bg-black/95 backdrop-blur-sm z-[90] flex flex-col justify-center items-center animate-fade-in" onClick={() => setShowOverlay(!showOverlay)}>
+          <Box key={activeImageIndex} className="w-full h-full bg-contain bg-no-repeat bg-center animate-scale-in" style={{ backgroundImage: `url('${data.images[activeImageIndex]}')` }} />
           {showOverlay && (
             <>
               <Box className="absolute top-0 left-0 w-full p-4 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent">

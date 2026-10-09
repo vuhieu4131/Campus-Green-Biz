@@ -1,6 +1,7 @@
 import React, { FC, useState, useEffect, useRef } from "react";
 import { Box, Text, Spinner } from "zmp-ui";
 import { PostItem } from "../../components/post-item";
+import { Reveal } from "../../components/motion";
 import { RawPost } from "../../utils/edgeRanker";
 import { db, auth } from "../../firebase";
 import { collection, query, getDocs, orderBy, limit, startAfter } from "firebase/firestore";
@@ -15,26 +16,28 @@ const ShopBannersSlider: FC<{ shops: any[] }> = ({ shops }) => {
   if (!shops || shops.length === 0) return null;
 
   return (
-    <Box className="my-2 mx-4 rounded-xl overflow-hidden shadow-sm border border-gray-100 bg-white">
-      <Swiper
-        modules={[Autoplay]}
-        autoplay={{ delay: 2000, disableOnInteraction: false }}
-        loop={shops.length > 1}
-        spaceBetween={0}
-        slidesPerView={1}
-      >
-        {shops.map((shop, idx) => (
-          <SwiperSlide key={idx} className="cursor-pointer" onClick={() => navigate(`/profile?id=${shop.id}`)}>
-            <Box className="relative">
-              <img src={shop.cover || shop.bannerUrl || shop.avatar} className="w-full h-[120px] object-cover" alt={shop.name || shop.shopName || "Cửa hàng"} />
-              <Box className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-black/80 to-transparent p-2 pt-6">
-                <Text className="text-white font-bold text-sm line-clamp-1">{shop.name || shop.shopName || "Cửa hàng"}</Text>
+    <Reveal className="my-2 mx-4">
+      <Box className="rounded-xl overflow-hidden shadow-sm border border-gray-100 bg-white card-sheen interactive-card">
+        <Swiper
+          modules={[Autoplay]}
+          autoplay={{ delay: 2000, disableOnInteraction: false }}
+          loop={shops.length > 1}
+          spaceBetween={0}
+          slidesPerView={1}
+        >
+          {shops.map((shop, idx) => (
+            <SwiperSlide key={idx} className="cursor-pointer" onClick={() => navigate(`/profile?id=${shop.id}`)}>
+              <Box className="relative">
+                <img src={shop.cover || shop.bannerUrl || shop.avatar} className="w-full h-[120px] object-cover" alt={shop.name || shop.shopName || "Cửa hàng"} />
+                <Box className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-black/80 to-transparent p-2 pt-6">
+                  <Text className="text-white font-bold text-sm line-clamp-1">{shop.name || shop.shopName || "Cửa hàng"}</Text>
+                </Box>
               </Box>
-            </Box>
-          </SwiperSlide>
-        ))}
-      </Swiper>
-    </Box>
+            </SwiperSlide>
+          ))}
+        </Swiper>
+      </Box>
+    </Reveal>
   );
 };
 
@@ -196,7 +199,9 @@ export const FeedList: FC = () => {
     <Box className="bg-transparent flex-1 overflow-y-auto pb-20">
       {displayPosts.map((post, index) => (
         <React.Fragment key={post.id}>
-          <PostItem data={post} />
+          <Reveal delayMs={Math.min(index, 3) * 45}>
+            <PostItem data={post} />
+          </Reveal>
           {(index + 1) % 5 === 0 && <ShopBannersSlider shops={shops} />}
         </React.Fragment>
       ))}
@@ -208,7 +213,7 @@ export const FeedList: FC = () => {
         </Box>
       )}
 
-      <Box className="py-4 flex justify-center items-center cursor-pointer" onClick={fetchInitialPosts}>
+      <Box className="py-4 flex justify-center items-center cursor-pointer interactive-press" onClick={fetchInitialPosts}>
         <Text size="small" className="text-[#14502e] font-medium border border-[#14502e] px-4 py-1.5 rounded-full">
           Làm mới tin tức
         </Text>

@@ -1,4 +1,5 @@
 import CustomIcon from '../components/custom-icon';
+import { AnimatedCounter } from '../components/motion';
 import React, { FC, useState, useEffect } from "react";
 import { Page, Header, Box, Text, Icon, Modal, Spinner } from "zmp-ui";
 import { auth, db } from "../firebase";
@@ -137,21 +138,21 @@ const WalletPage: FC = () => {
       <Box className="flex justify-center space-x-2.5 mt-6 mx-4">
         <Box 
           onClick={() => setActiveTab('rank')}
-          className={`flex-1 flex flex-col items-center p-3 rounded-xl border cursor-pointer ${activeTab === 'rank' ? 'bg-orange-50 border-orange-300 text-orange-600' : 'bg-white border-gray-100 text-gray-500'} transition-all shadow-sm`}
+          className={`flex-1 flex flex-col items-center p-3 rounded-xl border cursor-pointer interactive-press ${activeTab === 'rank' ? 'bg-orange-50 border-orange-300 text-orange-600' : 'bg-white border-gray-100 text-gray-500'} transition-all shadow-sm`}
         >
           <CustomIcon icon="zi-poll" className={activeTab === 'rank' ? 'text-orange-600' : 'text-gray-500'} />
           <Text size="small" bold className="mt-1">Ví Tính Hạng</Text>
         </Box>
         <Box 
           onClick={() => setActiveTab('promo')}
-          className={`flex-1 flex flex-col items-center p-3 rounded-xl border cursor-pointer ${activeTab === 'promo' ? 'bg-blue-50 border-blue-300 text-blue-600' : 'bg-white border-gray-100 text-gray-500'} transition-all shadow-sm`}
+          className={`flex-1 flex flex-col items-center p-3 rounded-xl border cursor-pointer interactive-press ${activeTab === 'promo' ? 'bg-blue-50 border-blue-300 text-blue-600' : 'bg-white border-gray-100 text-gray-500'} transition-all shadow-sm`}
         >
           <CustomIcon icon="zi-star-solid" className={activeTab === 'promo' ? 'text-blue-600' : 'text-gray-500'} />
           <Text size="small" bold className="mt-1">Ví Ưu Đãi</Text>
         </Box>
         <Box 
           onClick={() => setActiveTab('interaction')}
-          className={`flex-1 flex flex-col items-center p-3 rounded-xl border cursor-pointer ${activeTab === 'interaction' ? 'bg-[#288F4E]/10 border-[#288F4E] text-[#288F4E]' : 'bg-white border-gray-100 text-gray-500'} transition-all shadow-sm`}
+          className={`flex-1 flex flex-col items-center p-3 rounded-xl border cursor-pointer interactive-press ${activeTab === 'interaction' ? 'bg-[#288F4E]/10 border-[#288F4E] text-[#288F4E]' : 'bg-white border-gray-100 text-gray-500'} transition-all shadow-sm`}
         >
           <CustomIcon icon="zi-chat" className={activeTab === 'interaction' ? 'text-[#288F4E]' : 'text-gray-500'} />
           <Text size="small" bold className="mt-1">Ví Tương Tác</Text>
@@ -161,7 +162,7 @@ const WalletPage: FC = () => {
       {/* Card Content */}
       <Box className="mx-4 mt-6">
         {activeTab === 'rank' && (
-          <Box className="bg-gradient-to-r from-orange-400 to-orange-600 rounded-2xl p-5 text-white shadow-md">
+          <Box key="rank" className="bg-gradient-to-r from-orange-400 to-orange-600 rounded-2xl p-5 text-white shadow-md card-sheen animate-fade-in-up">
             <Box className="flex justify-between items-start mb-6">
               <Box>
                 <Text size="xSmall" className="uppercase opacity-80 mb-1 tracking-wider">HẠNG THÀNH VIÊN</Text>
@@ -172,12 +173,12 @@ const WalletPage: FC = () => {
               </Box>
               <Box className="text-right">
                 <Text size="xSmall" className="uppercase opacity-80 mb-1 tracking-wider">ĐIỂM TRỌN ĐỜI</Text>
-                <Text.Title className="font-bold text-xl">{points.toLocaleString()}</Text.Title>
+                <Text.Title className="font-bold text-xl"><AnimatedCounter target={points} /></Text.Title>
               </Box>
             </Box>
             
             <Box className="w-full bg-white/30 h-1.5 rounded-full mb-4">
-              <Box className="bg-white h-1.5 rounded-full" style={{ width: `${progressPercent}%` }}></Box>
+              <Box className="bg-white h-1.5 rounded-full transition-all duration-700" style={{ width: `${progressPercent}%` }}></Box>
             </Box>
 
             <Text size="xxSmall" className="opacity-80 italic mb-4">* Điểm hạng không bao giờ bị trừ đi</Text>
@@ -191,7 +192,7 @@ const WalletPage: FC = () => {
         )}
 
         {activeTab === 'promo' && (
-          <Box className="bg-gradient-to-r from-blue-500 to-blue-700 rounded-2xl p-5 text-white shadow-md">
+          <Box key="promo" className="bg-gradient-to-r from-blue-500 to-blue-700 rounded-2xl p-5 text-white shadow-md card-sheen animate-fade-in-up">
             <Box className="flex justify-between items-start mb-6">
               <Box>
                 <Text size="xSmall" className="uppercase opacity-80 mb-1 tracking-wider">ĐIỂM CÓ THỂ DÙNG</Text>
@@ -199,7 +200,7 @@ const WalletPage: FC = () => {
               </Box>
               <Box className="text-right">
                 <Text size="xSmall" className="uppercase opacity-80 mb-1 tracking-wider">SỐ DƯ KHẢ DỤNG</Text>
-                <Text.Title className="font-bold text-xl">{spendingPoints.toLocaleString()}</Text.Title>
+                <Text.Title className="font-bold text-xl"><AnimatedCounter target={spendingPoints} /></Text.Title>
               </Box>
             </Box>
 
@@ -214,7 +215,7 @@ const WalletPage: FC = () => {
         )}
 
         {activeTab === 'interaction' && (
-          <Box className="bg-gradient-to-r from-[#14502e] to-[#288F4E] rounded-2xl p-5 text-white shadow-md">
+          <Box key="interaction" className="bg-gradient-to-r from-[#14502e] to-[#288F4E] rounded-2xl p-5 text-white shadow-md card-sheen animate-fade-in-up">
             <Box className="flex justify-between items-start mb-6">
               <Box>
                 <Text size="xSmall" className="uppercase opacity-80 mb-1 tracking-wider">TÍCH LŨY TƯƠNG TÁC</Text>
@@ -223,17 +224,17 @@ const WalletPage: FC = () => {
               <Box className="text-right flex space-x-3 items-center">
                 <Box>
                   <Text size="xxxxSmall" className="opacity-75 block text-right">Tổng điểm</Text>
-                  <Text.Title className="font-bold text-base mt-0.5 block text-right">{interactionPoints.toLocaleString()}</Text.Title>
+                  <Text.Title className="font-bold text-base mt-0.5 block text-right"><AnimatedCounter target={interactionPoints} /></Text.Title>
                 </Box>
                 <Box className="border-l border-white/20 pl-3">
                   <Text size="xxxxSmall" className="opacity-90 block text-right font-bold text-yellow-300">{"Khả dụng (>48h)"}</Text>
-                  <Text.Title className="font-bold text-base mt-0.5 block text-right text-yellow-300">{eligiblePoints.toLocaleString()}</Text.Title>
+                  <Text.Title className="font-bold text-base mt-0.5 block text-right text-yellow-300"><AnimatedCounter target={eligiblePoints} /></Text.Title>
                 </Box>
               </Box>
             </Box>
 
             <Box className="w-full bg-white/30 h-1.5 rounded-full mb-4">
-              <Box className="bg-white h-1.5 rounded-full" style={{ width: `${Math.min(100, (interactionPoints / 500) * 100)}%` }}></Box>
+              <Box className="bg-white h-1.5 rounded-full transition-all duration-700" style={{ width: `${Math.min(100, (interactionPoints / 500) * 100)}%` }}></Box>
             </Box>
 
             <Text size="xxSmall" className="opacity-80 italic mb-4">* Điểm khả dụng là điểm đã tích lũy đủ 48 giờ và không bị hoàn tác.</Text>

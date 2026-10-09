@@ -1,5 +1,6 @@
 import React, { FC, useState, useEffect, startTransition } from "react";
 import { getDefaultAvatar } from "../utils/avatar";
+import { AnimatedCounter } from "../components/motion";
 import {
   getCachedUserData,
   getInitialCachedUserData,
@@ -511,12 +512,12 @@ const NewMemberView: FC<{
             <Box className="flex flex-col items-center gap-1.5 justify-center">
               <Text.Title className="text-xl font-bold leading-none text-center">{user.name}</Text.Title>
               {role === "provider" ? (
-                <Box className={`flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border shadow-xs ${calculateShopRankInfo(rankPoints).color}`}>
+                <Box className={`flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border shadow-xs card-sheen ${calculateShopRankInfo(rankPoints).color}`}>
                   <CustomIcon icon={calculateShopRankInfo(rankPoints).icon as any} size={10} className="mr-1 inline-flex" />
                   <span>{calculateShopRankInfo(rankPoints).name} Shop</span>
                 </Box>
               ) : (
-                <Box className={`flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border shadow-xs ${calculateMemberRankInfo(rankPoints || points).color}`}>
+                <Box className={`flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border shadow-xs card-sheen ${calculateMemberRankInfo(rankPoints || points).color}`}>
                   <CustomIcon icon={calculateMemberRankInfo(rankPoints || points).icon as any} size={10} className="mr-1 inline-flex" />
                   <span>{calculateMemberRankInfo(rankPoints || points).name}</span>
                 </Box>
@@ -573,22 +574,26 @@ const NewMemberView: FC<{
 
       {/* 5. Thống kê */}
       <Box className="flex justify-around mt-6 mb-4 px-4">
-        <Box className="text-center cursor-pointer active:opacity-70" onClick={() => setActiveTab('posts')}>
+        <Box className="text-center cursor-pointer interactive-press" onClick={() => setActiveTab('posts')}>
           <Text.Title className="font-bold text-lg">
-            {posts.filter(post => !post.attachedProduct).length + linkedPosts.length + sharedPosts.length}
+            <AnimatedCounter target={posts.filter(post => !post.attachedProduct).length + linkedPosts.length + sharedPosts.length} />
           </Text.Title>
           <Text size="small" className="text-gray-600">
             lưu bút
           </Text>
         </Box>
-        <Box className="text-center cursor-pointer active:opacity-70" onClick={handleShowFollowers}>
-          <Text.Title className="font-bold text-lg">{followers.length}</Text.Title>
+        <Box className="text-center cursor-pointer interactive-press" onClick={handleShowFollowers}>
+          <Text.Title className="font-bold text-lg">
+            <AnimatedCounter target={followers.length} />
+          </Text.Title>
           <Text size="small" className="text-gray-600">
             người theo dõi
           </Text>
         </Box>
-        <Box className="text-center cursor-pointer active:opacity-70" onClick={handleShowFollowing}>
-          <Text.Title className="font-bold text-lg">{followingCount}</Text.Title>
+        <Box className="text-center cursor-pointer interactive-press" onClick={handleShowFollowing}>
+          <Text.Title className="font-bold text-lg">
+            <AnimatedCounter target={followingCount} />
+          </Text.Title>
           <Text size="small" className="text-gray-600">
             đang theo dõi
           </Text>
@@ -598,7 +603,7 @@ const NewMemberView: FC<{
       {/* 6. Tabs */}
       <Box className="flex border-t border-b border-gray-100 mb-1 bg-transparent">
         <Box
-          className={`flex-1 flex justify-center py-3 cursor-pointer ${activeTab === 'posts' ? 'border-b-2' : ''}`}
+          className={`flex-1 flex justify-center py-3 cursor-pointer transition-colors ${activeTab === 'posts' ? 'border-b-2' : ''}`}
           style={{ borderColor: activeTab === 'posts' ? "#14502e" : "transparent" }}
           onClick={() => setActiveTab('posts')}
         >
@@ -621,7 +626,7 @@ const NewMemberView: FC<{
           </Box>
         </Box>
         <Box 
-          className={`flex-1 flex justify-center py-3 cursor-pointer ${activeTab === 'saved' ? 'border-b-2 text-[#14502e]' : 'text-gray-400'}`}
+          className={`flex-1 flex justify-center py-3 cursor-pointer transition-colors ${activeTab === 'saved' ? 'border-b-2 text-[#14502e]' : 'text-gray-400'}`}
           style={{ borderColor: activeTab === 'saved' ? "#14502e" : "transparent" }}
           onClick={() => setActiveTab('saved')}
         >
@@ -636,7 +641,7 @@ const NewMemberView: FC<{
           </Box>
         </Box>
         <Box 
-          className={`flex-1 flex justify-center py-3 cursor-pointer ${activeTab === 'shared' ? 'border-b-2 text-[#14502e]' : 'text-gray-400'}`}
+          className={`flex-1 flex justify-center py-3 cursor-pointer transition-colors ${activeTab === 'shared' ? 'border-b-2 text-[#14502e]' : 'text-gray-400'}`}
           style={{ borderColor: activeTab === 'shared' ? "#14502e" : "transparent" }}
           onClick={() => setActiveTab('shared')}
         >
@@ -665,7 +670,7 @@ const NewMemberView: FC<{
 
       {/* 7. Nội dung Tab */}
       {activeTab === 'posts' && (
-        <Box className="grid grid-cols-3 gap-2 px-3 pt-2">
+        <Box className="grid grid-cols-3 gap-2 px-3 pt-2 animate-fade-in-up stagger-grid">
           {loadingPosts ? (
             <Box className="col-span-3 py-10 flex justify-center">
               <Text className="text-gray-400">Đang tải...</Text>
@@ -679,7 +684,7 @@ const NewMemberView: FC<{
             posts.filter(post => !post.attachedProduct).map((post) => (
               <Box
                 key={post.id}
-                className="flex flex-col bg-white border border-gray-150 rounded-lg overflow-hidden shadow-xs cursor-pointer active:scale-[0.98] transition duration-150"
+                className="flex flex-col bg-white border border-gray-150 rounded-lg overflow-hidden shadow-xs cursor-pointer interactive-card animate-fade-in-up"
                 onClick={() => navigate(`/post-detail?id=${post.id}`)}
               >
                 <Box className="aspect-square bg-gray-100 relative overflow-hidden flex items-center justify-center">
@@ -738,7 +743,7 @@ const NewMemberView: FC<{
       )}
 
       {activeTab === 'saved' && (
-        <Box className="grid grid-cols-3 gap-2 px-3 pt-2">
+        <Box className="grid grid-cols-3 gap-2 px-3 pt-2 animate-fade-in-up stagger-grid">
           {loadingPosts ? (
             <Box className="col-span-3 py-10 flex justify-center">
               <Text className="text-gray-400">Đang tải...</Text>
@@ -757,7 +762,7 @@ const NewMemberView: FC<{
             linkedPosts.map((post) => (
               <Box
                 key={post.id}
-                className="flex flex-col bg-white border border-gray-150 rounded-lg overflow-hidden shadow-xs cursor-pointer active:scale-[0.98] transition duration-150"
+                className="flex flex-col bg-white border border-gray-150 rounded-lg overflow-hidden shadow-xs cursor-pointer interactive-card animate-fade-in-up"
                 onClick={() => navigate(`/post-detail?id=${post.id}`)}
               >
                 <Box className="aspect-square bg-gray-100 relative overflow-hidden flex items-center justify-center">
@@ -816,7 +821,7 @@ const NewMemberView: FC<{
       )}
 
       {activeTab === 'shared' && (
-        <Box className="grid grid-cols-3 gap-2 px-3 pt-2">
+        <Box className="grid grid-cols-3 gap-2 px-3 pt-2 animate-fade-in-up stagger-grid">
           {loadingPosts ? (
             <Box className="col-span-3 py-10 flex justify-center">
               <Text className="text-gray-400">Đang tải...</Text>

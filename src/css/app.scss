@@ -117,13 +117,23 @@ body {
 }
 
 /* Custom Bottom Navigation Oval Active State */
+.zaui-bottom-navigation-item {
+  transition: transform 0.28s var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)),
+              color 0.22s ease,
+              background-color 0.28s var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+.zaui-bottom-navigation-item:active {
+  transform: scale(0.92);
+}
+
 .zaui-bottom-navigation-item-active {
   background-color: var(--zmp-primary-color) !important;
   color: #000000 !important;
   border-radius: 9999px !important;
   margin: 6px 12px !important;
   padding: 2px 0 !important;
-  transition: all 0.3s ease;
+  transition: all 0.34s var(--ease-spring, cubic-bezier(0.34, 1.56, 0.64, 1));
 }
 
 .zaui-bottom-navigation-item-active .zaui-icon,
@@ -208,3 +218,346 @@ body {
 *::-webkit-scrollbar {
   display: none !important;            /* Safari and Chrome */
 }
+
+/* ================================================================
+   HỆ THỐNG CHUYỂN TRANG & HIỆU ỨNG PHẦN TỬ (KẾ THỪA TỪ VIETTEL 30 NĂM)
+   ================================================================ */
+
+:root {
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 1. Native View Transitions API (từ page-transitions.css) */
+@view-transition {
+  navigation: auto;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.26s;
+  animation-timing-function: var(--ease-standard);
+}
+
+::view-transition-old(root) {
+  animation-name: cgb-vt-fade-out;
+}
+
+::view-transition-new(root) {
+  animation-name: cgb-vt-fade-in;
+}
+
+@keyframes cgb-vt-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes cgb-vt-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* 2. Smart Directional Route Transitions (Cross-Tab & Push/Pop) */
+.page-transition-stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  will-change: transform, opacity;
+}
+
+.page-enter-tab-right {
+  animation: pageTabRight 0.24s var(--ease-out-expo) both;
+}
+
+.page-enter-tab-left {
+  animation: pageTabLeft 0.24s var(--ease-out-expo) both;
+}
+
+.page-enter-push {
+  animation: pagePushIn 0.28s var(--ease-out-expo) both;
+}
+
+.page-enter-pop {
+  animation: pagePopIn 0.24s var(--ease-out-expo) both;
+}
+
+.page-enter-fade {
+  animation: fadeInUpSubtle 0.24s var(--ease-out-expo) both;
+}
+
+@keyframes pageTabRight {
+  from {
+    opacity: 0.01;
+    transform: translate3d(14px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes pageTabLeft {
+  from {
+    opacity: 0.01;
+    transform: translate3d(-14px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes pagePushIn {
+  from {
+    opacity: 0.01;
+    transform: translate3d(26px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes pagePopIn {
+  from {
+    opacity: 0.01;
+    transform: translate3d(-20px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes fadeInUpSubtle {
+  from {
+    opacity: 0.01;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* 3. Utility Keyframes & Micro-Animations (Modal, Card, Tab Pane) */
+.animate-fade-in {
+  animation: cgbFadeIn 0.25s var(--ease-out-expo) both;
+}
+
+.animate-fade-in-up {
+  animation: cgbFadeInUp 0.34s var(--ease-out-expo) both;
+}
+
+.animate-scale-in {
+  animation: cgbScaleIn 0.28s var(--ease-spring) both;
+}
+
+.animate-slide-up {
+  animation: cgbSlideUp 0.32s var(--ease-out-expo) both;
+}
+
+@keyframes cgbFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes cgbFadeInUp {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes cgbScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes cgbSlideUp {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 24px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* 4. IntersectionObserver Scroll Reveal & Staggered Grid (từ site.css & ContentInteractions.jsx) */
+.reveal {
+  opacity: 0;
+  transform: translate3d(0, 18px, 0);
+  transition: opacity 0.48s var(--ease-out-expo),
+              transform 0.48s var(--ease-out-expo);
+  will-change: opacity, transform;
+}
+
+.reveal.visible {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+.stagger-grid > *:nth-child(1) { animation-delay: 0s; transition-delay: 0s; }
+.stagger-grid > *:nth-child(2) { animation-delay: 0.045s; transition-delay: 0.045s; }
+.stagger-grid > *:nth-child(3) { animation-delay: 0.09s; transition-delay: 0.09s; }
+.stagger-grid > *:nth-child(4) { animation-delay: 0.135s; transition-delay: 0.135s; }
+.stagger-grid > *:nth-child(5) { animation-delay: 0.18s; transition-delay: 0.18s; }
+.stagger-grid > *:nth-child(6) { animation-delay: 0.225s; transition-delay: 0.225s; }
+.stagger-grid > *:nth-child(7) { animation-delay: 0.27s; transition-delay: 0.27s; }
+.stagger-grid > *:nth-child(8) { animation-delay: 0.315s; transition-delay: 0.315s; }
+
+/* 5. Counter Spring Pop (từ site.css .counter.pop) */
+.counter-pop {
+  display: inline-block;
+  animation: counterPop 0.48s var(--ease-spring);
+}
+
+@keyframes counterPop {
+  0% { transform: scale(1); }
+  55% { transform: scale(1.16); }
+  100% { transform: scale(1); }
+}
+
+/* 6. Card Sheen / Shimmer & Tactile Touch Feedback (từ site.css .era-card & .stat-card-pro) */
+.card-sheen {
+  position: relative;
+  overflow: hidden;
+}
+
+.card-sheen::after {
+  content: "";
+  position: absolute;
+  inset: -40% auto auto -20%;
+  width: 60%;
+  height: 180%;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.32) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: translateX(-140%) rotate(-14deg);
+  animation: cgbSheenSlow 6.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes cgbSheenSlow {
+  0%, 72% {
+    transform: translateX(-140%) rotate(-14deg);
+  }
+  100% {
+    transform: translateX(260%) rotate(-14deg);
+  }
+}
+
+.interactive-card {
+  transition: transform 0.26s var(--ease-out-expo),
+              box-shadow 0.26s var(--ease-out-expo);
+  will-change: transform;
+}
+
+.interactive-card:active {
+  transform: scale(0.965);
+}
+
+.interactive-press {
+  transition: transform 0.2s var(--ease-spring), opacity 0.2s ease;
+}
+
+.interactive-press:active {
+  transform: scale(0.92);
+}
+
+/* 7. Modal & Lightbox Glassmorphism + Zoom-in (từ leaders.css lbFadeIn / lbZoom) */
+.zaui-modal-wrapper .zaui-mask {
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  transition: opacity 0.24s ease;
+}
+
+.zaui-modal-wrapper .zaui-modal-content:not(.order-management-modal .zaui-modal-content) {
+  animation: cgbScaleIn 0.26s var(--ease-out-expo) both;
+}
+
+/* 8. Floating BackToTop Button với hiệu ứng lò xo (từ site.css .backtop) */
+.cgb-backtop {
+  position: fixed;
+  right: 16px;
+  bottom: 78px;
+  width: 42px;
+  height: 42px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: linear-gradient(135deg, #14502e, #288F4E);
+  color: #ffffff;
+  box-shadow: 0 10px 25px rgba(20, 80, 46, 0.28);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 45;
+  cursor: pointer;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: scale(0.4) translateY(20px);
+  transition: opacity 0.28s ease,
+              visibility 0.28s ease,
+              transform 0.42s var(--ease-spring);
+}
+
+.cgb-backtop.show {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: scale(1) translateY(0);
+}
+
+.cgb-backtop:active {
+  transform: scale(0.9);
+}
+
+/* 9. Accessibility: Tôn trọng cài đặt giảm chuyển động của thiết bị */
+@media (prefers-reduced-motion: reduce) {
+  @view-transition {
+    navigation: none;
+  }
+  .page-enter-tab-right,
+  .page-enter-tab-left,
+  .page-enter-push,
+  .page-enter-pop,
+  .page-enter-fade,
+  .animate-fade-in,
+  .animate-fade-in-up,
+  .animate-scale-in,
+  .animate-slide-up,
+  .counter-pop,
+  .card-sheen::after {
+    animation: none !important;
+  }
+  .reveal {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+  .cgb-backtop {
+    transition: opacity 0.2s ease !important;
+    transform: none !important;
+  }
+}
+

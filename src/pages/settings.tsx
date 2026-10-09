@@ -86,6 +86,62 @@ const calculateMemberRankInfo = (points: number) => {
   return { name: "Hạng Kim Cương", sub: "DIAMOND STATUS", target: 999999, nextName: "" };
 };
 
+const VOUCHER_CACHE_KEY = "cgb_cached_voucher_programs_v1";
+const ADMIN_SETTINGS_CACHE_KEY = "cgb_cached_admin_settings_v1";
+let memoryVoucherPrograms: any[] | null = null;
+let memoryAllServices: any[] | null = null;
+let memoryAdminSettings: { showPrice?: boolean; allowShopAddPoints?: boolean; showChatTab?: boolean } | null = null;
+
+function readInitialVoucherPrograms(): any[] | null {
+  if (memoryVoucherPrograms !== null) return memoryVoucherPrograms;
+  try {
+    const raw = localStorage.getItem(VOUCHER_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      memoryVoucherPrograms = parsed;
+      return parsed;
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return null;
+}
+
+function writeCachedVoucherPrograms(campaigns: any[]) {
+  memoryVoucherPrograms = campaigns;
+  try {
+    localStorage.setItem(VOUCHER_CACHE_KEY, JSON.stringify(campaigns));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function readInitialAdminSettings() {
+  if (memoryAdminSettings !== null) return memoryAdminSettings;
+  try {
+    const raw = localStorage.getItem(ADMIN_SETTINGS_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") {
+      memoryAdminSettings = parsed;
+      return parsed;
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return null;
+}
+
+function writeCachedAdminSettings(settings: { showPrice?: boolean; allowShopAddPoints?: boolean; showChatTab?: boolean }) {
+  memoryAdminSettings = settings;
+  try {
+    localStorage.setItem(ADMIN_SETTINGS_CACHE_KEY, JSON.stringify(settings));
+  } catch {
+    // ignore storage errors
+  }
+}
+
 const SettingsPage: FC = () => {
   const navigate = useNavigate();
   const { openSnackbar } = useSnackbar();
@@ -129,12 +185,13 @@ const SettingsPage: FC = () => {
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [activeOrderCount, setActiveOrderCount] = useState(0);
-  const [voucherPrograms, setVoucherPrograms] = useState<any[]>([]);
+  const [voucherPrograms, setVoucherPrograms] = useState<any[]>(() => readInitialVoucherPrograms() || []);
+  const [loadingVoucherPrograms, setLoadingVoucherPrograms] = useState<boolean>(() => readInitialVoucherPrograms() === null);
   const [expandedCampaignId, setExpandedCampaignId] = useState<string | null>(null);
-  const [allServices, setAllServices] = useState<any[]>([]);
-  const [showPrice, setShowPrice] = useState(false);
-  const [allowShopAddPoints, setAllowShopAddPoints] = useState(false);
-  const [showChatTab, setShowChatTab] = useState(true);
+  const [allServices, setAllServices] = useState<any[]>(() => memoryAllServices || []);
+  const [showPrice, setShowPrice] = useState<boolean>(() => readInitialAdminSettings()?.showPrice ?? false);
+  const [allowShopAddPoints, setAllowShopAddPoints] = useState<boolean>(() => readInitialAdminSettings()?.allowShopAddPoints ?? false);
+  const [showChatTab, setShowChatTab] = useState<boolean>(() => readInitialAdminSettings()?.showChatTab ?? true);
 
   const [showAddPointsModal, setShowAddPointsModal] = useState(false);
   const [addPointsPhone, setAddPointsPhone] = useState("");
@@ -157,9 +214,17 @@ const SettingsPage: FC = () => {
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           const data = docSnap.data();
-          if (data.showPrice !== undefined) setShowPrice(data.showPrice);
-          if (data.allowShopAddPoints !== undefined) setAllowShopAddPoints(data.allowShopAddPoints);
-          if (data.showChatTab !== undefined) setShowChatTab(data.showChatTab);
+          const nextShowPrice = data.showPrice !== undefined ? Boolean(data.showPrice) : false;
+          const nextAllowShopAddPoints = data.allowShopAddPoints !== undefined ? Boolean(data.allowShopAddPoints) : false;
+          const nextShowChatTab = data.showChatTab !== undefined ? Boolean(data.showChatTab) : true;
+          setShowPrice(nextShowPrice);
+          setAllowShopAddPoints(nextAllowShopAddPoints);
+          setShowChatTab(nextShowChatTab);
+          writeCachedAdminSettings({
+            showPrice: nextShowPrice,
+            allowShopAddPoints: nextAllowShopAddPoints,
+            showChatTab: nextShowChatTab,
+          });
         }
       } catch (err) {
         console.error("Lỗi lấy admin_settings:", err);
@@ -197,8 +262,11 @@ const SettingsPage: FC = () => {
         });
         
         setVoucherPrograms(campaigns);
+        writeCachedVoucherPrograms(campaigns);
       } catch (err) {
         console.error("Lỗi lấy danh sách Voucher:", err);
+      } finally {
+        setLoadingVoucherPrograms(false);
       }
     };
     
@@ -219,6 +287,7 @@ const SettingsPage: FC = () => {
             shopName: matchingShop?.name || data.shopName || "Khác"
           };
         });
+        memoryAllServices = s;
         setAllServices(s);
       } catch (e) {
         console.error("Lỗi lấy danh sách dịch vụ:", e);
@@ -1672,7 +1741,7 @@ const SettingsPage: FC = () => {
             const isExpanded = expandedCampaignId === (vp.id || idx.toString());
 
             return (
-              <Box key={idx} className="flex flex-col mb-4 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+              <Box key={vp.id || idx} className="flex flex-col mb-4 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden animate-fade-in-up">
                 <Box 
                   className="p-4 flex justify-between items-center cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors"
                   onClick={() => setExpandedCampaignId(isExpanded ? null : (vp.id || idx.toString()))}
@@ -1819,6 +1888,17 @@ const SettingsPage: FC = () => {
               </Box>
             )
           })
+        ) : loadingVoucherPrograms ? (
+          <Box className="space-y-3 mt-2">
+            <Box className="h-14 bg-white rounded-2xl border border-gray-200 shadow-sm animate-pulse p-4 flex items-center justify-between">
+              <Box className="h-4 w-48 bg-gray-200 rounded" />
+              <Box className="h-4 w-4 bg-gray-200 rounded" />
+            </Box>
+            <Box className="h-14 bg-white rounded-2xl border border-gray-200 shadow-sm animate-pulse p-4 flex items-center justify-between">
+              <Box className="h-4 w-64 bg-gray-200 rounded" />
+              <Box className="h-4 w-4 bg-gray-200 rounded" />
+            </Box>
+          </Box>
         ) : (
           <Box className="bg-white p-4 rounded-xl border border-gray-200 border-dashed text-center shadow-sm mt-2">
             <Text size="small" className="text-gray-500">Hiện chưa có chương trình đổi điểm nào.</Text>
