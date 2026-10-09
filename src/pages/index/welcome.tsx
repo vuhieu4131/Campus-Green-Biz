@@ -2,7 +2,12 @@ import CustomIcon from '../../components/custom-icon';
 import React, { FC, useState, useEffect } from "react";
 import { Box, Text, Avatar, Icon, useNavigate } from "zmp-ui";
 import { useRecoilValueLoadable } from "recoil";
-import { userState } from "state";
+import {
+  userState,
+  getCachedUserData,
+  getInitialCachedUserData,
+  setCachedUserData,
+} from "state";
 import { auth, db } from "../../firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { getDefaultAvatar } from "../../utils/avatar";
@@ -13,7 +18,7 @@ export const Welcome: FC = () => {
   const navigate = useNavigate();
   const userInfoLoadable = useRecoilValueLoadable(userState);
   const userInfo = userInfoLoadable.state === "hasValue" ? userInfoLoadable.contents : null;
-  const [userData, setUserData] = useState<any>(null);
+  const [userData, setUserData] = useState<any>(() => getInitialCachedUserData(auth.currentUser));
   const [showLogoModal, setShowLogoModal] = useState(false);
   const [showTextModal, setShowTextModal] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -23,7 +28,11 @@ export const Welcome: FC = () => {
     let unsub2: (() => void) | undefined;
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
+      if (user && user.email !== "guest@campus.com") {
+        const cached = getCachedUserData(user.uid);
+        if (cached) {
+          setUserData(cached);
+        }
         try {
           const phoneFromEmail = user.email ? user.email.split("@")[0] : "";
           const localPhone = localStorage.getItem("user_phone");
@@ -36,12 +45,13 @@ export const Welcome: FC = () => {
             const shopSnap = await getDocs(qShop);
             if (!shopSnap.empty) {
               const shopData = shopSnap.docs[0].data();
-              setUserData({ 
+              const normalized = setCachedUserData(user.uid, { 
                 id: shopSnap.docs[0].id, 
                 ...shopData, 
                 avatar: shopData.shopAvatar || shopData.avatar,
                 role: "provider" 
               });
+              setUserData(normalized);
               isShop = true;
             }
           }
@@ -51,6 +61,7 @@ export const Welcome: FC = () => {
             const docRef = doc(db, "users", user.uid);
             const docSnap = await getDoc(docRef);
             let data = docSnap.exists() ? docSnap.data() : null;
+            let docId = docSnap.id;
 
             // Check in users (by phone fallback)
             if (!data && finalPhone) {
@@ -58,11 +69,14 @@ export const Welcome: FC = () => {
               const userSnap = await getDocs(qUser);
               if (!userSnap.empty) {
                 data = userSnap.docs[0].data();
+                docId = userSnap.docs[0].id;
               }
             }
 
             if (data) {
-              setUserData(data);
+              const role = data.role || (data.branchInfo ? "member" : "user");
+              const normalized = setCachedUserData(user.uid, { id: docId, ...data, role });
+              setUserData(normalized);
             }
           }
 

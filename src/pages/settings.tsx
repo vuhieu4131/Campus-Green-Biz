@@ -10,7 +10,14 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { SectionBox } from "../components/section-box";
 import { openShareSheet, openChat } from "zmp-sdk/apis";
 import { useRecoilState } from "recoil";
-import { cartState } from "../state";
+import {
+  cartState,
+  getCachedUserData,
+  getInitialCachedUserData,
+  setCachedUserData,
+  updateCachedUserData,
+  clearCachedUserData,
+} from "../state";
 
 
 const isWithin15Days = (createdAt: any) => {
@@ -100,8 +107,11 @@ const SettingsPage: FC = () => {
   const [cancelReason, setCancelReason] = useState("");
   const [cancellingOrder, setCancellingOrder] = useState(false);
   // Wallet states
-  const [userData, setUserData] = useState<any>(null);
-  const [points, setPoints] = useState(0);
+  const [userData, setUserData] = useState<any>(() => getInitialCachedUserData(auth.currentUser));
+  const [points, setPoints] = useState(() => {
+    const cached = getInitialCachedUserData(auth.currentUser);
+    return cached?.rankPoints || 0;
+  });
   const [isWalletExpanded, setIsWalletExpanded] = useState(false);
   const [activeWalletTab, setActiveWalletTab] = useState<'rank' | 'promo' | 'interaction'>('rank');
   const [showWalletHistoryModal, setShowWalletHistoryModal] = useState(false);
@@ -676,6 +686,12 @@ const SettingsPage: FC = () => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user && user.email !== "guest@campus.com") {
+        const cached = getCachedUserData(user.uid);
+        if (cached) {
+          setUserData(cached);
+          setPoints(cached.rankPoints || 0);
+        }
+
         // Cố gắng lấy thông tin
         const phoneFromEmail = user.email ? user.email.split("@")[0] : "";
         const localPhone = localStorage.getItem("user_phone");
@@ -728,8 +744,9 @@ const SettingsPage: FC = () => {
           };
         }
 
-        setUserData(foundData);
-        setPoints(foundData.rankPoints || 0);
+        const normalized = setCachedUserData(user.uid, foundData);
+        setUserData(normalized);
+        setPoints(normalized.rankPoints || 0);
         if (foundData.id) {
           fetchEligiblePoints(foundData.id);
         }
@@ -1013,6 +1030,10 @@ const SettingsPage: FC = () => {
               });
               
               setPoints(rankPointsTotal);
+              updateCachedUserData(user.uid, {
+                spendingPoints: spendingPointsTotal,
+                rankPoints: rankPointsTotal,
+              });
               setUserData((prev: any) => prev ? {
                 ...prev,
                 spendingPoints: spendingPointsTotal,
@@ -1040,6 +1061,7 @@ const SettingsPage: FC = () => {
       } else {
         setUserData(null);
         setPoints(0);
+        clearCachedUserData();
         setReferralCode("Đang tải...");
       }
     });
@@ -1338,6 +1360,8 @@ const SettingsPage: FC = () => {
 
   const handleLogout = async () => {
     try {
+      clearCachedUserData();
+      localStorage.removeItem("isAdminBypass");
       await signOut(auth);
       navigate('/');
     } catch (error) {

@@ -1,6 +1,14 @@
 import React, { FC, useState, useEffect, startTransition } from "react";
 import { getDefaultAvatar } from "../utils/avatar";
 import {
+  getCachedUserData,
+  getInitialCachedUserData,
+  setCachedUserData,
+  updateCachedUserData,
+  clearCachedUserData,
+  resolveProfileViewMode,
+} from "../utils/user-cache";
+import {
   Box,
   Header,
   Icon,
@@ -1002,9 +1010,18 @@ const ProfilePage: FC = () => {
   const navigate = useNavigate(); // Công cụ chuyển trang
   const location = useLocation(); // Công cụ lấy state chuyển trang
 
-  // Trạng thái quản lý User
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [userData, setUserData] = useState<any>(null);
+  // Trạng thái quản lý User (Khởi tạo đồng bộ từ Cache để chống nháy giao diện)
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    const u = auth.currentUser;
+    return u && u.email !== "guest@campus.com" ? u : null;
+  });
+  const [userData, setUserData] = useState<any>(() => getInitialCachedUserData(auth.currentUser));
+  const [loadingUserData, setLoadingUserData] = useState<boolean>(() => {
+    const initialCached = getInitialCachedUserData(auth.currentUser);
+    if (initialCached) return false;
+    const u = auth.currentUser;
+    return Boolean(u && u.email !== "guest@campus.com");
+  });
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const { openSnackbar } = useSnackbar();
 
@@ -1039,7 +1056,11 @@ const ProfilePage: FC = () => {
       const docRef = doc(db, userData.role === "provider" ? "shops" : "users", currentUser.uid);
       await updateDoc(docRef, { [field]: url });
       
-      setUserData((prev: any) => ({ ...prev, [field]: url }));
+      setUserData((prev: any) => {
+        const next = { ...prev, [field]: url };
+        updateCachedUserData(currentUser.uid, { [field]: url });
+        return next;
+      });
       openSnackbar({ text: `Cập nhật ${field === 'avatar' ? 'ảnh đại diện' : 'ảnh bìa'} thành công!`, type: "success" });
     } catch (error) {
       console.error(error);
@@ -1106,10 +1127,17 @@ const ProfilePage: FC = () => {
   }, [location.state, userData]);
 
   // Lắng nghe trạng thái đăng nhập từ Firebase
-  // Lắng nghe trạng thái đăng nhập từ Firebase
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user && user.email !== "guest@campus.com") {
+        const cached = getCachedUserData(user.uid);
+        if (cached) {
+          setUserData(cached);
+          setLoadingUserData(false);
+        } else {
+          setUserData(null);
+          setLoadingUserData(true);
+        }
         setCurrentUser(user);
         
         // Lấy SĐT từ email
@@ -1130,7 +1158,9 @@ const ProfilePage: FC = () => {
             if (!shopSnap.empty) {
               // LÀ SHOP: Load ProviderView
               const shopData = shopSnap.docs[0].data();
-              setUserData({ id: shopSnap.docs[0].id, ...shopData, role: "provider" });
+              const normalized = setCachedUserData(user.uid, { id: shopSnap.docs[0].id, ...shopData, role: "provider" });
+              setUserData(normalized);
+              setLoadingUserData(false);
               return; 
             }
           } catch (error) {
@@ -1158,17 +1188,23 @@ const ProfilePage: FC = () => {
         }
 
         if (data) {
+          let finalData: any;
           if (data.role === "admin") {
-              setUserData({ id: docId, ...data });
+            finalData = { id: docId, ...data };
           } else if (data.branchInfo) {
-              setUserData({ id: docId, ...data, role: "member" });
+            finalData = { id: docId, ...data, role: "member" };
           } else {
-              setUserData({ id: docId, ...data, role: data.role || "user" });
+            finalData = { id: docId, ...data, role: data.role || "user" };
           }
+          const normalized = setCachedUserData(user.uid, finalData);
+          setUserData(normalized);
         }
+        setLoadingUserData(false);
       } else {
         setCurrentUser(null);
         setUserData(null);
+        setLoadingUserData(false);
+        clearCachedUserData();
         localStorage.removeItem("user_phone");
       }
     });
@@ -1179,6 +1215,8 @@ const ProfilePage: FC = () => {
   // Hàm xử lý Đăng xuất
   const handleLogout = async () => {
     try {
+      clearCachedUserData();
+      localStorage.removeItem("isAdminBypass");
       await signOut(auth);
       // Firebase sẽ tự động cập nhật currentUser về null và giao diện sẽ đổi
     } catch (error) {
@@ -1210,24 +1248,36 @@ const ProfilePage: FC = () => {
     }
   };
 
-  if (!showFullProfile && currentUser && !profileId) {
-    const isRegularUser = !userData?.role || userData?.role === "user" || userData?.role === "member" || userData?.role === "distributor" || (userData?.role === "provider" && !showProviderDashboard);
-    if (isRegularUser) {
-      return (
-        <ErrorBoundary>
-          <SettingsPage />
-        </ErrorBoundary>
-      );
-    }
+  const effectiveUser =
+    currentUser ||
+    (userData?._cachedUid
+      ? ({ uid: userData._cachedUid, email: userData.email || `${userData.phone || "user"}@campus.com` } as any)
+      : null);
+
+  const viewMode = resolveProfileViewMode({
+    profileId,
+    currentUser: effectiveUser,
+    userData,
+    loadingUserData,
+    showProviderDashboard,
+    showFullProfile,
+  });
+
+  if (viewMode === "settings") {
+    return (
+      <ErrorBoundary>
+        <SettingsPage />
+      </ErrorBoundary>
+    );
   }
 
   return (
     <ErrorBoundary>
       <Page className="relative overflow-y-auto">
-        {!currentUser && <Header showBackIcon={false} title="Hồ sơ cá nhân" />}
+        {viewMode === "guest" && <Header showBackIcon={false} title="Hồ sơ cá nhân" />}
 
         {/* HIỂN THỊ DỰA TRÊN TRẠNG THÁI */}
-        {profileId ? (
+        {viewMode === "target_profile" ? (
           loadingTarget ? (
             <Box className="flex justify-center items-center h-40">
               <Text className="text-gray-400">Đang tải hồ sơ...</Text>
@@ -1248,7 +1298,7 @@ const ProfilePage: FC = () => {
               role={targetUserData.role || (targetUserData.collectionName === "shops" ? "provider" : "user")}
               isOtherProfile={true}
               followers={targetUserData.followers || []}
-              currentUserId={currentUser?.uid}
+              currentUserId={effectiveUser?.uid}
               onFollowToggle={handleFollowToggle}
             />
           ) : (
@@ -1256,7 +1306,11 @@ const ProfilePage: FC = () => {
               <Text className="text-gray-400">Không tìm thấy người dùng.</Text>
             </Box>
           )
-        ) : currentUser ? (
+        ) : viewMode === "loading" ? (
+          <Box className="flex justify-center items-center h-64">
+            <Spinner visible />
+          </Box>
+        ) : viewMode !== "guest" && effectiveUser ? (
           <>
             {isUploadingImage && (
               <Box className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center">
@@ -1266,19 +1320,34 @@ const ProfilePage: FC = () => {
                 </Box>
               </Box>
             )}
-            {(userData?.role === "admin" || userData?.role === "admin_phu") && <AdminView userData={userData} onLogout={handleLogout} />}
-            {userData?.role === "provider" && showProviderDashboard && <ProviderView userData={userData} setUserData={setUserData} onLogout={handleLogout} onBackToProfile={() => setShowProviderDashboard(false)} initialOpenVipModal={location.state?.openVipWallet} />}
-            
-            {(!userData?.role || userData?.role === "user" || userData?.role === "member" || userData?.role === "distributor" || (userData?.role === "provider" && !showProviderDashboard)) && (
+            {viewMode === "admin" && <AdminView userData={userData} onLogout={handleLogout} />}
+            {viewMode === "provider_dashboard" && (
+              <ProviderView
+                userData={userData}
+                setUserData={(updater: any) => {
+                  setUserData((prev: any) => {
+                    const next = typeof updater === "function" ? updater(prev) : updater;
+                    if (effectiveUser?.uid && next) {
+                      setCachedUserData(effectiveUser.uid, next);
+                    }
+                    return next;
+                  });
+                }}
+                onLogout={handleLogout}
+                onBackToProfile={() => setShowProviderDashboard(false)}
+                initialOpenVipModal={location.state?.openVipWallet}
+              />
+            )}
+            {viewMode === "member" && (
               <NewMemberView
                 user={{
-                  id: currentUser.uid,
-                  username: currentUser.email
-                    ? currentUser.email.split("@")[0]
+                  id: effectiveUser.uid,
+                  username: effectiveUser.email
+                    ? effectiveUser.email.split("@")[0]
                     : "user_name",
                   name: (userData?.role === "provider" || userData?.collectionName === "shops")
                     ? (userData?.name || userData?.shopName || userData?.fullName || "Shop")
-                    : (userData?.fullName || currentUser.email?.split("@")[0] || "Thành viên Campus"),
+                    : (userData?.fullName || userData?.name || effectiveUser.email?.split("@")[0] || "Thành viên Campus"),
                   avatar: userData?.avatar || "",
                   cover: userData?.cover,
                   phone: userData?.phone
@@ -1287,7 +1356,7 @@ const ProfilePage: FC = () => {
                 rankPoints={userData?.rankPoints || 0}
                 role={userData?.role}
                 followers={userData?.followers || []}
-                currentUserId={currentUser.uid}
+                currentUserId={effectiveUser.uid}
                 onUpdateImage={handleUpdateImage}
                 onOpenProviderDashboard={() => setShowProviderDashboard(true)}
               />

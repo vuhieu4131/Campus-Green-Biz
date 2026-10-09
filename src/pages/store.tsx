@@ -1,7 +1,14 @@
 import CustomIcon from '../components/custom-icon';
 import React, { FC, useState, useEffect, useRef } from "react";
-import { useSetRecoilState, useRecoilValue, useRecoilValueLoadable } from 'recoil';
-import { cartState, userState, totalQuantityState } from 'state';
+import { useSetRecoilState, useRecoilValue } from 'recoil';
+import {
+  cartState,
+  totalQuantityState,
+  getCachedUserData,
+  getInitialCachedUserData,
+  setCachedUserData,
+  resolveStoreHeaderState,
+} from 'state';
 import { Page, Box, Text, Avatar, Icon, Input, useNavigate, Sheet, Button, useSnackbar } from "zmp-ui";
 import { auth, db } from "../firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -22,18 +29,31 @@ const getGreeting = () => {
 
 const StoreWelcome: FC = () => {
   const navigate = useNavigate();
-  const userInfoLoadable = useRecoilValueLoadable(userState);
-  const userInfo = userInfoLoadable.state === "hasValue" ? userInfoLoadable.contents : null;
   const cartQuantity = useRecoilValue(totalQuantityState);
 
-  const [userData, setUserData] = useState<any>(null);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<any>(() => auth.currentUser);
+  const [userData, setUserData] = useState<any>(() => getInitialCachedUserData(auth.currentUser));
+  const [loadingUser, setLoadingUser] = useState<boolean>(() => {
+    const initialCached = getInitialCachedUserData(auth.currentUser);
+    if (initialCached) return false;
+    const u = auth.currentUser;
+    return Boolean(u && u.email !== "guest@campus.com");
+  });
   const setCart = useSetRecoilState(cartState);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
       if (user && user.email !== "guest@campus.com") {
+        const cached = getCachedUserData(user.uid);
+        if (cached) {
+          setUserData(cached);
+          setLoadingUser(false);
+        } else {
+          setUserData(null);
+          setLoadingUser(true);
+        }
+        setCurrentUser(user);
+
         const phoneFromEmail = user.email ? user.email.split("@")[0] : "";
         const localPhone = localStorage.getItem("user_phone");
         const finalPhone = phoneFromEmail || localPhone;
@@ -70,32 +90,40 @@ const StoreWelcome: FC = () => {
           }
         }
 
-        setUserData(foundData);
+        if (foundData) {
+          const normalized = setCachedUserData(user.uid, foundData);
+          setUserData(normalized);
+        }
+        setLoadingUser(false);
       } else {
+        setCurrentUser(user);
         setUserData(null);
+        setLoadingUser(false);
         setCart([]); // Clear cart for guest/unlogged users!
       }
     });
     return () => unsubscribe();
   }, []);
 
-  const isRealUser = currentUser && currentUser.email !== "guest@campus.com";
-  const avatar = isRealUser 
-    ? (userData?.avatar || userInfo?.avatar || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png") 
-    : (userInfo?.avatar || "https://stc-zalopay-images.zg.vn/v2/0/images/avatars/default_avatar.png");
-  const name = isRealUser 
-    ? (userData?.fullName || userData?.name || userInfo?.name || "Khách") 
-    : (userInfo?.name || "Khách");
-  const rankPoints = userData?.rankPoints || 0;
-  const spendingPoints = userData?.spendingPoints ?? userData?.points ?? 0;
-  
-  const getRankName = (p: number) => {
-    if (p < 500) return "Hạng Đồng";
-    if (p < 1000) return "Hạng Bạc";
-    if (p < 2000) return "Hạng Vàng";
-    return "Hạng Kim Cương";
-  };
-  const rankName = getRankName(rankPoints);
+  const effectiveUser =
+    currentUser ||
+    (userData?._cachedUid
+      ? { uid: userData._cachedUid, email: userData.email || `${userData.phone || "user"}@campus.com` }
+      : null);
+
+  const {
+    isRealUser,
+    isLoading,
+    name,
+    avatar,
+    spendingPoints,
+    rankName,
+  } = resolveStoreHeaderState({
+    currentUser: effectiveUser,
+    userData,
+    loadingUser,
+  });
+
   const greeting = getGreeting();
 
   return (
@@ -113,13 +141,21 @@ const StoreWelcome: FC = () => {
           <Box className="flex flex-col justify-end h-full">
             <Box className="flex items-center space-x-1.5 mb-1">
               <Text className="text-white/80 text-xs">{greeting}</Text>
-              <Text className="text-white font-bold text-sm truncate max-w-[120px]">{name}</Text>
+              {isLoading ? (
+                <div className="h-4 w-24 bg-white/25 rounded animate-pulse" />
+              ) : (
+                <Text className="text-white font-bold text-sm truncate max-w-[120px]">{name}</Text>
+              )}
             </Box>
             {isRealUser ? (
-              <Box className="bg-white/25 backdrop-blur-md rounded-full px-2 py-0.5 flex items-center w-fit border border-white/20 shadow-sm">
-                <CustomIcon icon="zi-star-solid" className="text-yellow-400 text-[10px] mr-1" />
-                <Text size="xxxxSmall" className="text-white font-bold text-[10px]">{rankName} | {spendingPoints} Điểm ưu đãi</Text>
-              </Box>
+              isLoading ? (
+                <div className="h-4 w-32 bg-white/20 rounded-full animate-pulse" />
+              ) : (
+                <Box className="bg-white/25 backdrop-blur-md rounded-full px-2 py-0.5 flex items-center w-fit border border-white/20 shadow-sm">
+                  <CustomIcon icon="zi-star-solid" className="text-yellow-400 text-[10px] mr-1" />
+                  <Text size="xxxxSmall" className="text-white font-bold text-[10px]">{rankName} | {spendingPoints} Điểm ưu đãi</Text>
+                </Box>
+              )
             ) : (
               <Box 
                 className="bg-yellow-500/90 rounded-full px-2 py-0.5 flex items-center w-fit border border-yellow-400/20 shadow-sm hover:bg-yellow-600 transition-colors"
@@ -547,8 +583,20 @@ const ConsumerStorePage: FC = () => {
   }, []);
 
   useEffect(() => {
+    const initialCached = getInitialCachedUserData(auth.currentUser);
+    if (initialCached?.role === "provider" && initialCached?.id) {
+      navigate(`/shop-details/${initialCached.id}`, { replace: true });
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
+        const cached = getCachedUserData(user.uid);
+        if (cached?.role === "provider" && cached?.id) {
+          navigate(`/shop-details/${cached.id}`, { replace: true });
+          return;
+        }
+
         const phoneFromEmail = user.email ? user.email.split("@")[0] : "";
         const localPhone = localStorage.getItem("user_phone");
         const finalPhone = phoneFromEmail || localPhone;
@@ -560,6 +608,7 @@ const ConsumerStorePage: FC = () => {
 
             if (!shopSnap.empty) {
               const shopId = shopSnap.docs[0].id;
+              setCachedUserData(user.uid, { ...shopSnap.docs[0].data(), id: shopId, role: "provider" });
               // Nếu là shop, đưa thẳng đến cửa hàng của shop
               navigate(`/shop-details/${shopId}`, { replace: true });
             }

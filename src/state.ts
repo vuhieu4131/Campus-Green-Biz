@@ -364,3 +364,20 @@ export const orderNoteState = atom({
   key: "orderNote",
   default: "",
 });
+
+export const currentUserDataState = atom<any>({
+  key: "currentUserData",
+  default: null,
+});
+
+export {
+  getCachedUserData,
+  getInitialCachedUserData,
+  setCachedUserData,
+  updateCachedUserData,
+  clearCachedUserData,
+  resolveStoreHeaderState,
+  resolveProfileViewMode,
+  isGuestOrUnlogged,
+} from "utils/user-cache";
+

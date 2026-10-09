@@ -2,27 +2,44 @@ import CustomIcon from '../components/custom-icon';
 import React, { FC, useState, useEffect } from "react";
 import { Page, Header, Box, Input, Button, useSnackbar, Text, Icon, useNavigate } from "zmp-ui";
 import { getDefaultAvatar } from "../utils/avatar";
+import {
+  getCachedUserData,
+  getInitialCachedUserData,
+  setCachedUserData,
+  updateCachedUserData,
+} from "../state";
 import { auth, db, storage } from "../firebase";
 import { onAuthStateChanged, User, verifyBeforeUpdateEmail } from "firebase/auth";
 import { doc, getDoc, updateDoc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { compressImage } from "../utils/compression";
 
+const getRoleLabel = (cached: any): string => {
+  if (!cached) return "Thành viên";
+  if (cached.role === "provider" || cached.collectionName === "shops") return "Nhà phân phối";
+  if (cached.role === "admin") return "Quản trị viên";
+  if (cached.branchInfo) return "Quản lý chi nhánh";
+  return "Thành viên";
+};
+
 const AccountInfoPage: FC = () => {
   const { openSnackbar } = useSnackbar();
   const navigate = useNavigate();
 
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [avatar, setAvatar] = useState("");
-  const [role, setRole] = useState("Thành viên");
+  const initialCached = getInitialCachedUserData(auth.currentUser);
+  const [currentUser, setCurrentUser] = useState<User | null>(() => auth.currentUser);
+  const [name, setName] = useState(() => initialCached?.fullName || initialCached?.name || initialCached?.shopName || "");
+  const [phone, setPhone] = useState(() => initialCached?.phone || "");
+  const [email, setEmail] = useState(() => initialCached?.email || auth.currentUser?.email || "");
+  const [avatar, setAvatar] = useState(() => initialCached?.avatar || initialCached?.shopAvatar || "");
+  const [role, setRole] = useState(() => getRoleLabel(initialCached));
   const [isUploading, setIsUploading] = useState(false);
   const [showVerifyEmailModal, setShowVerifyEmailModal] = useState(false);
   const [pendingEmail, setPendingEmail] = useState("");
-  const [docId, setDocId] = useState("");
-  const [collectionName, setCollectionName] = useState("users");
+  const [docId, setDocId] = useState(() => initialCached?.id || auth.currentUser?.uid || "");
+  const [collectionName, setCollectionName] = useState(() =>
+    initialCached?.role === "provider" || initialCached?.collectionName === "shops" ? "shops" : "users"
+  );
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -50,6 +67,14 @@ const AccountInfoPage: FC = () => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setCurrentUser(user);
+        const cached = getCachedUserData(user.uid);
+        if (cached) {
+          setName(cached.fullName || cached.name || cached.shopName || "");
+          setPhone(cached.phone || "");
+          setEmail(cached.email || user.email || "");
+          setAvatar(cached.avatar || cached.shopAvatar || "");
+          setRole(getRoleLabel(cached));
+        }
         
         let finalPhone = user.phoneNumber || user.email?.split('@')[0] || "";
         if (finalPhone.startsWith("+84")) {
@@ -106,6 +131,12 @@ const AccountInfoPage: FC = () => {
           setPhone(data.phone || finalPhone);
           setEmail(data.email || user.email || "");
           setAvatar(data.avatar || "");
+          setCachedUserData(user.uid, {
+            id: currentId,
+            collectionName: currentColl,
+            ...data,
+            role: currentColl === "shops" ? "provider" : (data.role || (data.branchInfo ? "member" : "user")),
+          });
         } else {
           setName(finalPhone);
           setPhone(finalPhone);
@@ -174,6 +205,16 @@ const AccountInfoPage: FC = () => {
         email: email,
         avatar: avatar
       }, { merge: true });
+
+      updateCachedUserData(currentUser.uid, {
+        fullName: name,
+        name: name,
+        shopName: name,
+        managerName: name,
+        phone: phone,
+        email: email,
+        avatar: avatar,
+      });
 
       openSnackbar({
         text: "Cập nhật thông tin thành công!",

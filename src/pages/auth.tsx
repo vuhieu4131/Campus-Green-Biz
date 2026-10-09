@@ -2,7 +2,7 @@ import CustomIcon from '../components/custom-icon';
 import React, { FC, useState } from "react";
 import { Box, Text, Input, Button, Switch, Avatar, Icon, useNavigate, useSnackbar } from "zmp-ui"; 
 import { useRecoilValueLoadable } from "recoil";
-import { userState } from "state";
+import { userState, setCachedUserData, clearCachedUserData } from "state";
 import { auth, db } from "../firebase"; 
 import { getDefaultAvatar, getRandomAvatar } from "../utils/avatar"; 
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, deleteUser, updatePassword, sendPasswordResetEmail } from "firebase/auth";
@@ -166,21 +166,31 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
         }
 
         const uid = userCredential.user.uid;
+        clearCachedUserData();
         // Đảm bảo document của admin tồn tại trong Firestore users collection với role: admin
         const adminRef = doc(db, "users", uid);
         const adminSnap = await getDoc(adminRef);
+        let adminData: any = {
+          id: uid,
+          phone: "0000869131",
+          fullName: "Admin Hệ thống",
+          name: "Admin Hệ thống",
+          role: "admin",
+          avatar: "https://img.icons8.com/color/48/administrator-male.png",
+        };
         if (!adminSnap.exists()) {
           await setDoc(adminRef, {
-            phone: "0000869131",
-            fullName: "Admin Hệ thống",
-            role: "admin",
-            avatar: "https://img.icons8.com/color/48/administrator-male.png",
+            ...adminData,
             createdAt: new Date().toISOString()
           });
-        } else if (adminSnap.data().role !== "admin") {
-          await setDoc(adminRef, { role: "admin" }, { merge: true });
+        } else {
+          adminData = { id: uid, ...adminSnap.data(), role: "admin" };
+          if (adminSnap.data().role !== "admin") {
+            await setDoc(adminRef, { role: "admin" }, { merge: true });
+          }
         }
 
+        setCachedUserData(uid, adminData);
         localStorage.setItem("isAdminBypass", "true");
         onClose(); 
         navigate("/admin-dashboard");
@@ -248,12 +258,14 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
       }
 
       const uid = userCredential.user.uid; 
+      clearCachedUserData();
 
       // 1. TÌM TRONG BẢNG "shops" BẰNG UID
       const shopRef = doc(db, "shops", uid);
       const shopSnap = await getDoc(shopRef);
 
       if (shopSnap.exists()) {
+        setCachedUserData(uid, { id: shopSnap.id, ...shopSnap.data(), role: "provider" });
         localStorage.setItem("user_phone", phone);
         if (loginEmail.includes("@campus.com")) {
             setRedirectPath("/profile");
@@ -286,6 +298,8 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
 
       if (userSnap.exists()) {
         const userData = userSnap.data();
+        const role = userData.role || (userData.branchInfo ? "member" : "user");
+        setCachedUserData(uid, { id: userSnap.id, ...userData, role });
         if (userData.role === "admin") {
             localStorage.setItem("isAdminBypass", "true");
             localStorage.setItem("user_phone", phone);
@@ -313,6 +327,7 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
       const qShop = query(collection(db, "shops"), where("phone", "==", phone));
       const shopByPhoneSnap = await getDocs(qShop);
       if (!shopByPhoneSnap.empty) {
+        setCachedUserData(uid, { id: shopByPhoneSnap.docs[0].id, ...shopByPhoneSnap.docs[0].data(), role: "provider" });
         localStorage.setItem("user_phone", phone);
         if (loginEmail.includes("@campus.com")) {
             setRedirectPath("/profile");

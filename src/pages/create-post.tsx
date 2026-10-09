@@ -1,6 +1,11 @@
 import React, { FC, useState } from "react";
 import { useSetRecoilState } from "recoil";
-import { notificationsState } from "../state";
+import {
+  notificationsState,
+  getCachedUserData,
+  getInitialCachedUserData,
+  setCachedUserData,
+} from "../state";
 import { Page, Box, Text, Icon, Avatar, Button, useSnackbar, useNavigate } from "zmp-ui";
 import { getDefaultAvatar } from "../utils/avatar";
 import { chooseImage } from "zmp-sdk";
@@ -21,8 +26,11 @@ const CreatePostPage: FC = () => {
   const [showPrivacySheet, setShowPrivacySheet] = useState(false);
   const [isPosting, setIsPosting] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
-  const [userRole, setUserRole] = useState<string>("user"); // 'user' hoặc 'provider'
-  const [dbUserData, setDbUserData] = useState<any>(null);
+  const [dbUserData, setDbUserData] = useState<any>(() => getInitialCachedUserData(auth.currentUser));
+  const [userRole, setUserRole] = useState<string>(() => {
+    const cached = getInitialCachedUserData(auth.currentUser);
+    return cached?.role || "user";
+  }); // 'user' hoặc 'provider'
   
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const videoInputRef = React.useRef<HTMLInputElement>(null);
@@ -158,6 +166,12 @@ const CreatePostPage: FC = () => {
         return;
       }
 
+      const cached = getCachedUserData(user.uid);
+      if (cached) {
+        setDbUserData(cached);
+        setUserRole(cached.role || "user");
+      }
+
       const phoneFromEmail = user.email ? user.email.split("@")[0] : "";
       const localPhone = localStorage.getItem("user_phone");
       const finalPhone = phoneFromEmail || localPhone;
@@ -168,8 +182,14 @@ const CreatePostPage: FC = () => {
           const qShop = query(collection(db, "shops"), where("phone", "==", finalPhone));
           const shopSnap = await getDocs(qShop);
           if (!shopSnap.empty) {
+            const shopData = shopSnap.docs[0].data();
+            const normalized = setCachedUserData(user.uid, {
+              id: shopSnap.docs[0].id,
+              ...shopData,
+              role: "provider",
+            });
             setUserRole("provider");
-            setDbUserData(shopSnap.docs[0].data());
+            setDbUserData(normalized);
             isShop = true;
           }
         } catch (e) {
@@ -183,12 +203,10 @@ const CreatePostPage: FC = () => {
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
             const data = docSnap.data();
-            setDbUserData(data);
-            if (data.role) {
-              setUserRole(data.role);
-            } else {
-              setUserRole("user");
-            }
+            const role = data.role || "user";
+            const normalized = setCachedUserData(user.uid, { id: docSnap.id, ...data, role });
+            setDbUserData(normalized);
+            setUserRole(role);
           } else {
             setUserRole("user");
           }

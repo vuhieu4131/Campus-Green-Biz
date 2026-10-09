@@ -9,6 +9,7 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 const { Option } = Select;
 import { openShareSheet } from "zmp-sdk/apis";
 import { compressImage } from "../../utils/compression";
+import { clearCachedUserData } from "../../utils/user-cache";
 // Hàm format ngày giờ
 const formatDate = (timestamp) => {
   if (!timestamp) return "";
@@ -3245,7 +3246,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
         style={{ paddingTop: 'calc(var(--zaui-safe-area-inset-top, 40px) + 12px)' }}
       >
         <Box flex alignItems="center" justifyContent="space-between">
-            <Box flex alignItems="center"><Avatar src={"https://firebasestorage.googleapis.com/v0/b/campusbizproject.firebasestorage.app/o/avatars%2F000_OK_3.png?alt=media&token=6c861511-4802-4d36-8f1f-add6f7e327f7"} size={48} /><Box ml={3}><Text.Title className="text-white" size="small">ADMIN</Text.Title><Text size="small">Xin chào, {userData.name}</Text></Box></Box>
+            <Box flex alignItems="center"><Avatar src={"https://firebasestorage.googleapis.com/v0/b/campusbizproject.firebasestorage.app/o/avatars%2F000_OK_3.png?alt=media&token=6c861511-4802-4d36-8f1f-add6f7e327f7"} size={48} /><Box ml={3}><Text.Title className="text-white" size="small">ADMIN</Text.Title><Text size="small">Xin chào, {userData?.name || userData?.fullName || "Admin Hệ thống"}</Text></Box></Box>
             <Box flex style={{ paddingRight: '80px' }}>
                 <Box onClick={() => setShowChangePass(true)} className="bg-blue-700 p-2 rounded-full cursor-pointer active:opacity-80 mr-2"><CustomIcon icon="zi-key" className="text-white" /></Box>
                 <Box onClick={onLogout} className="bg-blue-700 p-2 rounded-full cursor-pointer active:opacity-80"><CustomIcon icon="zi-leave" className="text-white" /></Box>
@@ -4294,6 +4295,7 @@ export const AdminDashboardPage: FC = () => {
   }, [navigate]);
 
   const handleLogout = async () => {
+    clearCachedUserData();
     localStorage.removeItem("isAdminBypass");
     await signOut(auth);
     navigate("/");
