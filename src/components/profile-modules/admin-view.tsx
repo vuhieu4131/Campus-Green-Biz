@@ -2,14 +2,22 @@ import CustomIcon from '../custom-icon';
 import React, { FC, useState, useEffect } from "react";
 import { Box, Text, Icon, Modal, Avatar, Button, Input, useSnackbar, Spinner, Select, Switch, useNavigate, Page } from "zmp-ui";
 import { collection, query, where, getDocs, doc, updateDoc, deleteDoc, orderBy, addDoc, serverTimestamp, getDoc, setDoc, onSnapshot, increment, collectionGroup } from "firebase/firestore";
-import { db, auth, storage } from "../../firebase";
-import { onAuthStateChanged, signOut, updatePassword } from "firebase/auth";
+import { db, auth, storage, firebaseConfig } from "../../firebase";
+import { initializeApp, getApps } from "firebase/app";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, updatePassword } from "firebase/auth";
 import { getDefaultAvatar, getValidAvatar } from "../../utils/avatar";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 const { Option } = Select;
 import { openShareSheet } from "zmp-sdk/apis";
 import { compressImage } from "../../utils/compression";
 import { clearCachedUserData } from "../../utils/user-cache";
+import {
+  createPasswordCommit,
+  appendPasswordCommit,
+  validateAdminPasswordChange,
+  getCandidatePasswordsFromRecord,
+  PasswordCommitEntry,
+} from "../../utils/password-history";
 // Hàm format ngày giờ
 const formatDate = (timestamp) => {
   if (!timestamp) return "";
@@ -243,13 +251,31 @@ export const AdminView: FC<AdminProps> = ({ userData, onLogout }) => {
   const [selectedVipRequest, setSelectedVipRequest] = useState<any>(null);
   const [vipRejectReason, setVipRejectReason] = useState("");
 
-  // STATE ĐỔI MẬT KHẨU
+  // STATE ĐỔI MẬT KHẨU ADMIN
   const [showChangePass, setShowChangePass] = useState(false);
   const [oldPass, setOldPass] = useState("");
   const [newPass, setNewPass] = useState("");
   const [confirmPass, setConfirmPass] = useState("");
   const [passLoading, setPassLoading] = useState(false);
-  
+
+  // 👉 STATE QUẢN LÝ MẬT KHẨU NGƯỜI DÙNG & LỊCH SỬ KIỂU GIT COMMIT
+  const [showUserPassModal, setShowUserPassModal] = useState(false);
+  const [userPassTab, setUserPassTab] = useState<"change" | "history">("change");
+  const [adminNewUserPass, setAdminNewUserPass] = useState("");
+  const [adminPassReason, setAdminPassReason] = useState("");
+  const [showCurrentUserPass, setShowCurrentUserPass] = useState(false);
+  const [showAdminNewPass, setShowAdminNewPass] = useState(false);
+  const [passConfirmStep, setPassConfirmStep] = useState<1 | 2>(1);
+  const [passDoubleCheckConfirmed, setPassDoubleCheckConfirmed] = useState(false);
+  const [savingUserPass, setSavingUserPass] = useState(false);
+  const [loadingPassLogs, setLoadingPassLogs] = useState(false);
+  const [revealedCommitIds, setRevealedCommitIds] = useState<Record<string, boolean>>({});
+  const [revertTargetCommit, setRevertTargetCommit] = useState<{
+    commit: PasswordCommitEntry;
+    targetPassword: string;
+    mode: "old" | "new";
+  } | null>(null);
+
   // --- STATE PHÊ DUYỆT ĐĂNG KÝ SHOP ---
   const [showShopApprovalModal, setShowShopApprovalModal] = useState(false);
   const [selectedShopToApprove, setSelectedShopToApprove] = useState<any>(null);
@@ -258,6 +284,330 @@ export const AdminView: FC<AdminProps> = ({ userData, onLogout }) => {
   const [isProcessingApproval, setIsProcessingApproval] = useState(false);
 
   const { openSnackbar } = useSnackbar();
+
+  const getTargetCollectionForUser = (u: any): "users" | "shops" => {
+    if (!u) return "users";
+    if (selectedFeature === "providers" || u.role === "provider" || (u.shopName && !u.role)) {
+      return "shops";
+    }
+    return "users";
+  };
+
+  const handleOpenUserPasswordModal = async (u: any) => {
+    if (!u) return;
+    setUserPassTab("change");
+    setAdminNewUserPass("");
+    setAdminPassReason("");
+    setPassConfirmStep(1);
+    setPassDoubleCheckConfirmed(false);
+    setRevertTargetCommit(null);
+    setShowCurrentUserPass(false);
+    setShowAdminNewPass(false);
+    setShowUserPassModal(true);
+
+    // Tải dữ liệu mới nhất từ Firestore để đảm bảo thấy ngay cả khi User vừa tự đổi mật khẩu
+    const targetColl = getTargetCollectionForUser(u);
+    const targetId = u.id || u.phone;
+    if (!targetId) return;
+
+    setLoadingPassLogs(true);
+    try {
+      const freshSnap = await getDoc(doc(db, targetColl, targetId));
+      let freshData = freshSnap.exists() ? freshSnap.data() : {};
+      let mergedHistory: PasswordCommitEntry[] = Array.isArray(freshData?.passwordHistory)
+        ? [...freshData.passwordHistory]
+        : Array.isArray(u.passwordHistory)
+        ? [...u.passwordHistory]
+        : [];
+
+      // Gộp thêm bản ghi từ password_audit_logs (nếu có) để không bao giờ sót lịch sử
+      try {
+        const qLogs = query(
+          collection(db, "password_audit_logs"),
+          where("targetId", "==", targetId)
+        );
+        const logSnap = await getDocs(qLogs);
+        const existingIds = new Set(mergedHistory.map((item) => item.commitId));
+        logSnap.docs.forEach((d) => {
+          const logData = d.data() as PasswordCommitEntry;
+          if (logData.commitId && !existingIds.has(logData.commitId)) {
+            mergedHistory.push({
+              commitId: logData.commitId,
+              oldPassword: logData.oldPassword,
+              newPassword: logData.newPassword,
+              reason: logData.reason,
+              changedBy: logData.changedBy,
+              source: logData.source || "admin_change",
+              revertedFromCommitId: logData.revertedFromCommitId,
+              createdAt: logData.createdAt,
+            });
+            existingIds.add(logData.commitId);
+          }
+        });
+        mergedHistory.sort(
+          (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+        );
+      } catch (_) {}
+
+      const updatedUserObj = {
+        ...u,
+        ...freshData,
+        id: targetId,
+        passwordHistory: mergedHistory,
+      };
+      setDetailUser(updatedUserObj);
+      setDataList((prev: any[]) =>
+        prev.map((item) => (item.id === targetId ? { ...item, ...updatedUserObj } : item))
+      );
+    } catch (err) {
+      console.error("Lỗi đồng bộ dữ liệu mật khẩu:", err);
+    } finally {
+      setLoadingPassLogs(false);
+    }
+  };
+
+  const syncUserPasswordToFirebaseAuth = async (
+    targetDocData: any,
+    targetNewPassword: string
+  ): Promise<boolean> => {
+    try {
+      const helperAppName = "AdminPasswordHelperApp";
+      const existingApp = getApps().find((a) => a.name === helperAppName);
+      const secondaryApp = existingApp || initializeApp(firebaseConfig, helperAppName);
+      const secondaryAuth = getAuth(secondaryApp);
+
+      const phone = targetDocData?.phone || "";
+      const candidateEmails = Array.from(
+        new Set(
+          [
+            targetDocData?.authEmail,
+            targetDocData?.email,
+            phone && !phone.includes("@") ? `${phone}@campus.com` : "",
+          ].filter(Boolean)
+        )
+      );
+      const candidatePasswords = getCandidatePasswordsFromRecord(targetDocData);
+
+      for (const emailCandidate of candidateEmails) {
+        for (const passCandidate of candidatePasswords) {
+          try {
+            const cred = await signInWithEmailAndPassword(
+              secondaryAuth,
+              emailCandidate,
+              passCandidate
+            );
+            if (passCandidate !== targetNewPassword) {
+              await updatePassword(cred.user, targetNewPassword);
+            }
+            await signOut(secondaryAuth);
+            return true;
+          } catch (_) {}
+        }
+      }
+      await signOut(secondaryAuth).catch(() => {});
+      return false;
+    } catch (e) {
+      console.warn("Đồng bộ Firebase Auth sẽ tự động hoàn tất khi người dùng đăng nhập:", e);
+      return false;
+    }
+  };
+
+  const handleProceedToStep2PasswordConfirm = () => {
+    const check = validateAdminPasswordChange({
+      currentPassword: detailUser?.password,
+      newPassword: adminNewUserPass,
+      reason: adminPassReason,
+      requireStep2: false,
+    });
+    if (!check.valid) {
+      openSnackbar({ text: check.error || "Thông tin chưa hợp lệ!", type: "warning" });
+      return;
+    }
+    setPassDoubleCheckConfirmed(false);
+    setPassConfirmStep(2);
+  };
+
+  const handleExecuteAdminPasswordChange = async () => {
+    if (!detailUser || savingUserPass) return;
+    const check = validateAdminPasswordChange({
+      currentPassword: detailUser?.password,
+      newPassword: adminNewUserPass,
+      reason: adminPassReason,
+      isConfirmedStep2: passDoubleCheckConfirmed,
+      requireStep2: true,
+    });
+    if (!check.valid) {
+      openSnackbar({ text: check.error || "Vui lòng xác nhận đầy đủ!", type: "warning" });
+      return;
+    }
+
+    const targetColl = getTargetCollectionForUser(detailUser);
+    const targetId = detailUser.id || detailUser.phone;
+    const finalNewPass = adminNewUserPass.trim();
+    const finalReason = adminPassReason.trim();
+
+    setSavingUserPass(true);
+    try {
+      const docRef = doc(db, targetColl, targetId);
+      const curSnap = await getDoc(docRef);
+      const curData = curSnap.exists() ? curSnap.data() : {};
+      const oldPasswordValue = curData?.password || detailUser?.password || "(Chưa ghi nhận)";
+
+      const newCommit = createPasswordCommit({
+        oldPassword: oldPasswordValue,
+        newPassword: finalNewPass,
+        reason: finalReason,
+        changedBy: userData?.fullName || userData?.name || "Admin Hệ thống",
+        source: "admin_change",
+      });
+      const updatedHistory = appendPasswordCommit(
+        curData?.passwordHistory || detailUser?.passwordHistory,
+        newCommit
+      );
+
+      // Đồng bộ sang Firebase Auth bằng Secondary App (không làm văng phiên Admin)
+      await syncUserPasswordToFirebaseAuth({ ...detailUser, ...curData }, finalNewPass);
+
+      const updatePayload = {
+        password: finalNewPass,
+        passwordHistory: updatedHistory,
+        passwordUpdatedAt: newCommit.createdAt,
+      };
+      await updateDoc(docRef, updatePayload);
+
+      try {
+        await addDoc(collection(db, "password_audit_logs"), {
+          targetId,
+          targetCollection: targetColl,
+          targetPhone: detailUser.phone || "",
+          targetName:
+            detailUser.fullName || detailUser.name || detailUser.shopName || "Thành viên",
+          ...newCommit,
+        });
+      } catch (_) {}
+
+      try {
+        await addDoc(collection(db, "notifications"), {
+          userId: targetId,
+          title: "Mật khẩu tài khoản đã được hỗ trợ cập nhật",
+          content: `Ban quản trị đã hỗ trợ cập nhật mật khẩu cho tài khoản của bạn (Mã bản ghi: #${newCommit.commitId}). Ghi chú: ${finalReason}`,
+          type: "system",
+          createdAt: serverTimestamp(),
+          isRead: false,
+        });
+      } catch (_) {}
+
+      const updatedUser = { ...detailUser, ...updatePayload };
+      setDetailUser(updatedUser);
+      setDataList((prev: any[]) =>
+        prev.map((item) => (item.id === targetId ? { ...item, ...updatePayload } : item))
+      );
+
+      setAdminNewUserPass("");
+      setAdminPassReason("");
+      setPassConfirmStep(1);
+      setPassDoubleCheckConfirmed(false);
+      setUserPassTab("history");
+      openSnackbar({
+        text: `Đã lưu commit #${newCommit.commitId} & đổi mật khẩu thành công!`,
+        type: "success",
+      });
+    } catch (error) {
+      console.error("Lỗi khi Admin đổi mật khẩu:", error);
+      openSnackbar({ text: "Có lỗi xảy ra khi cập nhật mật khẩu!", type: "error" });
+    } finally {
+      setSavingUserPass(false);
+    }
+  };
+
+  const handleExecuteRevertPassword = async () => {
+    if (!detailUser || !revertTargetCommit || savingUserPass) return;
+    const { commit, targetPassword, mode } = revertTargetCommit;
+    if (
+      !targetPassword ||
+      targetPassword === "(Chưa ghi nhận)" ||
+      targetPassword === "(Chưa có)"
+    ) {
+      openSnackbar({
+        text: "Bản ghi này không chứa mật khẩu hợp lệ để khôi phục!",
+        type: "warning",
+      });
+      return;
+    }
+
+    if (detailUser.password === targetPassword) {
+      openSnackbar({
+        text: "Tài khoản hiện đang sử dụng chính mật khẩu này rồi!",
+        type: "warning",
+      });
+      setRevertTargetCommit(null);
+      return;
+    }
+
+    const targetColl = getTargetCollectionForUser(detailUser);
+    const targetId = detailUser.id || detailUser.phone;
+
+    setSavingUserPass(true);
+    try {
+      const docRef = doc(db, targetColl, targetId);
+      const curSnap = await getDoc(docRef);
+      const curData = curSnap.exists() ? curSnap.data() : {};
+      const currentPassValue = curData?.password || detailUser?.password || "(Chưa ghi nhận)";
+
+      const revertCommit = createPasswordCommit({
+        oldPassword: currentPassValue,
+        newPassword: targetPassword,
+        reason: `Revert (Khôi phục) về mật khẩu ${
+          mode === "old" ? "trước khi đổi" : "sau khi đổi"
+        } tại commit #${commit.commitId}`,
+        changedBy: `${userData?.fullName || userData?.name || "Admin Hệ thống"} (Revert)`,
+        source: "admin_revert",
+        revertedFromCommitId: commit.commitId,
+      });
+
+      const updatedHistory = appendPasswordCommit(
+        curData?.passwordHistory || detailUser?.passwordHistory,
+        revertCommit
+      );
+
+      await syncUserPasswordToFirebaseAuth({ ...detailUser, ...curData }, targetPassword);
+
+      const updatePayload = {
+        password: targetPassword,
+        passwordHistory: updatedHistory,
+        passwordUpdatedAt: revertCommit.createdAt,
+      };
+      await updateDoc(docRef, updatePayload);
+
+      try {
+        await addDoc(collection(db, "password_audit_logs"), {
+          targetId,
+          targetCollection: targetColl,
+          targetPhone: detailUser.phone || "",
+          targetName:
+            detailUser.fullName || detailUser.name || detailUser.shopName || "Thành viên",
+          ...revertCommit,
+        });
+      } catch (_) {}
+
+      const updatedUser = { ...detailUser, ...updatePayload };
+      setDetailUser(updatedUser);
+      setDataList((prev: any[]) =>
+        prev.map((item) => (item.id === targetId ? { ...item, ...updatePayload } : item))
+      );
+
+      setRevertTargetCommit(null);
+      openSnackbar({
+        text: `Đã Revert mật khẩu thành công (Commit mới: #${revertCommit.commitId})!`,
+        type: "success",
+      });
+    } catch (err) {
+      console.error("Lỗi khi Revert mật khẩu:", err);
+      openSnackbar({ text: "Lỗi hệ thống khi khôi phục mật khẩu!", type: "error" });
+    } finally {
+      setSavingUserPass(false);
+    }
+  };
 
   const handleOpenShopApproval = (shop: any) => {
     setSelectedShopToApprove(shop);
@@ -3341,7 +3691,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
 
 <Modal visible={!!detailUser} title="Chi tiết" onClose={() => setDetailUser(null)} actions={[{ text: "Đóng", onClick: () => setDetailUser(null), highLight: true }]}>
         {detailUser && (
-            <Box p={4} flex flexDirection="column" alignItems="center">
+            <Box p={4} flex flexDirection="column" alignItems="center" className="max-h-[75vh] overflow-y-auto hide-scroll">
                 <Avatar src={getValidAvatar(detailUser.avatar, detailUser.id)} size={72} />
                 <Box className="flex flex-col items-center mt-3 gap-1.5">
                     <Text.Title 
@@ -3429,7 +3779,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                     </Box>
                 )}
                 
-                {/* 👉 BƯỚC 3: NÚT GỬI THÔNG BÁO VÀ XỬ PHẠT */}
+                {/* 👉 BƯỚC 3: NÚT GỬI THÔNG BÁO, THƯỞNG, XỬ PHẠT VÀ ĐỔI MẬT KHẨU */}
                 <Box mt={4} className="w-full flex flex-col gap-2">
                     <Button 
                         fullWidth 
@@ -3470,6 +3820,17 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                             <CustomIcon icon="zi-warning-solid" className="mr-1" /> Xử phạt
                         </Button>
                     </Box>
+                    <Button
+                        fullWidth
+                        variant="secondary"
+                        className="bg-amber-50 text-amber-700 border border-amber-300 shadow-md font-bold"
+                        onClick={() => handleOpenUserPasswordModal(detailUser)}
+                    >
+                        <CustomIcon icon="zi-key" className="mr-1" /> Đổi mật khẩu / Lịch sử MK
+                        {Array.isArray(detailUser.passwordHistory) && detailUser.passwordHistory.length > 0
+                            ? ` (${detailUser.passwordHistory.length} commit)`
+                            : ""}
+                    </Button>
                 </Box>
 
             </Box>
@@ -4238,6 +4599,509 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                 </Box>
               )}
           </Box>
+      </Modal>
+
+      {/* 👉 MODAL ĐỔI MẬT KHẨU HỘ NGƯỜI DÙNG & LỊCH SỬ KIỂU GIT COMMIT */}
+      <Modal
+        visible={showUserPassModal}
+        title="Quản lý & Lịch sử Mật khẩu"
+        onClose={() => {
+          if (!savingUserPass) {
+            setShowUserPassModal(false);
+            setPassConfirmStep(1);
+            setRevertTargetCommit(null);
+          }
+        }}
+      >
+        {detailUser && (() => {
+          const targetName =
+            selectedFeature === "providers"
+              ? detailUser.name || detailUser.shopName || detailUser.phone || "Nhà cung cấp"
+              : detailUser.fullName || detailUser.name || "Thành viên";
+          const historyList: PasswordCommitEntry[] = Array.isArray(detailUser.passwordHistory)
+            ? detailUser.passwordHistory
+            : [];
+          const currentStoredPass = detailUser.password || "";
+
+          return (
+            <Box p={3} className="text-left max-h-[75vh] overflow-y-auto hide-scroll">
+              {/* Khung nhận diện tài khoản mục tiêu & Mật khẩu hiện tại */}
+              <Box className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-3">
+                <Box flex alignItems="center" justifyContent="space-between" className="mb-2">
+                  <Box flex alignItems="center" className="min-w-0">
+                    <Avatar src={getValidAvatar(detailUser.avatar, detailUser.id)} size={36} />
+                    <Box ml={2} className="min-w-0">
+                      <Text size="small" bold className="text-gray-900 line-clamp-1">
+                        {targetName}
+                      </Text>
+                      <Text size="xSmall" className="text-blue-600 font-semibold">
+                        SĐT: {detailUser.phone}
+                      </Text>
+                    </Box>
+                  </Box>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 shrink-0">
+                    {getTargetCollectionForUser(detailUser) === "shops" ? "Đối tác / Shop" : "Thành viên"}
+                  </span>
+                </Box>
+
+                {/* Mật khẩu hiện tại đang lưu */}
+                <Box className="bg-white border border-gray-200 rounded-lg px-3 py-2 flex items-center justify-between">
+                  <Box className="min-w-0 flex-1">
+                    <Text size="xxxxSmall" className="text-gray-500 uppercase tracking-wider">
+                      Mật khẩu hiện tại trên hệ thống
+                    </Text>
+                    <Text size="small" bold className="font-mono text-gray-900 break-all">
+                      {currentStoredPass
+                        ? showCurrentUserPass
+                          ? currentStoredPass
+                          : "••••••••"
+                        : "(Chưa ghi nhận mật khẩu gốc)"}
+                    </Text>
+                  </Box>
+                  {currentStoredPass && (
+                    <Box flex className="gap-1.5 shrink-0 ml-2">
+                      <button
+                        type="button"
+                        className="px-2 py-1 text-xs font-semibold rounded bg-gray-100 text-gray-700 active:bg-gray-200"
+                        onClick={() => setShowCurrentUserPass((prev) => !prev)}
+                      >
+                        {showCurrentUserPass ? "Ẩn" : "Hiện"}
+                      </button>
+                      <button
+                        type="button"
+                        className="px-2 py-1 text-xs font-semibold rounded bg-blue-50 text-blue-600 border border-blue-200 active:bg-blue-100"
+                        onClick={() => {
+                          navigator.clipboard?.writeText(currentStoredPass);
+                          openSnackbar({ text: "Đã sao chép mật khẩu hiện tại!", type: "success" });
+                        }}
+                      >
+                        Copy
+                      </button>
+                    </Box>
+                  )}
+                </Box>
+              </Box>
+
+              {/* Thanh chuyển Tab */}
+              <Box className="flex border-b border-gray-200 mb-3">
+                <Box
+                  className={`flex-1 text-center py-2 cursor-pointer text-xs ${
+                    userPassTab === "change"
+                      ? "border-b-2 border-amber-600 text-amber-700 font-bold"
+                      : "text-gray-500"
+                  }`}
+                  onClick={() => {
+                    setUserPassTab("change");
+                    setRevertTargetCommit(null);
+                  }}
+                >
+                  Đổi mật khẩu hộ
+                </Box>
+                <Box
+                  className={`flex-1 text-center py-2 cursor-pointer text-xs ${
+                    userPassTab === "history"
+                      ? "border-b-2 border-amber-600 text-amber-700 font-bold"
+                      : "text-gray-500"
+                  }`}
+                  onClick={() => setUserPassTab("history")}
+                >
+                  Lịch sử Commit ({historyList.length})
+                </Box>
+              </Box>
+
+              {userPassTab === "change" ? (
+                passConfirmStep === 1 ? (
+                  <Box className="space-y-3">
+                    {/* Cảnh báo lớp 1 */}
+                    <Box className="bg-amber-50 border border-amber-300 rounded-xl p-3">
+                      <Box flex alignItems="center" className="mb-1">
+                        <CustomIcon icon="zi-warning-solid" size={16} className="text-amber-600 mr-1.5" />
+                        <Text size="xSmall" bold className="text-amber-800">
+                          Cảnh báo bảo mật & Cơ chế lưu vết Git Commit
+                        </Text>
+                      </Box>
+                      <Text size="xxSmall" className="text-amber-700 leading-relaxed">
+                        Chỉ sửa mật khẩu trong trường hợp bất khả kháng khi người dùng ({detailUser.phone}) liên hệ. Hệ thống sẽ tự động lưu lại mật khẩu cũ vào <b>Lịch sử Commit</b> để bạn có thể <b>Revert (Khôi phục)</b> bất cứ lúc nào nếu ấn nhầm.
+                      </Text>
+                    </Box>
+
+                    {/* Nhập mật khẩu mới */}
+                    <Box>
+                      <Box flex justifyContent="space-between" alignItems="center" className="mb-1.5">
+                        <Text size="xSmall" bold className="text-gray-800">
+                          Mật khẩu mới <span className="text-red-500">*</span>
+                        </Text>
+                        <button
+                          type="button"
+                          className="text-[11px] text-blue-600 font-semibold underline"
+                          onClick={() => {
+                            const randomPass = Math.floor(100000 + Math.random() * 900000).toString();
+                            setAdminNewUserPass(randomPass);
+                            setShowAdminNewPass(true);
+                          }}
+                        >
+                          + Tạo nhanh 6 số
+                        </button>
+                      </Box>
+                      <Box className="relative flex items-center">
+                        <input
+                          type={showAdminNewPass ? "text" : "password"}
+                          placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)..."
+                          value={adminNewUserPass}
+                          onChange={(e) => setAdminNewUserPass(e.target.value)}
+                          className="w-full border border-gray-300 rounded-lg p-2.5 pr-14 text-sm font-mono outline-none focus:border-amber-600"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowAdminNewPass((prev) => !prev)}
+                          className="absolute right-2 px-2 py-1 text-xs font-semibold text-gray-600 bg-gray-100 rounded"
+                        >
+                          {showAdminNewPass ? "Ẩn" : "Hiện"}
+                        </button>
+                      </Box>
+                    </Box>
+
+                    {/* Nhập lý do / Commit message */}
+                    <Box>
+                      <Text size="xSmall" bold className="mb-1.5 block text-gray-800">
+                        Lý do đổi / Ghi chú Commit <span className="text-red-500">*</span>
+                      </Text>
+                      <textarea
+                        placeholder="VD: Người dùng nhắn Zalo nhờ cấp lại mật khẩu..."
+                        value={adminPassReason}
+                        onChange={(e) => setAdminPassReason(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:border-amber-600 h-20 resize-none"
+                      />
+                      <Box className="flex flex-wrap gap-1.5 mt-1.5">
+                        {[
+                          "Người dùng liên hệ Zalo nhờ cấp lại MK",
+                          "Hỗ trợ khôi phục TK quên mật khẩu",
+                          "Đặt lại mật khẩu theo yêu cầu chính chủ",
+                        ].map((sample, sIdx) => (
+                          <span
+                            key={sIdx}
+                            onClick={() => setAdminPassReason(sample)}
+                            className="text-[10px] bg-gray-100 text-gray-600 px-2 py-1 rounded-full cursor-pointer active:bg-amber-100 active:text-amber-800 border border-gray-200"
+                          >
+                            + {sample}
+                          </span>
+                        ))}
+                      </Box>
+                    </Box>
+
+                    <Box flex className="gap-2 pt-2">
+                      <Button
+                        variant="secondary"
+                        className="flex-1 bg-gray-100 text-gray-600 border-none"
+                        onClick={() => setShowUserPassModal(false)}
+                      >
+                        Đóng
+                      </Button>
+                      <Button
+                        className="flex-1 bg-amber-600 border-amber-600 text-white font-bold"
+                        onClick={handleProceedToStep2PasswordConfirm}
+                      >
+                        Tiếp tục kiểm tra
+                      </Button>
+                    </Box>
+                  </Box>
+                ) : (
+                  /* Bước 2: Đối chiếu Git Diff & Checkbox cam kết chống bấm nhầm */
+                  <Box className="space-y-3">
+                    <Box className="bg-red-50 border border-red-200 rounded-xl p-3">
+                      <Text size="xSmall" bold className="text-red-700 block mb-1">
+                        🛑 Bước xác nhận cuối cùng (2/2) — Chống sửa nhầm
+                      </Text>
+                      <Text size="xxSmall" className="text-red-600">
+                        Vui lòng kiểm tra kỹ bảng đối chiếu thay đổi (Git Diff) bên dưới trước khi lưu Commit:
+                      </Text>
+                    </Box>
+
+                    {/* Khung Git Diff */}
+                    <Box className="rounded-xl border border-gray-300 overflow-hidden font-mono text-xs">
+                      <Box className="bg-gray-800 text-white px-3 py-1.5 flex justify-between items-center">
+                        <span>git diff --password ({detailUser.phone})</span>
+                        <span className="text-amber-300">{targetName}</span>
+                      </Box>
+                      <Box className="bg-red-50 text-red-700 px-3 py-2 border-b border-red-100 break-all">
+                        - Mật khẩu cũ: <b>{currentStoredPass || "(Chưa ghi nhận)"}</b>
+                      </Box>
+                      <Box className="bg-green-50 text-green-700 px-3 py-2 border-b border-green-100 break-all">
+                        + Mật khẩu mới: <b>{adminNewUserPass.trim()}</b>
+                      </Box>
+                      <Box className="bg-gray-50 text-gray-700 px-3 py-2 font-sans text-xs">
+                        <span className="text-gray-500">Ghi chú Commit:</span>{" "}
+                        <i className="font-medium">"{adminPassReason.trim()}"</i>
+                      </Box>
+                    </Box>
+
+                    {/* Checkbox xác nhận */}
+                    <label className="flex items-start gap-2.5 p-3 bg-amber-50 border border-amber-300 rounded-xl cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={passDoubleCheckConfirmed}
+                        onChange={(e) => setPassDoubleCheckConfirmed(e.target.checked)}
+                        className="mt-0.5 w-4 h-4 accent-amber-600 shrink-0"
+                      />
+                      <span className="text-xs text-gray-800 leading-snug">
+                        Tôi xác nhận đã kiểm tra đúng tài khoản <b>{targetName} ({detailUser.phone})</b> và đồng ý thực hiện commit đổi mật khẩu này.
+                      </span>
+                    </label>
+
+                    <Box flex className="gap-2 pt-1">
+                      <Button
+                        variant="secondary"
+                        className="flex-1 bg-gray-100 text-gray-700 border-none"
+                        disabled={savingUserPass}
+                        onClick={() => setPassConfirmStep(1)}
+                      >
+                        Quay lại sửa
+                      </Button>
+                      <Button
+                        className="flex-1 bg-red-600 border-red-600 text-white font-bold"
+                        loading={savingUserPass}
+                        disabled={!passDoubleCheckConfirmed || savingUserPass}
+                        onClick={handleExecuteAdminPasswordChange}
+                      >
+                        Commit & Đổi MK
+                      </Button>
+                    </Box>
+                  </Box>
+                )
+              ) : (
+                /* Tab 2: Lịch sử Commit (Git Log & Revert) */
+                <Box className="space-y-3">
+                  {/* Khung xác nhận Revert nếu Admin vừa bấm nút Khôi phục trên 1 commit */}
+                  {revertTargetCommit && (
+                    <Box className="bg-amber-50 border-2 border-amber-400 rounded-xl p-3 shadow-sm">
+                      <Text size="xSmall" bold className="text-amber-900 block mb-1">
+                        ⏪ Xác nhận Khôi phục (Git Revert) từ Commit #{revertTargetCommit.commit.commitId}
+                      </Text>
+                      <Box className="rounded-lg border border-amber-200 overflow-hidden font-mono text-xs my-2">
+                        <Box className="bg-red-50 text-red-700 px-2.5 py-1.5 border-b border-red-100 break-all">
+                          - Đang dùng: <b>{currentStoredPass || "(Chưa ghi nhận)"}</b>
+                        </Box>
+                        <Box className="bg-green-50 text-green-700 px-2.5 py-1.5 break-all">
+                          + Khôi phục về: <b>{revertTargetCommit.targetPassword}</b>
+                        </Box>
+                      </Box>
+                      <Box flex className="gap-2 mt-2">
+                        <Button
+                          size="small"
+                          variant="secondary"
+                          className="flex-1 bg-white text-gray-600 border border-gray-300"
+                          disabled={savingUserPass}
+                          onClick={() => setRevertTargetCommit(null)}
+                        >
+                          Hủy
+                        </Button>
+                        <Button
+                          size="small"
+                          className="flex-1 bg-amber-600 border-amber-600 text-white font-bold"
+                          loading={savingUserPass}
+                          onClick={handleExecuteRevertPassword}
+                        >
+                          Xác nhận Revert
+                        </Button>
+                      </Box>
+                    </Box>
+                  )}
+
+                  {loadingPassLogs ? (
+                    <Box className="flex justify-center py-6">
+                      <Spinner />
+                    </Box>
+                  ) : historyList.length === 0 ? (
+                    <Box className="text-center py-6 bg-gray-50 rounded-xl border border-dashed border-gray-200 p-4">
+                      <Text size="small" bold className="text-gray-500 block mb-1">
+                        Chưa có bản ghi commit mật khẩu nào
+                      </Text>
+                      <Text size="xxSmall" className="text-gray-400">
+                        Mọi thao tác đổi mật khẩu của Admin hoặc của chính Người dùng sẽ tự động được lưu vết tại đây giống như lịch sử Git Commit.
+                      </Text>
+                    </Box>
+                  ) : (
+                    <Box className="space-y-2.5 max-h-[46vh] overflow-y-auto hide-scroll pr-0.5">
+                      {historyList.map((commit, idx) => {
+                        const commitKey = commit.commitId || String(idx);
+                        const isRevealed = Boolean(revealedCommitIds[commitKey]);
+                        const isUserSelfChange =
+                          commit.source === "user_change" ||
+                          (commit.changedBy && commit.changedBy.includes("Người dùng"));
+                        const isRevertCommit =
+                          commit.source === "admin_revert" ||
+                          (commit.changedBy && commit.changedBy.includes("Revert"));
+                        const canRevertToOld =
+                          commit.oldPassword &&
+                          commit.oldPassword !== "(Chưa ghi nhận)" &&
+                          commit.oldPassword !== "(Chưa có)" &&
+                          commit.oldPassword !== currentStoredPass;
+                        const canRevertToNew =
+                          commit.newPassword &&
+                          commit.newPassword !== "(Chưa ghi nhận)" &&
+                          commit.newPassword !== "(Chưa có)" &&
+                          commit.newPassword !== currentStoredPass;
+
+                        let commitTimeStr = commit.createdAt || "";
+                        try {
+                          if (commit.createdAt) {
+                            commitTimeStr = new Date(commit.createdAt).toLocaleString("vi-VN");
+                          }
+                        } catch (_) {}
+
+                        return (
+                          <Box
+                            key={commitKey}
+                            className={`p-3 rounded-xl border ${
+                              idx === 0
+                                ? "bg-amber-50/40 border-amber-300 shadow-xs"
+                                : "bg-white border-gray-200"
+                            }`}
+                          >
+                            {/* Dòng Header của Commit */}
+                            <Box flex justifyContent="space-between" alignItems="center" className="mb-1.5 flex-wrap gap-1">
+                              <Box flex alignItems="center" className="gap-1.5 flex-wrap">
+                                <span className="font-mono bg-gray-800 text-amber-300 px-2 py-0.5 rounded text-[11px] font-bold">
+                                  #{commit.commitId || "commit"}
+                                </span>
+                                {idx === 0 && (
+                                  <span className="bg-green-100 text-green-700 border border-green-300 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                                    HEAD
+                                  </span>
+                                )}
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                                    isRevertCommit
+                                      ? "bg-purple-100 text-purple-700"
+                                      : isUserSelfChange
+                                      ? "bg-blue-100 text-blue-700"
+                                      : "bg-orange-100 text-orange-700"
+                                  }`}
+                                >
+                                  {commit.changedBy || "Hệ thống"}
+                                </span>
+                              </Box>
+                              <Text size="xxxxSmall" className="text-gray-400">
+                                {commitTimeStr}
+                              </Text>
+                            </Box>
+
+                            {/* Nội dung Commit Message */}
+                            <Text size="xSmall" className="text-gray-700 italic mb-2 block">
+                              "{commit.reason || "Cập nhật mật khẩu"}"
+                            </Text>
+
+                            {/* Khung Diff mật khẩu cũ -> mới */}
+                            <Box className="rounded-lg border border-gray-200 overflow-hidden font-mono text-[11px] mb-2">
+                              <Box className="bg-red-50/80 text-red-700 px-2.5 py-1 border-b border-gray-200 flex justify-between items-center">
+                                <span className="truncate mr-2">
+                                  - MK cũ:{" "}
+                                  <b>
+                                    {isRevealed ||
+                                    commit.oldPassword === "(Chưa ghi nhận)" ||
+                                    commit.oldPassword === "(Chưa có)"
+                                      ? commit.oldPassword
+                                      : "••••••"}
+                                  </b>
+                                </span>
+                                {commit.oldPassword &&
+                                  commit.oldPassword !== "(Chưa ghi nhận)" &&
+                                  commit.oldPassword !== "(Chưa có)" && (
+                                    <button
+                                      type="button"
+                                      className="text-[10px] text-red-600 underline shrink-0"
+                                      onClick={() => {
+                                        navigator.clipboard?.writeText(commit.oldPassword);
+                                        openSnackbar({
+                                          text: `Đã sao chép MK cũ của commit #${commit.commitId}!`,
+                                          type: "success",
+                                        });
+                                      }}
+                                    >
+                                      Copy
+                                    </button>
+                                  )}
+                              </Box>
+                              <Box className="bg-green-50/80 text-green-700 px-2.5 py-1 flex justify-between items-center">
+                                <span className="truncate mr-2">
+                                  + MK mới:{" "}
+                                  <b>{isRevealed ? commit.newPassword : "••••••"}</b>
+                                </span>
+                                {commit.newPassword && (
+                                  <button
+                                    type="button"
+                                    className="text-[10px] text-green-700 underline shrink-0"
+                                    onClick={() => {
+                                      navigator.clipboard?.writeText(commit.newPassword);
+                                      openSnackbar({
+                                        text: `Đã sao chép MK mới của commit #${commit.commitId}!`,
+                                        type: "success",
+                                      });
+                                    }}
+                                  >
+                                    Copy
+                                  </button>
+                                )}
+                              </Box>
+                            </Box>
+
+                            {/* Hàng nút điều khiển: Xem MK & Revert */}
+                            <Box flex className="gap-1.5 flex-wrap">
+                              <button
+                                type="button"
+                                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-gray-100 text-gray-700 active:bg-gray-200"
+                                onClick={() =>
+                                  setRevealedCommitIds((prev) => ({
+                                    ...prev,
+                                    [commitKey]: !prev[commitKey],
+                                  }))
+                                }
+                              >
+                                {isRevealed ? "🙈 Ẩn MK" : "👁️ Xem MK"}
+                              </button>
+
+                              {canRevertToOld && (
+                                <button
+                                  type="button"
+                                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300 active:bg-amber-200"
+                                  onClick={() =>
+                                    setRevertTargetCommit({
+                                      commit,
+                                      targetPassword: commit.oldPassword,
+                                      mode: "old",
+                                    })
+                                  }
+                                >
+                                  ⏪ Quay lại MK cũ này
+                                </button>
+                              )}
+
+                              {canRevertToNew && (
+                                <button
+                                  type="button"
+                                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200 active:bg-blue-100"
+                                  onClick={() =>
+                                    setRevertTargetCommit({
+                                      commit,
+                                      targetPassword: commit.newPassword,
+                                      mode: "new",
+                                    })
+                                  }
+                                >
+                                  🔄 Đặt lại MK mới này
+                                </button>
+                              )}
+                            </Box>
+                          </Box>
+                        );
+                      })}
+                    </Box>
+                  )}
+                </Box>
+              )}
+            </Box>
+          );
+        })()}
       </Modal>
   </Box>
   );

@@ -31,6 +31,7 @@ const AccountInfoPage: FC = () => {
   const [name, setName] = useState(() => initialCached?.fullName || initialCached?.name || initialCached?.shopName || "");
   const [phone, setPhone] = useState(() => initialCached?.phone || "");
   const [email, setEmail] = useState(() => initialCached?.email || auth.currentUser?.email || "");
+  const [initialEmail, setInitialEmail] = useState(() => initialCached?.email || auth.currentUser?.email || "");
   const [avatar, setAvatar] = useState(() => initialCached?.avatar || initialCached?.shopAvatar || "");
   const [role, setRole] = useState(() => getRoleLabel(initialCached));
   const [isUploading, setIsUploading] = useState(false);
@@ -72,6 +73,7 @@ const AccountInfoPage: FC = () => {
           setName(cached.fullName || cached.name || cached.shopName || "");
           setPhone(cached.phone || "");
           setEmail(cached.email || user.email || "");
+          setInitialEmail(cached.email || user.email || "");
           setAvatar(cached.avatar || cached.shopAvatar || "");
           setRole(getRoleLabel(cached));
         }
@@ -127,9 +129,11 @@ const AccountInfoPage: FC = () => {
         
         if (docSnap && docSnap.exists()) {
           const data = docSnap.data();
+          const loadedEmail = data.email || user.email || "";
           setName(data.fullName || data.name || finalPhone);
           setPhone(data.phone || finalPhone);
-          setEmail(data.email || user.email || "");
+          setEmail(loadedEmail);
+          setInitialEmail(loadedEmail);
           setAvatar(data.avatar || "");
           setCachedUserData(user.uid, {
             id: currentId,
@@ -141,6 +145,7 @@ const AccountInfoPage: FC = () => {
           setName(finalPhone);
           setPhone(finalPhone);
           setEmail(user.email || "");
+          setInitialEmail(user.email || "");
           setAvatar("");
         }
       } else {
@@ -148,6 +153,7 @@ const AccountInfoPage: FC = () => {
         setName("Vũ Hoàng Hiệp (Mẫu)");
         setPhone("0782431949");
         setEmail("");
+        setInitialEmail("");
         setAvatar("");
         setRole("Thành viên");
         setCollectionName("users");
@@ -172,49 +178,58 @@ const AccountInfoPage: FC = () => {
       const targetColl = collectionName || "users";
       const targetId = docId || currentUser.uid;
       const docRef = doc(db, targetColl, targetId);
+      const trimmedEmail = (email || "").trim();
+      const isEmailChangedByUser =
+        trimmedEmail.toLowerCase() !== (initialEmail || "").trim().toLowerCase();
 
-      // Cập nhật email trong Firebase Auth nếu người dùng có thay đổi và có nhập email
-      if (email && email.includes("@") && !email.includes("@campus.com")) {
-        if (currentUser.email !== email) {
-          try {
-            await verifyBeforeUpdateEmail(currentUser, email);
-            setPendingEmail(email);
-            setShowVerifyEmailModal(true);
-          } catch (e: any) {
-            console.error("Lỗi cập nhật email Auth:", e);
-            if (e.code === 'auth/requires-recent-login') {
-              openSnackbar({ text: "Vui lòng đăng xuất và đăng nhập lại để thay đổi Email!", type: "error" });
-              return;
-            } else if (e.code === 'auth/email-already-in-use') {
-              openSnackbar({ text: "Email này đã được sử dụng cho tài khoản khác!", type: "error" });
-              return;
-            } else {
-              openSnackbar({ text: "Lỗi hệ thống: Vui lòng liên hệ Admin. " + e.message, type: "error" });
-              return;
-            }
-          }
-        }
-      }
-      
+      // 1. Lưu ngay thông tin hồ sơ (Tên, SĐT, Email, Avatar) vào Firestore trước
       await setDoc(docRef, {
         fullName: name,
         name: name,
         shopName: name, // Đồng bộ luôn cho trường hợp là Shop
         managerName: name, // Đồng bộ luôn cho người quản lý
         phone: phone,
-        email: email,
+        email: trimmedEmail,
         avatar: avatar
       }, { merge: true });
 
+      setInitialEmail(trimmedEmail);
       updateCachedUserData(currentUser.uid, {
         fullName: name,
         name: name,
         shopName: name,
         managerName: name,
         phone: phone,
-        email: email,
+        email: trimmedEmail,
         avatar: avatar,
       });
+
+      // 2. Chỉ gửi link xác thực đổi Email Firebase Auth khi người dùng thực sự sửa ô Email
+      if (
+        isEmailChangedByUser &&
+        trimmedEmail &&
+        trimmedEmail.includes("@") &&
+        !trimmedEmail.includes("@campus.com") &&
+        currentUser.email !== trimmedEmail
+      ) {
+        try {
+          await verifyBeforeUpdateEmail(currentUser, trimmedEmail);
+          setPendingEmail(trimmedEmail);
+          setShowVerifyEmailModal(true);
+        } catch (e: any) {
+          console.warn("Lưu hồ sơ thành công, nhưng chưa thể gửi link xác thực Auth Email:", e);
+          if (e.code === "auth/email-already-in-use") {
+            openSnackbar({
+              text: "Đã lưu tên & ảnh! Tuy nhiên Email này đã được liên kết với một tài khoản khác.",
+              type: "warning",
+              duration: 4000,
+            });
+            return;
+          }
+          // Với lỗi auth/user-token-expired hoặc auth/requires-recent-login:
+          // Thông tin cá nhân và email khôi phục trong Firestore ĐÃ ĐƯỢC LƯU thành công!
+        }
+      }
 
       openSnackbar({
         text: "Cập nhật thông tin thành công!",

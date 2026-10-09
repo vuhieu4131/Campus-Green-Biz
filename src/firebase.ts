@@ -6,7 +6,7 @@ import { getAuth } from "firebase/auth"; // Nếu dự án của bạn có dùng
 import { getRandomAvatar } from "./utils/avatar";
 
 // Cấu hình Firebase thực tế trích xuất từ dự án "campusbizproject" của bạn
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyDF4jBlhobzytz0xphXgH_VzSNn7c_TpZc",
   authDomain: "campusbizproject.firebaseapp.com",
   projectId: "campusbizproject",

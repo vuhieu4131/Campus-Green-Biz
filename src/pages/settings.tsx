@@ -18,6 +18,7 @@ import {
   updateCachedUserData,
   clearCachedUserData,
 } from "../state";
+import { createPasswordCommit, appendPasswordCommit } from "../utils/password-history";
 
 
 const isWithin15Days = (createdAt: any) => {
@@ -1189,12 +1190,56 @@ const SettingsPage: FC = () => {
       // 2. Update password in Firebase Auth
       await updatePassword(user, newPassword);
 
-      // 3. Update in Firestore collection (users or shops)
+      // 3. Update in Firestore collection (users or shops) + ghi log commit mật khẩu
       const targetColl = userData?.role === "provider" ? "shops" : "users";
       const targetId = userData?.id || user.uid;
       const docRef = doc(db, targetColl, targetId);
-      
-      await updateDoc(docRef, { password: newPassword });
+      const curSnap = await getDoc(docRef);
+      const curData = curSnap.exists() ? curSnap.data() : {};
+
+      const newCommit = createPasswordCommit({
+        oldPassword: oldPassword || curData?.password || "(Chưa ghi nhận)",
+        newPassword: newPassword,
+        reason: "Người dùng chủ động đổi mật khẩu tại trang Cá nhân",
+        changedBy: "Người dùng tự đổi",
+        source: "user_change",
+      });
+      const updatedHistory = appendPasswordCommit(
+        curData?.passwordHistory || userData?.passwordHistory,
+        newCommit
+      );
+
+      await updateDoc(docRef, {
+        password: newPassword,
+        passwordHistory: updatedHistory,
+        passwordUpdatedAt: newCommit.createdAt,
+      });
+
+      try {
+        await addDoc(collection(db, "password_audit_logs"), {
+          targetId,
+          targetCollection: targetColl,
+          targetPhone: curData?.phone || userData?.phone || "",
+          targetName:
+            curData?.fullName ||
+            curData?.name ||
+            curData?.shopName ||
+            userData?.fullName ||
+            userData?.name ||
+            "Người dùng",
+          ...newCommit,
+        });
+      } catch (logErr) {
+        console.warn("Không thể ghi password_audit_logs:", logErr);
+      }
+
+      setUserData((prev: any) =>
+        prev ? { ...prev, password: newPassword, passwordHistory: updatedHistory } : prev
+      );
+      updateCachedUserData(user.uid, {
+        password: newPassword,
+        passwordHistory: updatedHistory,
+      });
 
       alert("Đổi mật khẩu thành công!");
       setShowPasswordModal(false);

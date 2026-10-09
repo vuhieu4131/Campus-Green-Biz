@@ -508,7 +508,7 @@ const NewMemberView: FC<{
             )}
           </Box>
           <Box className="pt-12 flex flex-col gap-1 items-center w-full">
-            <Box className="flex items-center gap-2 flex-wrap justify-center">
+            <Box className="flex flex-col items-center gap-1.5 justify-center">
               <Text.Title className="text-xl font-bold leading-none text-center">{user.name}</Text.Title>
               {role === "provider" ? (
                 <Box className={`flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border shadow-xs ${calculateShopRankInfo(rankPoints).color}`}>

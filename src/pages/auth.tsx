@@ -7,8 +7,13 @@ import { auth, db } from "../firebase";
 import { getDefaultAvatar, getRandomAvatar } from "../utils/avatar"; 
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, deleteUser, updatePassword, sendPasswordResetEmail } from "firebase/auth";
 // 👉 ĐÃ BỔ SUNG: Thêm collection, query, where, getDocs để hỗ trợ quét dữ liệu ngoại lệ
-import { doc, setDoc, getDoc, collection, query, where, getDocs, updateDoc, addDoc, serverTimestamp, increment } from "firebase/firestore"; 
+import { doc, setDoc, getDoc, deleteDoc, collection, query, where, getDocs, updateDoc, addDoc, serverTimestamp, increment } from "firebase/firestore"; 
 import { openChat } from "zmp-sdk/apis";
+import {
+  createPasswordCommit,
+  appendPasswordCommit,
+  getCandidatePasswordsFromRecord,
+} from "../utils/password-history";
 
 interface AuthOverlayProps {
   visible: boolean;
@@ -204,21 +209,97 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
 
     try {
       let loginEmail = phone;
+      let matchedDocSnap: any = null;
+      let matchedCollection: "users" | "shops" = "users";
+
       if (!loginEmail.includes("@")) {
-          const qUser = query(collection(db, "users"), where("phone", "==", phone));
-          const userSnap = await getDocs(qUser);
-          if (!userSnap.empty && userSnap.docs[0].data().email) {
-              loginEmail = userSnap.docs[0].data().email;
+        const qUser = query(collection(db, "users"), where("phone", "==", phone));
+        const userSnap = await getDocs(qUser);
+        if (!userSnap.empty) {
+          matchedDocSnap = userSnap.docs[0];
+          matchedCollection = "users";
+          const uData = matchedDocSnap.data();
+          loginEmail = uData.authEmail || uData.email || `${phone}@campus.com`;
+        } else {
+          const qShop = query(collection(db, "shops"), where("phone", "==", phone));
+          const shopSnap = await getDocs(qShop);
+          if (!shopSnap.empty) {
+            matchedDocSnap = shopSnap.docs[0];
+            matchedCollection = "shops";
+            const sData = matchedDocSnap.data();
+            loginEmail = sData.authEmail || sData.email || `${phone}@campus.com`;
           } else {
-              const qShop = query(collection(db, "shops"), where("phone", "==", phone));
-              const shopSnap = await getDocs(qShop);
-              if (!shopSnap.empty && shopSnap.docs[0].data().email) {
-                  loginEmail = shopSnap.docs[0].data().email;
-              } else {
-                  loginEmail = `${phone}@campus.com`;
-              }
+            loginEmail = `${phone}@campus.com`;
           }
+        }
+      } else {
+        const qUserEmail = query(collection(db, "users"), where("email", "==", loginEmail));
+        const uEmailSnap = await getDocs(qUserEmail);
+        if (!uEmailSnap.empty) {
+          matchedDocSnap = uEmailSnap.docs[0];
+          matchedCollection = "users";
+          if (matchedDocSnap.data().authEmail) {
+            loginEmail = matchedDocSnap.data().authEmail;
+          }
+        } else {
+          const qShopEmail = query(collection(db, "shops"), where("email", "==", loginEmail));
+          const sEmailSnap = await getDocs(qShopEmail);
+          if (!sEmailSnap.empty) {
+            matchedDocSnap = sEmailSnap.docs[0];
+            matchedCollection = "shops";
+            if (matchedDocSnap.data().authEmail) {
+              loginEmail = matchedDocSnap.data().authEmail;
+            }
+          }
+        }
       }
+
+      const syncPasswordRecordIfNeeded = async (
+        targetRef: any,
+        targetData: any,
+        targetCollection: "users" | "shops",
+        targetId: string
+      ) => {
+        if (!targetData || targetData.password === password) return targetData;
+        try {
+          const hasPreviousPassword = Boolean(targetData.password);
+          const syncCommit = createPasswordCommit({
+            oldPassword: targetData.password || "(Chưa ghi nhận)",
+            newPassword: password,
+            reason: hasPreviousPassword
+              ? "Người dùng đăng nhập bằng mật khẩu mới (sau khi khôi phục qua Email)"
+              : "Đồng bộ mật khẩu hiện tại của tài khoản vào hệ thống",
+            changedBy: hasPreviousPassword
+              ? "Người dùng (Khôi phục Email)"
+              : "Đồng bộ khi đăng nhập",
+            source: "login_sync",
+          });
+          const updatedHistory = appendPasswordCommit(targetData.passwordHistory, syncCommit);
+          await updateDoc(targetRef, {
+            password: password,
+            passwordHistory: updatedHistory,
+            passwordUpdatedAt: syncCommit.createdAt,
+          });
+          try {
+            await addDoc(collection(db, "password_audit_logs"), {
+              targetId,
+              targetCollection,
+              targetPhone: targetData.phone || phone,
+              targetName:
+                targetData.fullName || targetData.name || targetData.shopName || "Người dùng",
+              ...syncCommit,
+            });
+          } catch (_) {}
+          return {
+            ...targetData,
+            password,
+            passwordHistory: updatedHistory,
+          };
+        } catch (syncErr) {
+          console.warn("Không thể đồng bộ mật khẩu khi đăng nhập:", syncErr);
+          return targetData;
+        }
+      };
 
       let userCredential;
       try {
@@ -226,38 +307,81 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
       } catch (signInErr: any) {
         let isFallbackSuccess = false;
         // Xử lý trường hợp người dùng đã cập nhật email Firestore nhưng chưa bấm link xác nhận Firebase Auth
-        if (loginEmail !== `${phone}@campus.com` && !phone.includes('@')) {
-            try {
-                const fallbackEmail = `${phone}@campus.com`;
-                userCredential = await signInWithEmailAndPassword(auth, fallbackEmail, password);
+        if (loginEmail !== `${phone}@campus.com` && !phone.includes("@")) {
+          try {
+            const fallbackEmail = `${phone}@campus.com`;
+            userCredential = await signInWithEmailAndPassword(auth, fallbackEmail, password);
+            isFallbackSuccess = true;
+            loginEmail = fallbackEmail;
+          } catch (fallbackErr) {
+            // Bỏ qua lỗi fallback, tiếp tục xử lý lớp cứu cánh
+          }
+        }
+
+        // Lớp cứu cánh đặc biệt: Tài khoản vừa được Admin đổi/Revert mật khẩu trên Firestore
+        if (!isFallbackSuccess && matchedDocSnap && matchedDocSnap.data()?.password === password) {
+          const matchedData = matchedDocSnap.data();
+          const candidateEmails = Array.from(
+            new Set(
+              [
+                matchedData.authEmail,
+                matchedData.email,
+                !phone.includes("@") ? `${phone}@campus.com` : "",
+              ].filter(Boolean)
+            )
+          );
+          const candidatePasswords = getCandidatePasswordsFromRecord(matchedData).filter(
+            (p) => p !== password
+          );
+
+          for (const cEmail of candidateEmails) {
+            if (isFallbackSuccess) break;
+            for (const oldCandidatePass of candidatePasswords) {
+              try {
+                userCredential = await signInWithEmailAndPassword(
+                  auth,
+                  cEmail,
+                  oldCandidatePass
+                );
+                await updatePassword(userCredential.user, password);
                 isFallbackSuccess = true;
-                loginEmail = fallbackEmail; // Để các logic phía sau biết đang dùng email ảo
-            } catch (fallbackErr) {
-                // Bỏ qua lỗi fallback, tiếp tục xử lý lớp cứu cánh 1
+                loginEmail = cEmail;
+                break;
+              } catch (_) {}
             }
+          }
+
+          // Nếu tài khoản cũ chưa từng lưu mật khẩu gốc vào Firestore trước khi Admin đổi
+          if (!isFallbackSuccess) {
+            const cleanPhone = (matchedData.phone || phone).replace(/[^0-9a-zA-Z]/g, "");
+            const aliasAuthEmail = `${cleanPhone}.${Date.now()}@campus.com`;
+            userCredential = await createUserWithEmailAndPassword(auth, aliasAuthEmail, password);
+            await updateDoc(matchedDocSnap.ref, { authEmail: aliasAuthEmail });
+            isFallbackSuccess = true;
+            loginEmail = aliasAuthEmail;
+          }
         }
 
         if (!isFallbackSuccess) {
-            // Lớp cứu cánh 1: Nếu user được tạo thủ công hoặc là Admin phụ (lưu trong Firestore bằng phone)
-            const userByPhoneRef = doc(db, "users", phone);
-            const userByPhoneSnap = await getDoc(userByPhoneRef);
-            if (userByPhoneSnap.exists() && userByPhoneSnap.data().password === password) {
-                userCredential = await createUserWithEmailAndPassword(auth, loginEmail, password);
-                const newUid = userCredential.user.uid;
-                // Migrate document sang UID
-                await setDoc(doc(db, "users", newUid), {
-                    ...userByPhoneSnap.data(),
-                    id: newUid,
-                    uid: newUid
-                });
-                await deleteDoc(userByPhoneRef);
-            } else {
-                throw signInErr;
-            }
+          // Lớp cứu cánh 1: Nếu user được tạo thủ công hoặc là Admin phụ (lưu trong Firestore bằng phone)
+          const userByPhoneRef = doc(db, "users", phone);
+          const userByPhoneSnap = await getDoc(userByPhoneRef);
+          if (userByPhoneSnap.exists() && userByPhoneSnap.data().password === password) {
+            userCredential = await createUserWithEmailAndPassword(auth, loginEmail, password);
+            const newUid = userCredential.user.uid;
+            await setDoc(doc(db, "users", newUid), {
+              ...userByPhoneSnap.data(),
+              id: newUid,
+              uid: newUid,
+            });
+            await deleteDoc(userByPhoneRef);
+          } else {
+            throw signInErr;
+          }
         }
       }
 
-      const uid = userCredential.user.uid; 
+      const uid = userCredential.user.uid;
       clearCachedUserData();
 
       // 1. TÌM TRONG BẢNG "shops" BẰNG UID
@@ -265,89 +389,109 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
       const shopSnap = await getDoc(shopRef);
 
       if (shopSnap.exists()) {
-        setCachedUserData(uid, { id: shopSnap.id, ...shopSnap.data(), role: "provider" });
+        const syncedShopData = await syncPasswordRecordIfNeeded(
+          shopRef,
+          shopSnap.data(),
+          "shops",
+          shopSnap.id
+        );
+        setCachedUserData(uid, { id: shopSnap.id, ...syncedShopData, role: "provider" });
         localStorage.setItem("user_phone", phone);
         if (loginEmail.includes("@campus.com")) {
-            setRedirectPath("/profile");
-            setShowRequireEmailModal(true);
-            return;
+          setRedirectPath("/profile");
+          setShowRequireEmailModal(true);
+          return;
         }
         alert("Chào mừng Nhà phân phối quay trở lại!");
-        onClose(); 
-        navigate("/profile"); 
-        return; 
+        onClose();
+        navigate("/profile");
+        return;
       }
 
-      // 2. TÌM TRONG BẢNG "users" BẰNG UID
+      // 2. TÌM TRONG BẢNG "users" BẰNG UID (hoặc matchedDocSnap nếu dùng aliasAuthEmail)
       const userRef = doc(db, "users", uid);
       let userSnap = await getDoc(userRef);
 
       if (!userSnap.exists()) {
-          const userByPhoneRef = doc(db, "users", phone);
-          const userByPhoneSnap = await getDoc(userByPhoneRef);
-          if (userByPhoneSnap.exists()) {
-              await setDoc(userRef, {
-                  ...userByPhoneSnap.data(),
-                  id: uid,
-                  uid: uid
-              });
-              await deleteDoc(userByPhoneRef);
-              userSnap = await getDoc(userRef);
-          }
+        const userByPhoneRef = doc(db, "users", phone);
+        const userByPhoneSnap = await getDoc(userByPhoneRef);
+        if (userByPhoneSnap.exists()) {
+          await setDoc(userRef, {
+            ...userByPhoneSnap.data(),
+            id: uid,
+            uid: uid,
+          });
+          await deleteDoc(userByPhoneRef);
+          userSnap = await getDoc(userRef);
+        } else if (matchedDocSnap && matchedCollection === "users") {
+          userSnap = matchedDocSnap;
+        }
       }
 
       if (userSnap.exists()) {
-        const userData = userSnap.data();
-        const role = userData.role || (userData.branchInfo ? "member" : "user");
-        setCachedUserData(uid, { id: userSnap.id, ...userData, role });
-        if (userData.role === "admin") {
-            localStorage.setItem("isAdminBypass", "true");
-            localStorage.setItem("user_phone", phone);
-            if (loginEmail.includes("@campus.com")) {
-                setRedirectPath("/admin-dashboard");
-                setShowRequireEmailModal(true);
-                return;
-            }
-            onClose();
-            navigate("/admin-dashboard");
+        const syncedUserData = await syncPasswordRecordIfNeeded(
+          userSnap.ref,
+          userSnap.data(),
+          "users",
+          userSnap.id
+        );
+        const role = syncedUserData.role || (syncedUserData.branchInfo ? "member" : "user");
+        setCachedUserData(uid, { id: userSnap.id, ...syncedUserData, role });
+        if (syncedUserData.role === "admin") {
+          localStorage.setItem("isAdminBypass", "true");
+          localStorage.setItem("user_phone", phone);
+          if (loginEmail.includes("@campus.com")) {
+            setRedirectPath("/admin-dashboard");
+            setShowRequireEmailModal(true);
             return;
+          }
+          onClose();
+          navigate("/admin-dashboard");
+          return;
         }
         localStorage.setItem("user_phone", phone);
         if (loginEmail.includes("@campus.com")) {
-            setRedirectPath("");
-            setShowRequireEmailModal(true);
-            return;
+          setRedirectPath("");
+          setShowRequireEmailModal(true);
+          return;
         }
-        alert(`Đăng nhập thành công! Chào ${userData.fullName || userData.name || "bạn"}`);
-        onClose(); 
+        alert(`Đăng nhập thành công! Chào ${syncedUserData.fullName || syncedUserData.name || "bạn"}`);
+        onClose();
         return;
-      } 
-      
+      }
+
       // 3. LỚP CỨU CÁNH 2: Nếu UID không khớp (Dành riêng cho Shop bạn tự tạo bằng tay trên Firebase)
       const qShop = query(collection(db, "shops"), where("phone", "==", phone));
       const shopByPhoneSnap = await getDocs(qShop);
       if (!shopByPhoneSnap.empty) {
-        setCachedUserData(uid, { id: shopByPhoneSnap.docs[0].id, ...shopByPhoneSnap.docs[0].data(), role: "provider" });
+        const foundShopDoc = shopByPhoneSnap.docs[0];
+        const syncedShopData = await syncPasswordRecordIfNeeded(
+          foundShopDoc.ref,
+          foundShopDoc.data(),
+          "shops",
+          foundShopDoc.id
+        );
+        setCachedUserData(uid, { id: foundShopDoc.id, ...syncedShopData, role: "provider" });
         localStorage.setItem("user_phone", phone);
         if (loginEmail.includes("@campus.com")) {
-            setRedirectPath("/profile");
-            setShowRequireEmailModal(true);
-            return;
+          setRedirectPath("/profile");
+          setShowRequireEmailModal(true);
+          return;
         }
         alert("Chào mừng Nhà phân phối quay trở lại!");
-        onClose(); 
-        navigate("/profile"); 
+        onClose();
+        navigate("/profile");
         return;
       }
 
       localStorage.setItem("user_phone", phone);
       if (loginEmail.includes("@campus.com")) {
-          setRedirectPath("");
-          setShowRequireEmailModal(true);
-          return;
+        setRedirectPath("");
+        setShowRequireEmailModal(true);
+        return;
       }
       alert("Đăng nhập thành công!");
-      onClose(); 
+      onClose();
 
     } catch (error: any) {
       alert("Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin!");
@@ -467,12 +611,22 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
       }
 
       const collectionName = isShopConfig ? "shops" : "users";
+      const initialPasswordCommit = createPasswordCommit({
+        oldPassword: "(Chưa có)",
+        newPassword: password,
+        reason: "Khởi tạo mật khẩu khi đăng ký tài khoản",
+        changedBy: "Khởi tạo khi đăng ký",
+        source: "register",
+      });
 
       // 2. LƯU DỮ LIỆU BẰNG MÃ UID
       await setDoc(doc(db, collectionName, uid), {
         phone: phone,
         email: registerEmail,
         fullName: fullName,
+        password: password,
+        passwordHistory: [initialPasswordCommit],
+        passwordUpdatedAt: initialPasswordCommit.createdAt,
         referralCode: referralCode,
         isShopConfig: isShopConfig, 
         zaloName: userInfo?.name || "",
@@ -482,6 +636,16 @@ export const AuthOverlay: FC<AuthOverlayProps> = ({ visible, onClose }) => {
         createdAt: new Date().toISOString(),
         ...(isShopConfig ? { status: "pending" } : {})
       });
+
+      try {
+        await addDoc(collection(db, "password_audit_logs"), {
+          targetId: uid,
+          targetCollection: collectionName,
+          targetPhone: phone,
+          targetName: fullName || phone,
+          ...initialPasswordCommit,
+        });
+      } catch (_) {}
 
       if (initialSpendingPoints > 0) {
         await addDoc(collection(db, "point_transactions"), {
