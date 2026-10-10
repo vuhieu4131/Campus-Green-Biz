@@ -283,6 +283,19 @@ export const AdminView: FC<AdminProps> = ({ userData, onLogout }) => {
   const [rejectReason, setRejectReason] = useState("");
   const [isProcessingApproval, setIsProcessingApproval] = useState(false);
 
+  // --- STATE MODAL XÁC NHẬN XÓA AN TOÀN ---
+  const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<{
+    col?: string;
+    id: string;
+    name?: string;
+    phone?: string;
+    typeLabel?: string;
+    isShopConvert?: boolean;
+    shopData?: any;
+    customWarning?: string;
+  } | null>(null);
+  const [deletingItem, setDeletingItem] = useState(false);
+
   const { openSnackbar } = useSnackbar();
 
   const getTargetCollectionForUser = (u: any): "users" | "shops" => {
@@ -1651,19 +1664,18 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
     } catch (error) { openSnackbar({ text: "Lỗi", type: "error" }); } finally { setCreatingAdmin(false); }
   };
 
-  const handleDeleteAdmin = async (adminId: string, adminPhone: string) => {
+  const handleDeleteAdmin = (adminId: string, adminPhone: string, adminName?: string) => {
     if (adminPhone === "0000869131") {
         return openSnackbar({ text: "Không thể xóa Admin chính hệ thống!", type: "warning" });
     }
-    if (window.confirm("Bạn có chắc chắn muốn xóa Admin này?")) {
-        try {
-            await deleteDoc(doc(db, "users", adminId));
-            openSnackbar({ text: "Đã xóa Admin thành công!", type: "success" });
-            fetchData("create_admin");
-        } catch (error) {
-            openSnackbar({ text: "Có lỗi khi xóa", type: "error" });
-        }
-    }
+    setDeleteConfirmTarget({
+      col: "users",
+      id: adminId,
+      name: adminName,
+      phone: adminPhone,
+      typeLabel: "quản trị viên phụ",
+      customWarning: "Tài khoản quản trị viên phụ này sẽ bị xóa khỏi danh sách quản trị hệ thống!"
+    });
   };
   // 👉 BƯỚC 2: HÀM XÁC NHẬN THU TIỀN TỪ SHOP
   const [approvingFeeFor, setApprovingFeeFor] = useState<string | null>(null);
@@ -1797,28 +1809,86 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
     } catch (error) { openSnackbar({ text: "Lỗi", type: "error" }); }
   };
 
-  const handleDeleteItem = async (col: string, id: string) => {
-    try { await deleteDoc(doc(db, col, id)); openSnackbar({ text: "Xóa thành công!", type: "success" }); fetchData(selectedFeature!); } 
-    catch (error) { openSnackbar({ text: "Lỗi xóa", type: "error" }); }
+  const handleDeleteItem = (
+    col: string, 
+    id: string, 
+    name?: string, 
+    phone?: string, 
+    typeLabel?: string,
+    customWarning?: string
+  ) => {
+    let resolvedLabel = typeLabel;
+    if (!resolvedLabel) {
+      if (col === "users") resolvedLabel = "thành viên";
+      else if (col === "services") resolvedLabel = "sản phẩm / dịch vụ";
+      else if (col === "banners") resolvedLabel = "banner";
+      else if (col === "feedbacks") resolvedLabel = "góp ý / phản hồi";
+      else if (col === "voucher_campaigns") resolvedLabel = "chiến dịch voucher";
+      else if (col === "categories") resolvedLabel = "danh mục";
+      else resolvedLabel = "mục";
+    }
+
+    setDeleteConfirmTarget({
+      col,
+      id,
+      name,
+      phone,
+      typeLabel: resolvedLabel,
+      customWarning
+    });
   };
 
-  const handleDeleteShop = async (shop: any) => {
-    try { 
-        // 1. Lưu sang bảng users với vai trò là user bình thường
+  const executeDeleteItem = async () => {
+    if (!deleteConfirmTarget || deletingItem) return;
+    setDeletingItem(true);
+    try {
+      if (deleteConfirmTarget.isShopConvert && deleteConfirmTarget.shopData) {
+        const shop = deleteConfirmTarget.shopData;
         await setDoc(doc(db, "users", shop.id), {
-            ...shop,
-            role: "user",
-            status: "active"
+          ...shop,
+          role: "user",
+          status: "active"
         });
-        // 2. Xóa khỏi bảng shops
-        await deleteDoc(doc(db, "shops", shop.id)); 
-        openSnackbar({ text: "Đã chuyển Shop thành Người dùng!", type: "success" }); 
-        fetchData("providers"); 
-    } 
-    catch (error) { 
-        console.error(error);
-        openSnackbar({ text: "Lỗi khi chuyển đổi", type: "error" }); 
+        await deleteDoc(doc(db, "shops", shop.id));
+        openSnackbar({ text: "Đã chuyển Shop thành Người dùng!", type: "success" });
+        fetchData("providers");
+      } else if (deleteConfirmTarget.col) {
+        await deleteDoc(doc(db, deleteConfirmTarget.col, deleteConfirmTarget.id));
+        openSnackbar({ 
+          text: `Đã xóa ${deleteConfirmTarget.typeLabel || "dữ liệu"} thành công!`, 
+          type: "success" 
+        });
+        if (deleteConfirmTarget.col === "categories") {
+          fetchCategories();
+        } else if (deleteConfirmTarget.col === "users" && selectedFeature === "create_admin") {
+          fetchData("create_admin");
+        } else if (selectedFeature) {
+          fetchData(selectedFeature);
+        }
+      }
+      
+      if (detailUser && (detailUser.id === deleteConfirmTarget.id || detailUser.phone === deleteConfirmTarget.phone)) {
+        setDetailUser(null);
+      }
+      setDeleteConfirmTarget(null);
+    } catch (error) {
+      console.error("Lỗi khi xóa dữ liệu:", error);
+      openSnackbar({ text: "Lỗi khi xóa dữ liệu!", type: "error" });
+    } finally {
+      setDeletingItem(false);
     }
+  };
+
+  const handleDeleteShop = (shop: any) => {
+    setDeleteConfirmTarget({
+      id: shop.id,
+      name: shop.name || shop.shopName,
+      phone: shop.phone,
+      typeLabel: "gian hàng / shop",
+      isShopConvert: true,
+      shopData: shop,
+      customWarning: "Hành động này sẽ gỡ quyền Shop đối tác và chuyển tài khoản này về vai trò người dùng thông thường."
+    });
   };
 
   const handleAddBanner = async () => {
@@ -1881,15 +1951,10 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
     }
   };
 
-  const handleDeleteCategory = async (id: string) => {
-    try {
-      await deleteDoc(doc(db, "categories", id));
-      openSnackbar({ text: "Xóa danh mục thành công!", type: "success" });
-      fetchCategories();
-    } catch (e) {
-      console.error(e);
-      openSnackbar({ text: "Lỗi xóa danh mục", type: "error" });
-    }
+  const handleDeleteCategory = (cat: any) => {
+    const catId = typeof cat === "string" ? cat : cat.id;
+    const catName = typeof cat === "string" ? undefined : cat.name;
+    handleDeleteItem("categories", catId, catName, undefined, "danh mục", "Danh mục này sẽ bị xóa vĩnh viễn khỏi hệ thống.");
   };
 
   useEffect(() => {
@@ -2037,7 +2102,14 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                               </Box>
                               <Box ml={3} className="flex-1">
     <Text bold size="small">{m.fullName || m.name || "Thành viên"}</Text>
-    <Text size="xxSmall" className="text-gray">{m.phone}</Text>
+    <Box className="flex items-center gap-1.5 flex-wrap">
+        <Text size="xxSmall" className="text-gray">{m.phone}</Text>
+        {m.id && (
+            <span className="text-[10px] text-gray-400 font-mono bg-black/5 dark:bg-white/10 px-1.5 py-0.5 rounded leading-none">
+                ID: {m.id.length > 14 ? `${m.id.slice(0, 6)}...${m.id.slice(-4)}` : m.id}
+            </span>
+        )}
+    </Box>
     {/* 👉 Hiển thị thêm địa chỉ */}
     {/* 👉 Hiển thị địa chỉ: Do Bước 1 đã lưu "address" nên giờ gọi thẳng là ra */}
     {m.address && (
@@ -2064,7 +2136,13 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                   </Box>
                               )}
                           </Box>
-                          <Box className="p-2 ml-1 cursor-pointer active:opacity-50" onClick={(e) => { e.stopPropagation(); handleDeleteItem("users", m.id); }}>
+                          <Box 
+                              className="p-2 ml-1 cursor-pointer active:opacity-50" 
+                              onClick={(e) => { 
+                                  e.stopPropagation(); 
+                                  handleDeleteItem("users", m.id, m.fullName || m.name, m.phone, "thành viên"); 
+                              }}
+                          >
                               <CustomIcon icon="zi-delete" className="text-red-500" />
                           </Box>
                       </Box>
@@ -2288,7 +2366,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                         </Box>
                         <Box 
                           className="cursor-pointer p-1.5 rounded-full hover:bg-red-50 text-red-500 transition-colors"
-                          onClick={() => handleDeleteCategory(cat.id)}
+                          onClick={() => handleDeleteCategory(cat)}
                         >
                           <CustomIcon icon="zi-delete" size={18} />
                         </Box>
@@ -2348,7 +2426,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                           </Box>
                         </Box>
                         <Box flex justifyContent="space-between" alignItems="center">
-                          <Text size="xxSmall" className="text-red-500 cursor-pointer" onClick={() => handleDeleteItem("services", p.id)}>
+                          <Text size="xxSmall" className="text-red-500 cursor-pointer" onClick={() => handleDeleteItem("services", p.id, p.name || p.title, undefined, "sản phẩm / dịch vụ")}>
                             <CustomIcon icon="zi-delete"/> Xóa
                           </Text>
                           <Button size="small" variant={(p.status === "approved" || !p.status) ? "secondary" : "primary"} onClick={() => handleApprovePost(p)}>
@@ -2516,7 +2594,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                   )}
                   <Box 
                     className="absolute top-2 right-2 bg-white rounded-full p-1 shadow cursor-pointer hover:bg-gray-100" 
-                    onClick={()=>handleDeleteItem("banners", b.id)}
+                    onClick={() => handleDeleteItem("banners", b.id, b.link || "Banner quảng cáo", undefined, "banner", "Banner hình ảnh này sẽ bị gỡ bỏ vĩnh viễn khỏi ứng dụng.")}
                   >
                     <CustomIcon icon="zi-delete" className="text-red-500" size={18}/>
                   </Box>
@@ -2564,7 +2642,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                     )}
 
                     <Box flex justifyContent="space-between" mt={3} pt={2} className="border-t border-gray-100 items-center">
-                        <Text size="xxSmall" className="text-red-500 cursor-pointer active:opacity-50" onClick={() => handleDeleteItem("feedbacks", f.id)}>
+                        <Text size="xxSmall" className="text-red-500 cursor-pointer active:opacity-50" onClick={() => handleDeleteItem("feedbacks", f.id, f.userName ? `${f.userName} (${f.userPhone || ""})` : (f.userPhone || f.content), undefined, "góp ý / phản hồi")}>
                             <CustomIcon icon="zi-delete"/> Xóa phiếu
                         </Text>
                         {f.status !== 'done' && (
@@ -2879,7 +2957,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                                       }}>
                                                           Kết thúc
                                                       </Button>
-                                                      <Button size="small" variant="secondary" className="h-7 text-[11px] px-3 w-20 bg-red-50 text-red-600 border-red-200" onClick={() => handleDeleteItem("voucher_campaigns", camp.id)}>
+                                                      <Button size="small" variant="secondary" className="h-7 text-[11px] px-3 w-20 bg-red-50 text-red-600 border-red-200" onClick={() => handleDeleteItem("voucher_campaigns", camp.id, camp.name || camp.title, undefined, "chiến dịch voucher")}>
                                                           Xóa
                                                       </Button>
                                                   </Box>
@@ -3129,7 +3207,7 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                                                   Kết thúc
                                               </Button>
                                           )}
-                                          <Button size="small" variant="secondary" className="h-7 text-[11px] px-3 w-20 bg-red-50 text-red-600 border-red-200" onClick={() => handleDeleteItem("voucher_campaigns", camp.id)}>
+                                          <Button size="small" variant="secondary" className="h-7 text-[11px] px-3 w-20 bg-red-50 text-red-600 border-red-200" onClick={() => handleDeleteItem("voucher_campaigns", camp.id, camp.name || camp.title, undefined, "chiến dịch voucher")}>
                                               Xóa
                                           </Button>
                                       </Box>
@@ -3710,17 +3788,27 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                     </Box>
                 </Box>
                 <Text size="small" className="text-gray mb-1 mt-1">{detailUser.phone}</Text>
-                {detailUser.createdAt && (
-                    <Text size="xSmall" className="text-gray-500 mb-3 italic">
-                        Tham gia: {
-                            detailUser.createdAt?.toDate 
-                                ? detailUser.createdAt.toDate().toLocaleString('vi-VN') 
-                                : (detailUser.createdAt?.seconds 
-                                    ? new Date(detailUser.createdAt.seconds * 1000).toLocaleString('vi-VN') 
-                                    : new Date(detailUser.createdAt).toLocaleString('vi-VN'))
-                        }
+                {detailUser.id && (
+                    <Text size="xxxxSmall" className="text-gray-400 font-mono mb-1 select-all">
+                        Mã ID: {detailUser.id}
                     </Text>
-                )}{/* 👉 Khối hiển thị Quản lý shop */}
+                )}
+                {detailUser.email && (
+                    <Text size="xxSmall" className="text-gray-500 mb-1">
+                        Email: {detailUser.email}
+                    </Text>
+                )}
+                <Text size="xSmall" className="text-gray-500 mb-3 italic">
+                    Tham gia: {
+                        detailUser.createdAt?.toDate 
+                            ? detailUser.createdAt.toDate().toLocaleString('vi-VN') 
+                            : (detailUser.createdAt?.seconds 
+                                ? new Date(detailUser.createdAt.seconds * 1000).toLocaleString('vi-VN') 
+                                : (detailUser.createdAt 
+                                    ? new Date(detailUser.createdAt).toLocaleString('vi-VN')
+                                    : "Chưa ghi nhận (Tài khoản cũ / ban đầu)"))
+                    }
+                </Text>{/* 👉 Khối hiển thị Quản lý shop */}
 {selectedFeature === 'providers' && (detailUser.managerName || detailUser.fullName || detailUser.ownerName) && (
     <Box className="w-full bg-blue-50 p-3 rounded-lg border border-blue-100 mb-3 flex flex-col relative">
         <Box flex alignItems="center" mb={1}>
@@ -3831,9 +3919,125 @@ const [voucherShopFilter, setVoucherShopFilter] = useState("all");
                             ? ` (${detailUser.passwordHistory.length} commit)`
                             : ""}
                     </Button>
+                    <Button
+                        fullWidth
+                        variant="secondary"
+                        className="bg-red-50 text-red-600 border border-red-200 shadow-md font-bold mt-1"
+                        onClick={() => {
+                            handleDeleteItem(
+                                selectedFeature === "providers" ? "shops" : "users",
+                                detailUser.id,
+                                detailUser.fullName || detailUser.name || detailUser.shopName,
+                                detailUser.phone,
+                                selectedFeature === "providers" ? "gian hàng" : "thành viên"
+                            );
+                        }}
+                    >
+                        <CustomIcon icon="zi-delete" className="mr-1 text-red-500" /> Xóa tài khoản này
+                    </Button>
                 </Box>
 
             </Box>
+        )}
+      </Modal>
+
+      {/* MODAL XÁC NHẬN XÓA AN TOÀN */}
+      <Modal
+        visible={!!deleteConfirmTarget}
+        title="Xác nhận xóa an toàn"
+        onClose={() => {
+          if (!deletingItem) setDeleteConfirmTarget(null);
+        }}
+      >
+        {deleteConfirmTarget && (
+          <Box p={4} className="flex flex-col items-center text-center">
+            <Box className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mb-3">
+              <CustomIcon icon="zi-delete" size={32} className="text-red-600" />
+            </Box>
+
+            <Text.Title className="text-red-600 font-bold text-lg mb-1">
+              Bạn có chắc chắn muốn xóa?
+            </Text.Title>
+            
+            <Text size="xSmall" className="text-gray-500 mb-4">
+              Hành động này cần được kiểm tra kỹ lưỡng để tránh mất dữ liệu ngoài ý muốn.
+            </Text>
+
+            {/* Hộp thông tin đối tượng sẽ xóa */}
+            <Box className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-left mb-3">
+              <Box className="flex justify-between items-center mb-1.5">
+                <Text size="xxSmall" className="text-gray-500 font-medium">Đối tượng:</Text>
+                <span className="text-[11px] font-bold uppercase px-2 py-0.5 rounded bg-blue-100 text-blue-700">
+                  {deleteConfirmTarget.typeLabel || "Dữ liệu"}
+                </span>
+              </Box>
+
+              {deleteConfirmTarget.name && (
+                <Box className="flex justify-between items-center mb-1.5">
+                  <Text size="xxSmall" className="text-gray-500 font-medium">Tên:</Text>
+                  <Text size="small" bold className="text-gray-800 text-right max-w-[200px] truncate">
+                    {deleteConfirmTarget.name}
+                  </Text>
+                </Box>
+              )}
+
+              {deleteConfirmTarget.phone && (
+                <Box className="flex justify-between items-center mb-1.5">
+                  <Text size="xxSmall" className="text-gray-500 font-medium">Số điện thoại:</Text>
+                  <Text size="small" bold className="text-gray-800 font-mono">
+                    {deleteConfirmTarget.phone}
+                  </Text>
+                </Box>
+              )}
+
+              <Box className="flex justify-between items-center">
+                <Text size="xxSmall" className="text-gray-500 font-medium">Document ID:</Text>
+                <span className="text-[10px] font-mono bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded max-w-[190px] truncate select-all">
+                  {deleteConfirmTarget.id}
+                </span>
+              </Box>
+            </Box>
+
+            {/* Cảnh báo hậu quả xóa */}
+            <Box className="w-full bg-red-50 border border-red-200 rounded-xl p-3 mb-4 text-left">
+              <Box className="flex items-center gap-1.5 text-red-700 font-bold text-xs mb-1">
+                <CustomIcon icon="zi-warning-solid" size={14} className="shrink-0" />
+                <span>CẢNH BÁO MẤT DỮ LIỆU</span>
+              </Box>
+              <Text size="xxSmall" className="text-red-700 leading-relaxed">
+                {deleteConfirmTarget.customWarning ? (
+                  deleteConfirmTarget.customWarning
+                ) : deleteConfirmTarget.col === "users" ? (
+                  "Tài khoản người dùng này sẽ bị XÓA VĨNH VIỄN khỏi cơ sở dữ liệu. Mọi điểm thưởng tích lũy, số dư các ví và lịch sử liên quan sẽ bị mất hoàn toàn và KHÔNG THỂ HOÀN TÁC!"
+                ) : deleteConfirmTarget.isShopConvert ? (
+                  "Gian hàng này sẽ bị gỡ bỏ quyền Shop đối tác và chuyển quyền về tài khoản thành viên thông thường."
+                ) : (
+                  `Mục này (${deleteConfirmTarget.typeLabel || "dữ liệu"}) sẽ bị xóa vĩnh viễn khỏi cơ sở dữ liệu và không thể hoàn tác.`
+                )}
+              </Text>
+            </Box>
+
+            {/* Các nút hành động */}
+            <Box className="w-full flex gap-2">
+              <Button
+                fullWidth
+                variant="secondary"
+                disabled={deletingItem}
+                className="flex-1 border-gray-300 text-gray-700 font-medium"
+                onClick={() => setDeleteConfirmTarget(null)}
+              >
+                Hủy bỏ
+              </Button>
+              <Button
+                fullWidth
+                loading={deletingItem}
+                className="flex-1 bg-red-600 border-red-600 text-white font-bold"
+                onClick={executeDeleteItem}
+              >
+                Xác nhận xóa
+              </Button>
+            </Box>
+          </Box>
         )}
       </Modal>
 

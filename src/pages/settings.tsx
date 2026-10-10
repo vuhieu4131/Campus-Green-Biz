@@ -12,6 +12,8 @@ import { openShareSheet, openChat } from "zmp-sdk/apis";
 import { useRecoilState } from "recoil";
 import {
   cartState,
+  themeState,
+  toggleThemeValue,
   getCachedUserData,
   getInitialCachedUserData,
   setCachedUserData,
@@ -46,10 +48,48 @@ interface UserPersonalMenuProps {
 
 const UserPersonalMenu: FC<UserPersonalMenuProps> = ({ onReferralClick, onShareClick, onChangePasswordClick, onSupportClick, onMyOrdersClick, onAddPointsClick, unreadNotifCount = 0, unreadChatCount = 0, activeOrderCount = 0, showPrice = false, isShopOwner = false, showChatTab = true }) => {
   const navigate = useNavigate();
+  const [theme, setTheme] = useRecoilState(themeState);
+  const isDark = theme === "dark";
+
   return (
     <SectionBox title="Cá nhân">
       <List>
         <List.Item onClick={() => navigate('/account-info')} title="Thông tin tài khoản" prefix={<CustomIcon icon="zi-user" className="text-gray-600" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
+        <List.Item
+          onClick={() => setTheme((prev) => toggleThemeValue(prev))}
+          title="Giao diện tối (Dark Mode)"
+          subTitle={isDark ? "Đang bật chế độ nền tối" : "Đang dùng chế độ nền sáng"}
+          prefix={
+            <span className="inline-flex items-center justify-center w-6 h-6 text-indigo-500">
+              {isDark ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-400">
+                  <circle cx="12" cy="12" r="5" />
+                  <line x1="12" y1="1" x2="12" y2="3" />
+                  <line x1="12" y1="21" x2="12" y2="23" />
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                  <line x1="1" y1="12" x2="3" y2="12" />
+                  <line x1="21" y1="12" x2="23" y2="12" />
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                </svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                </svg>
+              )}
+            </span>
+          }
+          suffix={
+            <div
+              className={`w-11 h-6 rounded-full p-0.5 transition-colors duration-200 flex items-center ${
+                isDark ? "bg-emerald-600 justify-end" : "bg-gray-300 justify-start"
+              }`}
+            >
+              <div className="w-5 h-5 rounded-full bg-white shadow-sm transition-transform" />
+            </div>
+          }
+        />
         {isShopOwner && onAddPointsClick && (
           <List.Item onClick={onAddPointsClick} title="Tích điểm cho khách" prefix={<CustomIcon icon="zi-plus-circle" className="text-green-500" />} suffix={<CustomIcon icon="zi-chevron-right" />} />
         )}

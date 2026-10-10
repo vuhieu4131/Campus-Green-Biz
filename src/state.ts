@@ -381,3 +381,38 @@ export {
   isGuestOrUnlogged,
 } from "utils/user-cache";
 
+import {
+  AppTheme,
+  getInitialTheme,
+  persistTheme,
+  applyThemeToDom,
+  toggleThemeValue,
+  THEME_STORAGE_KEY,
+} from "utils/theme";
+
+export const themeState = atom<AppTheme>({
+  key: "appTheme",
+  default: getInitialTheme(),
+  effects_UNSTABLE: [
+    ({ setSelf, onSet }) => {
+      const initial = getInitialTheme();
+      setSelf(initial);
+      applyThemeToDom(initial);
+      onSet((newValue) => {
+        persistTheme(newValue);
+      });
+    },
+  ],
+});
+
+export type { AppTheme };
+export {
+  AppTheme,
+  getInitialTheme,
+  persistTheme,
+  applyThemeToDom,
+  toggleThemeValue,
+  THEME_STORAGE_KEY,
+};
+
+

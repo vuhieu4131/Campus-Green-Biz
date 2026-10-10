@@ -1,4 +1,5 @@
 import React, { FC, useState, useEffect, startTransition } from "react";
+import { useRecoilState } from "recoil";
 import { getDefaultAvatar } from "../utils/avatar";
 import { AnimatedCounter } from "../components/motion";
 import {
@@ -9,6 +10,8 @@ import {
   clearCachedUserData,
   resolveProfileViewMode,
 } from "../utils/user-cache";
+import { themeState, toggleThemeValue } from "../state";
+import { ImageViewerModal } from "../components/image-viewer";
 import {
   Box,
   Header,
@@ -82,6 +85,8 @@ class ErrorBoundary extends React.Component<
 const Subscription: FC<{ onOpenAuth: () => void }> = ({ onOpenAuth }) => {
   const navigate = useNavigate();
   const [showContactModal, setShowContactModal] = useState(false);
+  const [theme, setTheme] = useRecoilState(themeState);
+  const isDark = theme === "dark";
 
   return (
     <Box className="flex flex-col h-full bg-gray-50 pb-20">
@@ -105,6 +110,41 @@ const Subscription: FC<{ onOpenAuth: () => void }> = ({ onOpenAuth }) => {
       <Box className="mt-2">
         <Box className="mx-4 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <List>
+            <List.Item
+              onClick={() => setTheme((prev) => toggleThemeValue(prev))}
+              title="Giao diện tối (Dark Mode)"
+              subTitle={isDark ? "Đang bật chế độ nền tối" : "Đang dùng chế độ nền sáng"}
+              prefix={
+                <span className="inline-flex items-center justify-center w-6 h-6 text-indigo-500">
+                  {isDark ? (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-400">
+                      <circle cx="12" cy="12" r="5" />
+                      <line x1="12" y1="1" x2="12" y2="3" />
+                      <line x1="12" y1="21" x2="12" y2="23" />
+                      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                      <line x1="1" y1="12" x2="3" y2="12" />
+                      <line x1="21" y1="12" x2="23" y2="12" />
+                      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                    </svg>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                    </svg>
+                  )}
+                </span>
+              }
+              suffix={
+                <div
+                  className={`w-11 h-6 rounded-full p-0.5 transition-colors duration-200 flex items-center ${
+                    isDark ? "bg-emerald-600 justify-end" : "bg-gray-300 justify-start"
+                  }`}
+                >
+                  <div className="w-5 h-5 rounded-full bg-white shadow-sm transition-transform" />
+                </div>
+              }
+            />
             <List.Item 
               title="Liên hệ hỗ trợ" 
               prefix={<CustomIcon icon="zi-call" className="text-blue-500" />} 
@@ -456,8 +496,14 @@ const NewMemberView: FC<{
         style={{ paddingTop: "calc(var(--zaui-safe-area-inset-top, 24px) + 8px)" }}
       >
         {isOtherProfile ? (
-          <Box className="bg-black/20 p-2 rounded-full backdrop-blur-sm cursor-pointer" onClick={() => navigate(-1)}>
-            <span className="text-white inline-flex"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg></span>
+          <Box
+            className="bg-black/25 w-10 h-10 rounded-full backdrop-blur-sm cursor-pointer flex items-center justify-center leading-none active:scale-95 transition-transform shadow-sm border border-white/15"
+            onClick={() => navigate(-1)}
+          >
+            <svg className="block text-white" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
           </Box>
         ) : <div />}
       </Box>
@@ -472,7 +518,7 @@ const NewMemberView: FC<{
       >
         {!isOtherProfile && (
           <Box 
-            className="absolute bottom-3 right-4 bg-black/40 p-2 rounded-full backdrop-blur-sm cursor-pointer hover:bg-black/60 transition-colors z-10 flex items-center justify-center border border-white/20 shadow-sm"
+            className="absolute bottom-3 right-4 bg-black/40 w-10 h-10 rounded-full backdrop-blur-sm cursor-pointer hover:bg-black/60 transition-colors z-10 flex items-center justify-center leading-none border border-white/20 shadow-sm"
             onClick={(e) => {
               e.stopPropagation();
               if (role === "distributor") {
@@ -484,12 +530,10 @@ const NewMemberView: FC<{
               }
             }}
           >
-            <span className="text-white inline-flex">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="3"></circle>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-              </svg>
-            </span>
+            <svg className="block text-white" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
           </Box>
         )}
       </Box>
@@ -993,18 +1037,12 @@ const NewMemberView: FC<{
         onChange={handleFileChange} 
       />
 
-      {/* Image Viewer Modal */}
-      {viewImage && (
-        <Box 
-          className="fixed inset-0 z-50 bg-black flex items-center justify-center flex-col"
-          onClick={() => setViewImage(null)}
-        >
-          <Box className="absolute top-4 right-4 p-2 bg-black/50 rounded-full cursor-pointer z-50" onClick={() => setViewImage(null)}>
-            <Icon icon="zi-close" className="text-white text-2xl" />
-          </Box>
-          <img src={viewImage} className="w-full h-auto max-h-screen object-contain" alt="Viewer" />
-        </Box>
-      )}
+      {/* Image Viewer Modal (with Zoom/Pan & Top-Left Close Button) */}
+      <ImageViewerModal
+        visible={Boolean(viewImage)}
+        src={viewImage || ""}
+        onClose={() => setViewImage(null)}
+      />
     </Box>
   );
 };

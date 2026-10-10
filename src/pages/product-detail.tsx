@@ -10,6 +10,7 @@ import { Swiper, SwiperSlide } from "swiper/react";
 import { Pagination, Autoplay } from "swiper";
 import { saveImageToGallery, openShareSheet } from "zmp-sdk/apis";
 import { AuthOverlay } from "./auth";
+import { ImageViewerModal } from "../components/image-viewer";
 
 const ProductDetailPage: FC = () => {
   const navigate = useNavigate();
@@ -739,75 +740,16 @@ const ProductDetailPage: FC = () => {
         </Box>
       </Modal>
 
-      {/* Fullscreen Image Overlay/Viewer */}
-      {fullscreenVisible && (
-        <div className="fixed inset-0 bg-black/95 z-[9999] flex flex-col justify-between select-none">
-          {/* Header */}
-          <div className="flex justify-between items-center p-4 pt-16 text-white z-10 w-full">
-            <button 
-              onClick={() => setFullscreenVisible(false)} 
-              className="flex items-center space-x-1.5 p-2 bg-white/10 active:bg-white/20 rounded-full px-3 py-1.5 transition-colors text-white cursor-pointer"
-            >
-              <Icon icon="zi-arrow-left" size={20} />
-              <span className="text-xs font-semibold">Quay lại</span>
-            </button>
-            <button 
-              onClick={handleDownloadActiveImage} 
-              className="flex items-center space-x-1.5 bg-white/10 active:bg-white/20 rounded-full px-3 py-1.5 transition-colors text-white cursor-pointer"
-            >
-              <Icon icon="zi-download" size={20} />
-              <span className="text-xs font-semibold">Tải về</span>
-            </button>
-          </div>
-          
-          {/* Slider */}
-          <div className="flex-1 flex items-center justify-center relative w-full h-full">
-            <Swiper
-              initialSlide={activeImgIndex}
-              onSwiper={setSwiperInstance}
-              onSlideChange={(swiper) => setActiveImgIndex(swiper.activeIndex)}
-              className="w-full h-full"
-            >
-              {productImages.map((imgUrl: string, index: number) => (
-                <SwiperSlide key={index} className="flex justify-center items-center h-full">
-                  <div className="w-full h-full flex justify-center items-center p-4">
-                    <img 
-                      src={imgUrl} 
-                      className="max-w-full max-h-[75vh] object-contain rounded-lg" 
-                      alt="" 
-                    />
-                  </div>
-                </SwiperSlide>
-              ))}
-            </Swiper>
-
-            {/* Left Floating Arrow */}
-            {activeImgIndex > 0 && (
-              <button
-                onClick={() => swiperInstance?.slidePrev()}
-                className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 active:scale-95 transition-all flex items-center justify-center text-white z-[10000] cursor-pointer"
-              >
-                <CustomIcon icon="zi-chevron-left" size={24} />
-              </button>
-            )}
-
-            {/* Right Floating Arrow */}
-            {activeImgIndex < productImages.length - 1 && (
-              <button
-                onClick={() => swiperInstance?.slideNext()}
-                className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 active:scale-95 transition-all flex items-center justify-center text-white z-[10000] cursor-pointer"
-              >
-                <CustomIcon icon="zi-chevron-right" size={24} />
-              </button>
-            )}
-          </div>
-
-          {/* Footer - Index Indicator */}
-          <div className="p-6 text-center text-white/70 text-sm font-semibold z-10">
-            {activeImgIndex + 1} / {productImages.length}
-          </div>
-        </div>
-      )}
+      {/* Fullscreen Image Overlay/Viewer with Zoom & Pan */}
+      <ImageViewerModal
+        visible={fullscreenVisible}
+        images={productImages}
+        initialIndex={activeImgIndex}
+        onIndexChange={(idx) => setActiveImgIndex(idx)}
+        allowDownload={true}
+        onDownload={() => handleDownloadActiveImage()}
+        onClose={() => setFullscreenVisible(false)}
+      />
       {/* Collaborators Modal */}
       <Modal
         visible={showCollaboratorsModal}

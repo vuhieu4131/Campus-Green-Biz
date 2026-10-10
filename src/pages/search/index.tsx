@@ -1,4 +1,4 @@
-import React, { FC, useState, useEffect } from "react";
+import React, { FC, useState, useEffect, useRef } from "react";
 import { Header, Page, Box, Input, Text, Spinner } from "zmp-ui";
 import { db } from "../../firebase";
 import { collection, getDocs, query } from "firebase/firestore";
@@ -14,6 +14,38 @@ const SearchPage: FC = () => {
   const [users, setUsers] = useState<any[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const searchInputRef = useRef<any>(null);
+  const searchBoxRef = useRef<HTMLDivElement | null>(null);
+
+  // Auto-focus search input immediately and after route transition animation
+  useEffect(() => {
+    const focusSearchInput = () => {
+      try {
+        if (searchInputRef.current) {
+          if (typeof searchInputRef.current.focus === "function") {
+            searchInputRef.current.focus();
+          } else if (searchInputRef.current.input && typeof searchInputRef.current.input.focus === "function") {
+            searchInputRef.current.input.focus();
+          }
+        }
+        const rawInput = searchBoxRef.current?.querySelector("input");
+        if (rawInput && document.activeElement !== rawInput) {
+          rawInput.focus();
+        }
+      } catch {
+        // ignore focus errors
+      }
+    };
+
+    focusSearchInput();
+    const timerFast = setTimeout(focusSearchInput, 60);
+    const timerTransition = setTimeout(focusSearchInput, 220);
+
+    return () => {
+      clearTimeout(timerFast);
+      clearTimeout(timerTransition);
+    };
+  }, []);
 
   // 1. Fetch all approved services and users from database
   useEffect(() => {
@@ -79,15 +111,17 @@ const SearchPage: FC = () => {
       <Header title="Tìm kiếm" showBackIcon={true} />
       
       {/* Input tìm kiếm */}
-      <Box p={4} pt={2} className="bg-white flex-none">
+      <div ref={searchBoxRef} className="p-4 pt-2 bg-white flex-none">
         <Input.Search
+          ref={searchInputRef}
+          autoFocus
           placeholder="Tìm nhanh sản phẩm, dịch vụ, tài khoản..."
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
           clearable
           allowClear
         />
-      </Box>
+      </div>
 
       {/* Kết quả tìm kiếm */}
       <Box flex flexDirection="column" className="bg-[#f4f5f6] flex-1 min-h-0">

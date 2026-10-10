@@ -1,5 +1,6 @@
 import CustomIcon from '../components/custom-icon';
 import { Reveal, AnimatedCounter } from '../components/motion';
+import { ImageViewerModal } from '../components/image-viewer';
 import React, { FC, useState, useEffect, useRef } from "react";
 import { useSetRecoilState, useRecoilValue } from 'recoil';
 import {
@@ -129,23 +130,23 @@ const StoreWelcome: FC = () => {
 
   return (
     <Box 
-      className="bg-[#14502e] rounded-b-[30px] pb-10 px-4 relative shadow-md"
+      className="bg-[#14502e] rounded-b-[30px] pb-5 px-4 relative shadow-md"
       style={{ paddingTop: 'calc(var(--zaui-safe-area-inset-top, 40px) + 12px)' }}
     >
-      <Box className="flex justify-between items-end">
-        {/* TRÁI: Avatar, Lời chào & Điểm ưu đãi */}
+      {/* HÀNG 1: Avatar, Lời chào & Điểm ưu đãi (Chừa khoảng trống pr-24 bên phải để tránh cụm nút thoát Zalo Mini App) */}
+      <Box className="flex items-center pr-24">
         <Box 
-          className="flex items-center space-x-2.5 cursor-pointer flex-1"
+          className="flex items-center space-x-2.5 cursor-pointer flex-1 min-w-0"
           onClick={() => navigate('/profile')}
         >
-          <Avatar src={avatar} size={44} className="border border-white/50 shadow-sm" />
-          <Box className="flex flex-col justify-end h-full">
+          <Avatar src={avatar} size={44} className="border border-white/50 shadow-sm shrink-0" />
+          <Box className="flex flex-col justify-end h-full min-w-0">
             <Box className="flex items-center space-x-1.5 mb-1">
-              <Text className="text-white/80 text-xs">{greeting}</Text>
+              <Text className="text-white/80 text-xs shrink-0">{greeting}</Text>
               {isLoading ? (
                 <div className="h-4 w-24 bg-white/25 rounded animate-pulse" />
               ) : (
-                <Text className="text-white font-bold text-sm truncate max-w-[120px]">{name}</Text>
+                <Text className="text-white font-bold text-sm truncate max-w-[140px]">{name}</Text>
               )}
             </Box>
             {isRealUser ? (
@@ -173,33 +174,33 @@ const StoreWelcome: FC = () => {
             )}
           </Box>
         </Box>
+      </Box>
 
-        {/* PHẢI: Nút Tìm Kiếm & Nút Giỏ Hàng */}
-        <Box className="flex items-center space-x-3 text-white mb-0.5 pr-2">
-          {/* Nút Tìm Kiếm */}
-          <Box 
-            className="w-9 h-9 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/25 cursor-pointer relative shadow-sm hover:bg-white/30 transition-colors"
-            onClick={() => navigate('/search')}
-          >
-            <CustomIcon icon="zi-search" className="text-white text-lg" />
-          </Box>
+      {/* HÀNG 2: Thanh Tìm Kiếm & Nút Giỏ Hàng (Đặt ở hàng dưới để không trùng với nút thoát hệ thống của Zalo) */}
+      <Box className="flex items-center space-x-3 mt-3.5">
+        <Box 
+          className="flex-1 bg-white/15 hover:bg-white/25 active:bg-white/30 backdrop-blur-md rounded-full h-10 px-3.5 flex items-center space-x-2.5 cursor-pointer border border-white/25 transition-colors shadow-sm"
+          onClick={() => navigate('/search')}
+        >
+          <CustomIcon icon="zi-search" className="text-white/90 text-base" />
+          <Text className="text-white/85 text-xs truncate">Tìm kiếm sản phẩm, dịch vụ...</Text>
+        </Box>
 
-          {/* Nút Giỏ Hàng */}
-          <Box 
-            className="w-9 h-9 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/25 cursor-pointer relative shadow-sm hover:bg-white/30 transition-colors"
-            onClick={() => navigate('/cart')}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
-              <line x1="3" y1="6" x2="21" y2="6"></line>
-              <path d="M16 10a4 4 0 0 1-8 0"></path>
-            </svg>
-            {cartQuantity > 0 && (
-              <Box className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] w-4.5 h-4.5 flex items-center justify-center rounded-full border border-[#14502e] font-bold">
-                {cartQuantity}
-              </Box>
-            )}
-          </Box>
+        {/* Nút Giỏ Hàng */}
+        <Box 
+          className="w-10 h-10 shrink-0 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/25 cursor-pointer relative shadow-sm hover:bg-white/30 active:scale-95 transition-all"
+          onClick={() => navigate('/cart')}
+        >
+          <svg className="block" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <path d="M16 10a4 4 0 0 1-8 0"></path>
+          </svg>
+          {cartQuantity > 0 && (
+            <Box className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full border border-[#14502e] font-bold">
+              {cartQuantity}
+            </Box>
+          )}
         </Box>
       </Box>
     </Box>
@@ -210,6 +211,7 @@ const StoreBanner: FC = () => {
   const navigate = useNavigate();
   const [banners, setBanners] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
@@ -253,6 +255,9 @@ const StoreBanner: FC = () => {
     return null;
   }
 
+  const bannerImages = validBanners.map((b) => b.image);
+  const activeBannerLink = viewerIndex !== null ? validBanners[viewerIndex]?.link : "";
+
   return (
     <Box className="bg-transparent mt-6" pb={2}>
       <Swiper
@@ -268,23 +273,37 @@ const StoreBanner: FC = () => {
       >
         {validBanners.map((banner, i) => {
           const bannerImage = banner.image;
-          const bannerLink = banner.link || "";
 
           return (
             <SwiperSlide key={banner.id || i} className="px-4">
               <Box
                 className="w-full rounded-2xl aspect-[2.3/1] bg-cover bg-center bg-skeleton shadow-md cursor-pointer"
                 style={{ backgroundImage: `url(${bannerImage})` }}
-                onClick={() => {
-                  if (bannerLink) {
-                    navigate(bannerLink);
-                  }
-                }}
+                onClick={() => setViewerIndex(i)}
               />
             </SwiperSlide>
           );
         })}
       </Swiper>
+
+      <ImageViewerModal
+        visible={viewerIndex !== null}
+        images={bannerImages}
+        initialIndex={viewerIndex ?? 0}
+        onClose={() => setViewerIndex(null)}
+        actionLabel={activeBannerLink ? "Mở liên kết" : undefined}
+        onActionClick={
+          activeBannerLink
+            ? (idx) => {
+                const link = validBanners[idx]?.link;
+                if (link) {
+                  setViewerIndex(null);
+                  navigate(link);
+                }
+              }
+            : undefined
+        }
+      />
     </Box>
   );
 };

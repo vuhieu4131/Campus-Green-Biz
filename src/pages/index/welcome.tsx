@@ -1,9 +1,11 @@
 import CustomIcon from '../../components/custom-icon';
 import React, { FC, useState, useEffect } from "react";
 import { Box, Text, Avatar, Icon, useNavigate } from "zmp-ui";
-import { useRecoilValueLoadable } from "recoil";
+import { useRecoilState, useRecoilValueLoadable } from "recoil";
 import {
   userState,
+  themeState,
+  toggleThemeValue,
   getCachedUserData,
   getInitialCachedUserData,
   setCachedUserData,
@@ -16,6 +18,7 @@ import logo from "static/logo.png";
 
 export const Welcome: FC = () => {
   const navigate = useNavigate();
+  const [theme, setTheme] = useRecoilState(themeState);
   const userInfoLoadable = useRecoilValueLoadable(userState);
   const userInfo = userInfoLoadable.state === "hasValue" ? userInfoLoadable.contents : null;
   const [userData, setUserData] = useState<any>(() => getInitialCachedUserData(auth.currentUser));
@@ -188,8 +191,8 @@ export const Welcome: FC = () => {
         <Box className="w-24 shrink-0" />
       </Box>
 
-      {/* Hàng 2: Thanh tìm kiếm & Nút thông báo */}
-      <Box className="flex items-center space-x-3 mt-2">
+      {/* Hàng 2: Thanh tìm kiếm, Chuyển đổi Dark/Light & Nút thông báo */}
+      <Box className="flex items-center space-x-2.5 mt-2">
         <Box 
           className="flex-1 bg-gray-100 rounded-full py-1.5 px-3.5 flex items-center space-x-2 cursor-pointer border border-gray-200/30 active:bg-gray-200 transition-colors"
           onClick={() => navigate('/search')}
@@ -197,8 +200,31 @@ export const Welcome: FC = () => {
           <CustomIcon icon="zi-search" className="text-gray-400 text-base" />
           <Text className="text-gray-400 text-sm">Tìm kiếm sản phẩm, tin tức...</Text>
         </Box>
+        <Box
+          className="w-9 h-9 flex items-center justify-center leading-none bg-gray-100 active:bg-gray-200 rounded-full cursor-pointer transition-colors shrink-0"
+          onClick={() => setTheme((prev) => toggleThemeValue(prev))}
+          title={theme === "dark" ? "Chuyển sang giao diện sáng" : "Chuyển sang giao diện tối"}
+        >
+          {theme === "dark" ? (
+            <svg className="block text-amber-400" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="5" />
+              <line x1="12" y1="1" x2="12" y2="3" />
+              <line x1="12" y1="21" x2="12" y2="23" />
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+              <line x1="1" y1="12" x2="3" y2="12" />
+              <line x1="21" y1="12" x2="23" y2="12" />
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+            </svg>
+          ) : (
+            <svg className="block text-gray-700" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+            </svg>
+          )}
+        </Box>
         <Box 
-          className="relative p-2 bg-gray-100 active:bg-gray-200 rounded-full cursor-pointer transition-colors"
+          className="relative w-9 h-9 flex items-center justify-center leading-none bg-gray-100 active:bg-gray-200 rounded-full cursor-pointer transition-colors shrink-0"
           onClick={() => navigate('/notification')}
         >
           <CustomIcon icon="zi-notif" className="text-gray-700 text-base" />
@@ -216,12 +242,13 @@ export const Welcome: FC = () => {
           className="fixed inset-0 bg-black/95 z-[9999] flex flex-col justify-center items-center"
           onClick={() => setShowLogoModal(false)}
         >
-          {/* Nút đóng */}
+          {/* Nút đóng (đặt bên trái để tránh nút thoát Zalo) */}
           <Box 
-            className="absolute top-8 right-4 p-2 bg-white/10 active:bg-white/20 rounded-full cursor-pointer transition-colors z-[10000]"
+            className="absolute left-4 w-10 h-10 flex items-center justify-center leading-none bg-white/15 active:bg-white/25 rounded-full cursor-pointer transition-colors z-[10000]"
+            style={{ top: "calc(var(--zaui-safe-area-inset-top, 24px) + 12px)" }}
             onClick={(e) => { e.stopPropagation(); setShowLogoModal(false); }}
           >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg className="block" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
             </svg>

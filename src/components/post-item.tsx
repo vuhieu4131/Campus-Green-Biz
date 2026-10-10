@@ -9,6 +9,7 @@ import { doc, updateDoc, increment, collection, addDoc, serverTimestamp, query, 
 import { onAuthStateChanged, User } from "firebase/auth";
 import { AuthOverlay } from "../pages/auth";
 import { openShareSheet } from "zmp-sdk/apis";
+import { ZoomableImageCanvas } from "./image-viewer";
 
 const awardReputationPoints = async (userId: string, amount: number, description: string) => {
   try {
@@ -1218,38 +1219,91 @@ export const PostItem: FC<PostItemProps> = ({ data, isDetailView, onDelete }) =>
         </Box>
       </Box>
 
-      {/* Trình xem ảnh toàn màn hình */}
+      {/* Trình xem ảnh toàn màn hình (Hỗ trợ Zoom/Pan + Nút đóng góc trái tránh đè nút Zalo) */}
       {showImageViewer && data.images && (
-        <Box className="fixed inset-0 bg-black/95 backdrop-blur-sm z-[90] flex flex-col justify-center items-center animate-fade-in" onClick={() => setShowOverlay(!showOverlay)}>
-          <Box key={activeImageIndex} className="w-full h-full bg-contain bg-no-repeat bg-center animate-scale-in" style={{ backgroundImage: `url('${data.images[activeImageIndex]}')` }} />
+        <Box className="fixed inset-0 bg-black/95 backdrop-blur-sm z-[9999] flex flex-col justify-center items-center animate-fade-in">
+          <ZoomableImageCanvas
+            key={activeImageIndex}
+            src={data.images[activeImageIndex]}
+            onSingleTap={() => setShowOverlay(!showOverlay)}
+          />
           {showOverlay && (
             <>
-              <Box className="absolute top-0 left-0 w-full p-4 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent">
-                <Box className="flex items-center space-x-2 cursor-pointer" onClick={(e) => { e.stopPropagation(); setShowImageViewer(false); if (data.authorId) navigate(`/profile?id=${data.authorId}`); }}>
-                  <Avatar src={resolvedAuthorAvatar} size={36} className="border border-white/30" />
-                  <Box>
-                    <Text className="text-white font-bold text-sm leading-tight">{resolvedAuthorName}</Text>
+              <Box
+                className="absolute top-0 left-0 w-full px-4 pb-4 pr-24 flex items-center space-x-3 bg-gradient-to-b from-black/75 to-transparent z-[10000]"
+                style={{ paddingTop: "calc(var(--zaui-safe-area-inset-top, 24px) + 12px)" }}
+              >
+                <button
+                  type="button"
+                  aria-label="Đóng trình xem ảnh"
+                  className="w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 transition-all flex items-center justify-center text-white leading-none cursor-pointer border border-white/15 shrink-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowImageViewer(false);
+                  }}
+                >
+                  <svg
+                    className="block"
+                    width="22"
+                    height="22"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+                <Box
+                  className="flex items-center space-x-2 cursor-pointer min-w-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowImageViewer(false);
+                    if (data.authorId) navigate(`/profile?id=${data.authorId}`);
+                  }}
+                >
+                  <Avatar src={resolvedAuthorAvatar} size={36} className="border border-white/30 shrink-0" />
+                  <Box className="min-w-0">
+                    <Text className="text-white font-bold text-sm leading-tight truncate">{resolvedAuthorName}</Text>
                     <Text className="text-white/70 text-xs">{timeString}</Text>
                   </Box>
                 </Box>
-                <CustomIcon icon="zi-close" className="text-white text-3xl cursor-pointer p-2" onClick={(e) => { e.stopPropagation(); setShowImageViewer(false); }} />
               </Box>
               {data.images.length > 1 && (
-                <Box className="absolute top-1/2 left-0 w-full flex justify-between px-2 pointer-events-none -translate-y-1/2">
+                <Box className="absolute top-1/2 left-0 w-full flex justify-between px-3 pointer-events-none -translate-y-1/2 z-[10000]">
                   {activeImageIndex > 0 ? (
-                    <Box className="bg-black/50 w-10 h-10 flex items-center justify-center rounded-full pointer-events-auto cursor-pointer" onClick={(e) => { e.stopPropagation(); setActiveImageIndex(activeImageIndex - 1); }}>
+                    <Box
+                      className="bg-white/20 hover:bg-white/30 w-10 h-10 flex items-center justify-center leading-none rounded-full pointer-events-auto cursor-pointer border border-white/15"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveImageIndex(activeImageIndex - 1);
+                      }}
+                    >
                       <CustomIcon icon="zi-chevron-left" className="text-white" />
                     </Box>
-                  ) : <div />}
+                  ) : (
+                    <div />
+                  )}
                   {activeImageIndex < data.images.length - 1 ? (
-                    <Box className="bg-black/50 w-10 h-10 flex items-center justify-center rounded-full pointer-events-auto cursor-pointer" onClick={(e) => { e.stopPropagation(); setActiveImageIndex(activeImageIndex + 1); }}>
+                    <Box
+                      className="bg-white/20 hover:bg-white/30 w-10 h-10 flex items-center justify-center leading-none rounded-full pointer-events-auto cursor-pointer border border-white/15"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveImageIndex(activeImageIndex + 1);
+                      }}
+                    >
                       <CustomIcon icon="zi-chevron-right" className="text-white" />
                     </Box>
-                  ) : <div />}
+                  ) : (
+                    <div />
+                  )}
                 </Box>
               )}
               {/* Bottom Actions (Affiliate) */}
-              <Box className="absolute bottom-0 left-0 w-full flex flex-col bg-gradient-to-t from-black/80 to-transparent pt-10 pb-safe pointer-events-none">
+              <Box className="absolute bottom-0 left-0 w-full flex flex-col bg-gradient-to-t from-black/85 via-black/50 to-transparent pt-12 pb-safe pointer-events-none z-[10000]">
                 <Box className="pointer-events-auto">
                   <Box className="flex justify-between items-center px-4 mb-2 text-white/90">
                     <Box className="flex items-center space-x-1">

@@ -7,11 +7,17 @@ import { db, auth } from "../../firebase";
 import { collection, query, getDocs, onSnapshot } from "firebase/firestore";
 import { useNavigate } from "react-router";
 import { onAuthStateChanged } from "firebase/auth";
+import { ImageViewerModal } from "../../components/image-viewer";
 
 export const Banner: FC = () => {
   const navigate = useNavigate();
   const [banners, setBanners] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedBanner, setSelectedBanner] = useState<{
+    image: string;
+    link?: string;
+    title?: string;
+  } | null>(null);
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
@@ -75,18 +81,38 @@ export const Banner: FC = () => {
           return (
             <SwiperSlide key={banner.id || i} className="px-4">
               <Box
-                className="w-full rounded-2xl aspect-[2/1] bg-cover bg-center bg-skeleton shadow-md cursor-pointer"
+                className="w-full rounded-2xl aspect-[2/1] bg-cover bg-center bg-skeleton shadow-md cursor-pointer active:opacity-95 transition-opacity"
                 style={{ backgroundImage: `url(${bannerImage})` }}
                 onClick={() => {
-                  if (bannerLink) {
-                    navigate(bannerLink);
-                  }
+                  setSelectedBanner({
+                    image: bannerImage,
+                    link: bannerLink,
+                    title: banner.title || "Banner Trang chủ",
+                  });
                 }}
               />
             </SwiperSlide>
           );
         })}
       </Swiper>
+
+      <ImageViewerModal
+        visible={Boolean(selectedBanner)}
+        src={selectedBanner?.image || ""}
+        title={selectedBanner?.title || "Banner Trang chủ"}
+        actionLabel={selectedBanner?.link ? "Mở liên kết đính kèm" : undefined}
+        onAction={
+          selectedBanner?.link
+            ? () => {
+                const targetLink = selectedBanner.link!;
+                setSelectedBanner(null);
+                navigate(targetLink);
+              }
+            : undefined
+        }
+        onClose={() => setSelectedBanner(null)}
+      />
     </Box>
   );
 };
+

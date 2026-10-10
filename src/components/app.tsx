@@ -1,10 +1,35 @@
 import React from "react";
 import { App, ZMPRouter, SnackbarProvider } from "zmp-ui";
-import { RecoilRoot } from "recoil";
+import { RecoilRoot, useRecoilValue } from "recoil";
 import { getConfig } from "utils/config";
 import { Layout } from "./layout";
 import { ConfigProvider } from "./config-provider";
+import { themeState, applyThemeToDom } from "../state";
 
+const ThemedAppContent: React.FC = () => {
+  const theme = useRecoilValue(themeState);
+
+  React.useEffect(() => {
+    applyThemeToDom(theme);
+  }, [theme]);
+
+  return (
+    <ConfigProvider
+      cssVariables={{
+        "--zmp-primary-color": getConfig((c) => c.template.primaryColor),
+        "--zmp-background-color": theme === "dark" ? "#0c1712" : "#f4f5f6",
+      }}
+    >
+      <App theme={theme}>
+        <SnackbarProvider>
+          <ZMPRouter>
+            <Layout />
+          </ZMPRouter>
+        </SnackbarProvider>
+      </App>
+    </ConfigProvider>
+  );
+};
 
 const MyApp = () => {
   React.useEffect(() => {
@@ -17,21 +42,9 @@ const MyApp = () => {
 
   return (
     <RecoilRoot>
-      <ConfigProvider
-        cssVariables={{
-          "--zmp-primary-color": getConfig((c) => c.template.primaryColor),
-          "--zmp-background-color": "#f4f5f6",
-        }}
-      >
-        <App>
-          <SnackbarProvider>
-            <ZMPRouter>
-              <Layout />
-            </ZMPRouter>
-          </SnackbarProvider>
-        </App>
-      </ConfigProvider>
+      <ThemedAppContent />
     </RecoilRoot>
   );
 };
 export default MyApp;
+

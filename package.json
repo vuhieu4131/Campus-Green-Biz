@@ -5,6 +5,9 @@
   "description": "ZaUI Coffee",
   "repository": "",
   "license": "UNLICENSED",
+  "zmp": {
+    "template": "single-view"
+  },
   "browserslist": [
     "Android >= 5",
     "IOS >= 9.3",
@@ -50,6 +53,7 @@
     "tailwindcss": "^3.4.10",
     "vite": "^5.4.21",
     "vite-tsconfig-paths": "^4.0.5",
+    "zmp-cli": "^4.0.3",
     "zmp-vite-plugin": "^1.1.6"
   }
 }

@@ -561,3 +561,141 @@ body {
   }
 }
 
+/* ================================================================
+   10. HỆ THỐNG DARK THEME (GIAO DIỆN TỐI TOÀN CỤC)
+   ================================================================ */
+body[zaui-theme="dark"] {
+  background-color: #0c1712 !important;
+  color: #f1f5f9 !important;
+
+  .zaui-page,
+  .bg-\[\#f0fdf4\],
+  .bg-\[\#f4f5f6\],
+  .bg-gray-50,
+  .bg-gray-50\/50 {
+    background-color: #0c1712 !important;
+    color: #f1f5f9;
+  }
+
+  .bg-white {
+    background-color: #15241c !important;
+    color: #f1f5f9;
+  }
+
+  .bg-gray-100,
+  .bg-gray-200 {
+    background-color: #1d3026 !important;
+    color: #e2e8f0;
+  }
+
+  .bg-\[\#f8f6ec\],
+  .bg-\[\#f2f9f5\],
+  .bg-green-50 {
+    background-color: #192d22 !important;
+  }
+
+  /* Borders */
+  .border-gray-50,
+  .border-gray-100,
+  .border-gray-150,
+  .border-gray-200,
+  .border-gray-300,
+  .border-b,
+  .border-t,
+  .border {
+    border-color: #24382d !important;
+  }
+
+  /* Typography */
+  .text-gray-900,
+  .text-gray-800,
+  .zaui-text,
+  .zaui-text-title,
+  .zaui-list-item-title {
+    color: #f1f5f9 !important;
+  }
+
+  .text-gray-700,
+  .text-gray-600 {
+    color: #cbd5e1 !important;
+  }
+
+  .text-gray-500,
+  .text-gray-400,
+  .zaui-list-item-subtitle,
+  .zaui-list-item-description {
+    color: #94a3b8 !important;
+  }
+
+  .text-\[\#14502e\] {
+    color: #4ade80 !important;
+  }
+
+  /* Preserve text-white inside colored headers/buttons */
+  .text-white,
+  .bg-\[\#14502e\] .zaui-text,
+  .bg-\[\#14502e\] .zaui-text-title,
+  .bg-green .zaui-text,
+  .bg-green .zaui-text-title {
+    color: #ffffff !important;
+  }
+
+  /* ZaUI Components in Dark Mode */
+  .zaui-header {
+    background-color: #103b22 !important;
+    color: #ffffff !important;
+    border-bottom: 1px solid #24382d !important;
+  }
+
+  .zaui-bottom-navigation {
+    background-color: #111e17 !important;
+    border-top: 1px solid #24382d !important;
+  }
+
+  .zaui-bottom-navigation-item:not(.zaui-bottom-navigation-item-active) {
+    color: #94a3b8 !important;
+  }
+
+  .zaui-bottom-navigation-item:not(.zaui-bottom-navigation-item-active) .zaui-icon,
+  .zaui-bottom-navigation-item:not(.zaui-bottom-navigation-item-active) svg {
+    color: #94a3b8 !important;
+  }
+
+  .zaui-modal-content,
+  .zaui-sheet-content,
+  .zaui-list,
+  .zaui-tabs-tabbar {
+    background-color: #15241c !important;
+    color: #f1f5f9 !important;
+  }
+
+  .zaui-modal-content .zaui-modal-header,
+  .zaui-sheet-content .zaui-sheet-header {
+    background-color: #15241c !important;
+    color: #f1f5f9 !important;
+    border-color: #24382d !important;
+  }
+
+  .zaui-list-item:not(:last-child)::after {
+    background-color: #24382d !important;
+  }
+
+  /* Inputs & Search Bars */
+  .zaui-input-affix-wrapper,
+  .zaui-input,
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  textarea,
+  select {
+    background-color: #1d3026 !important;
+    color: #f1f5f9 !important;
+    border-color: #2c4738 !important;
+  }
+
+  .zaui-input::placeholder,
+  input::placeholder,
+  textarea::placeholder {
+    color: #64748b !important;
+  }
+}
+
+
